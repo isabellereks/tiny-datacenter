@@ -1,28 +1,29 @@
 'use client';
 
+import { Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
-import { STEPS } from '@/lib/game/data';
-import { Engine } from '@/lib/game/engine';
+import { Engine, type StitchCounts } from '@/lib/game/engine';
 import { load, save, stats, type GameState } from '@/lib/game/state';
-import { Hud } from './Hud';
-import { Sheet } from './Sheet';
+import { Panel } from './Panel';
+
+const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 
 export default function Game() {
-  const stageRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const hoopRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<GameState | null>(null);
   const engineRef = useRef<Engine | null>(null);
   const armedRef = useRef(false);
   const [, setTick] = useState(0);
-  const [sheetOpen, setSheetOpen] = useState(true);
-  const [hint, setHint] = useState(true);
+  const [counts, setCounts] = useState<StitchCounts | null>(null);
+  const [touched, setTouched] = useState(false);
   const redraw = useCallback(() => setTick(t => t + 1), []);
 
   const dispatch = useCallback((a: Action) => {
     const s = stateRef.current;
     if (!s) return;
-    if (a.type === 'step' && s.step === a.step) { setSheetOpen(o => !o); return; }
     if (a.type === 'reset' && !armedRef.current) { armedRef.current = true; redraw(); return; }
     armedRef.current = false;
 
@@ -30,25 +31,25 @@ export default function Game() {
     if (fx.replace) stateRef.current = fx.replace;
     const engine = engineRef.current;
     if (engine) {
-      if (fx.resize) engine.resize();
       if (fx.rebuild) engine.rebuild();
-      engine.setInk();
-      if (fx.frame) engine.frameView(fx.frame === 'keep');
+      if (fx.pattern) engine.layout();
+      if (fx.refit) engine.fit(true);
     }
-    if (a.type === 'step' || a.type === 'select') setSheetOpen(true);
     save(stateRef.current!);
     redraw();
   }, [redraw]);
 
   useEffect(() => {
     stateRef.current = load();
-    const engine = new Engine(stageRef.current!, labelsRef.current!, {
+    const engine = new Engine(hostRef.current!, hoopRef.current!, labelsRef.current!, {
       state: () => stateRef.current!,
       onChange: () => { save(stateRef.current!); redraw(); },
+      onCounts: setCounts,
       onPickFloor: floor => dispatch({ type: 'select', floor }),
       onPickFoundation: found => dispatch({ type: 'found', found }),
-      onFirstInteraction: () => setHint(false),
-    }, () => save(stateRef.current!));
+      onFirstInteraction: () => setTouched(true),
+      onSave: () => save(stateRef.current!),
+    }, pixel.style.fontFamily);
     engineRef.current = engine;
     redraw();
     const id = window.setInterval(redraw, 250);
@@ -62,23 +63,26 @@ export default function Game() {
 
   const s = stateRef.current;
   return (
-    <>
-      <div id="stage" ref={stageRef} />
-      <div id="labels" ref={labelsRef} />
-      {s && (
-        <>
-          <Hud s={s} st={stats(s)} dispatch={dispatch} onResetView={() => engineRef.current?.frameView(false)} />
-          {sheetOpen && <Sheet s={s} dispatch={dispatch} armed={armedRef.current} />}
-          <nav className="nav glass" role="tablist" aria-label="Build steps">
-            {STEPS.map(({ key, label }) => (
-              <button key={key} role="tab" aria-selected={s.step === key} onClick={() => dispatch({ type: 'step', step: key })}>
-                {label}
-              </button>
-            ))}
-          </nav>
-          <div className={`hint glass${hint ? '' : ' gone'}`}>Drag to rotate · Scroll to zoom · Right-drag to pan</div>
-        </>
-      )}
-    </>
+    <main className="app">
+      <div className="fabric" ref={hostRef}>
+        <div className="hoop" ref={hoopRef}>
+          <div className="labels" ref={labelsRef} />
+        </div>
+        {s && (
+          <div className="toolbar" role="toolbar" aria-label="View">
+            <button aria-pressed={s.spin} onClick={() => dispatch({ type: 'spin', on: !s.spin })}>Spin</button>
+            <button aria-pressed={s.smoke} onClick={() => dispatch({ type: 'smoke', on: !s.smoke })}>Smoke</button>
+            <button aria-pressed={s.inside} onClick={() => dispatch({ type: 'inside', inside: !s.inside })}>Inside</button>
+            {s.picking
+              ? <button onClick={() => dispatch({ type: 'pick', on: false })}>Done</button>
+              : <button onClick={() => engineRef.current?.resetView()}>Reset view</button>}
+            <span className={touched && !s.picking ? 'gone' : ''}>
+              {s.picking ? 'Click a foundation to pour it' : 'Drag to turn the factory · up and down to tilt'}
+            </span>
+          </div>
+        )}
+      </div>
+      {s && <Panel s={s} st={stats(s)} counts={counts} dispatch={dispatch} armed={armedRef.current} />}
+    </main>
   );
 }

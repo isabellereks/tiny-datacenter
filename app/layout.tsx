@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Tiny Datacenter',
+  title: 'tiny datacenter simulator',
   description: 'Build a cross-stitched datacenter floor by floor, pick its site and customers, and hire tiny techs.',
 };
 

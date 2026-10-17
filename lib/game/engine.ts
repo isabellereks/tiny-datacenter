@@ -1,98 +1,114 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { FD, FH, FOUNDS, INKS, STITCH, type FoundKey } from './data';
-import { clear, glow, mat, makeFloor, makeFoundation, makeRoof, makeScenery, makeWorker, type Animated } from './models';
+import { FD, FH, FOUNDS, type FoundKey } from './data';
+import { clear, makeFloor, makeFoundation, makeRoof, makeScenery, makeWorker, type Animated } from './models';
 import { baseY, money, simulate, stats, type GameState } from './state';
-import { createStitchMaterial } from './stitchPass';
+import { CLASS, createStitchMaterial } from './stitchPass';
 
 const OPTION_X: Record<FoundKey, number> = { slab: -21, raised: -7, piles: 7, bedrock: 21 };
-const DEFAULT_DIR = new THREE.Vector3(-0.55, 0.42, 1).normalize();
+const DEFAULT_DIR = new THREE.Vector3(0.85, 0.5, 1).normalize();
+const ASPECT = 1.22; // fabric rows per stitch across
+
+// Role colours and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
+THREE.ColorManagement.enabled = false;
+
+export interface StitchCounts { dark: number; light: number; accent: number; white: number; total: number; across: number; down: number }
 
 export interface EngineHooks {
-  /** Latest game state; the engine mutates it while simulating. */
   state: () => GameState;
-  /** A floor finished building, or something else the UI should redraw for. */
   onChange: () => void;
+  onCounts: (c: StitchCounts) => void;
   onPickFloor: (floor: number) => void;
   onPickFoundation: (key: FoundKey) => void;
   onFirstInteraction: () => void;
+  onSave: () => void;
 }
 
-interface Puff { mesh: THREE.Mesh; x: number; y: number; z: number; r: number }
+interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number }
 
 export class Engine {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(32, 1, 1, 260);
+  private camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 400);
   private controls: OrbitControls;
-  private sun = new THREE.DirectionalLight(0xffffff, 0.7 * Math.PI);
+  private sun = new THREE.DirectionalLight(0xffffff, 1);
+  private ground: THREE.Mesh;
   private building = new THREE.Group();
   private scenery = new THREE.Group();
   private options = new THREE.Group();
   private puffs = new THREE.Group();
+  private normalMat = new THREE.MeshNormalMaterial();
+  private post = createStitchMaterial();
   private postScene = new THREE.Scene();
   private postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  private post: THREE.ShaderMaterial;
-  private rt: THREE.WebGLRenderTarget | null = null;
-  private anim: Animated = { leds: [], fans: [] };
+  private rtNormal: THREE.WebGLRenderTarget | null = null;
+  private rtRole: THREE.WebGLRenderTarget | null = null;
+  private rtClass: THREE.WebGLRenderTarget | null = null;
+  private textTex: THREE.CanvasTexture | null = null;
+  private grid = { n: 115, m: 140, textRows: 0, cell: 6 };
+  private anim: Animated = { leds: [], fans: [], vent: new THREE.Vector3() };
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
   private roof: THREE.Group | null = null;
   private puffList: Puff[] = [];
-  private puffGeo = new THREE.SphereGeometry(1, 18, 12);
+  private puffGeo = new THREE.SphereGeometry(1, 24, 16);
   private puffClock = 0;
   private ledClock = 0;
+  private countClock = 0;
+  private saveClock = 0;
   private hover: FoundKey | null = null;
-  private tween: { t0: number; ft: THREE.Vector3; tt: THREE.Vector3; fp: THREE.Vector3; tp: THREE.Vector3 } | null = null;
+  private halfH = 10;
+  private fitTween: { t0: number; fromH: number; toH: number; fromT: THREE.Vector3; toT: THREE.Vector3 } | null = null;
   private raycaster = new THREE.Raycaster();
   private down: [number, number] | null = null;
+  private resizeObs: ResizeObserver;
   private raf = 0;
   private last = 0;
-  private saveClock = 0;
   private disposed = false;
 
-  constructor(private container: HTMLElement, private labels: HTMLElement, private hooks: EngineHooks, private onSave: () => void) {
-    THREE.ColorManagement.enabled = false;
+  constructor(private host: HTMLElement, private hoop: HTMLElement, private labels: HTMLElement, private hooks: EngineHooks, private font: string) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
-    canvas.setAttribute('aria-label', '3D cross-stitch datacenter. Drag to rotate.');
-    container.appendChild(canvas);
+    canvas.setAttribute('aria-label', 'Cross-stitched datacenter. Drag to turn it, up and down to tilt.');
+    hoop.prepend(canvas);
 
     this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.08;
-    this.controls.maxPolarAngle = 1.45;
-    this.controls.minDistance = 10;
-    this.controls.maxDistance = 120;
-    this.controls.addEventListener('start', () => { this.tween = null; this.hooks.onFirstInteraction(); });
+    Object.assign(this.controls, {
+      enableDamping: true, dampingFactor: 0.08, enablePan: false, enableZoom: true,
+      minZoom: 0.7, maxZoom: 2.5, minPolarAngle: 0.35, maxPolarAngle: 1.35, autoRotateSpeed: 1.2,
+    });
+    this.controls.addEventListener('start', () => { this.hooks.onFirstInteraction(); });
 
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.5 * Math.PI));
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(this.sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 160 });
-    this.sun.shadow.bias = -0.002;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.bias = -0.001;
     this.scene.add(this.sun, this.sun.target);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.ShadowMaterial({ opacity: 0.6 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground, this.building, this.scenery, this.options, this.puffs);
-
-    this.post = createStitchMaterial(this.camera.near, this.camera.far);
+    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.ShadowMaterial({ opacity: 0.7 }));
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.receiveShadow = true;
+    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.post));
+    this.post.uniforms.uNear.value = this.camera.near;
+    this.post.uniforms.uFar.value = this.camera.far;
 
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointermove', this.onMove);
-    window.addEventListener('resize', this.resize);
+    this.resizeObs = new ResizeObserver(() => this.layout());
+    this.resizeObs.observe(host);
 
-    this.resize();
     this.rebuild();
-    this.placeCamera();
+    this.layout();
+    this.camera.position.copy(this.controls.target).add(DEFAULT_DIR.clone().multiplyScalar(150));
+    this.camera.lookAt(this.controls.target);
+    this.fit(false);
+    document.fonts?.load(`8px ${font}`).then(() => !this.disposed && this.layout());
+
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
   }
@@ -102,37 +118,99 @@ export class Engine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
-    window.removeEventListener('resize', this.resize);
+    this.resizeObs.disconnect();
     this.controls.dispose();
-    this.rt?.dispose();
+    this.rtNormal?.dispose(); this.rtRole?.dispose(); this.rtClass?.dispose(); this.textTex?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.innerHTML = '';
   }
 
-  resize = () => {
-    const w = this.container.clientWidth, h = this.container.clientHeight;
+  /** Lettering, laid out on the stitch grid in a pixel font. Returns rows used. */
+  private drawLettering(n: number, m: number) {
+    const text = this.s.pattern.lettering.trim();
+    if (!text) return { rows: 0, canvas: null as HTMLCanvasElement | null };
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d')!;
+    const wrap = (k: number) => {
+      ctx.font = `${8 * k}px ${this.font}`;
+      const lines: string[] = [];
+      for (const para of text.split('\n')) {
+        let line = '';
+        for (const word of para.split(/\s+/)) {
+          const next = line ? `${line} ${word}` : word;
+          if (ctx.measureText(next).width > n * 0.88 && line) { lines.push(line); line = word; } else line = next;
+        }
+        lines.push(line);
+      }
+      return lines;
+    };
+    let k = 3, lines = wrap(k);
+    while (k > 1 && (lines.length > 3 || lines.some(l => ctx.measureText(l).width > n * 0.88) || lines.length * 10 * k > m * 0.3)) {
+      k--; lines = wrap(k);
+    }
+    const lineH = 10 * k, pad = 3 * k;
+    const rows = Math.min(Math.floor(m * 0.35), lines.length * lineH + pad * 2);
+    c.width = n; c.height = rows;
+    ctx.font = `${8 * k}px ${this.font}`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#000';
+    lines.forEach((l, i) => ctx.fillText(l, Math.round((n - ctx.measureText(l).width) / 2), pad + i * lineH));
+    return { rows, canvas: c };
+  }
+
+  /** Recomputes the stitch grid and canvas size from the host box and pattern settings. */
+  layout = () => {
+    const { across } = this.s.pattern;
+    const n = across, m = Math.round(across * ASPECT);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.renderer.setPixelRatio(dpr);
-    this.renderer.setSize(w, h);
-    const cell = STITCH[this.s.stitch].px * dpr;
-    const lowW = Math.max(1, Math.ceil((w * dpr) / cell)), lowH = Math.max(1, Math.ceil((h * dpr) / cell));
-    this.rt?.dispose();
-    this.rt = new THREE.WebGLRenderTarget(lowW, lowH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-    this.rt.depthTexture = new THREE.DepthTexture(lowW, lowH);
+    const availW = Math.max(100, this.host.clientWidth - 64), availH = Math.max(100, this.host.clientHeight - 120);
+    const cell = Math.max(2, Math.floor(Math.min((availW * dpr) / n, (availH * dpr) / m)));
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(n * cell, m * cell, false);
+    const canvas = this.renderer.domElement;
+    canvas.style.width = `${(n * cell) / dpr}px`;
+    canvas.style.height = `${(m * cell) / dpr}px`;
+
+    const { rows, canvas: textCanvas } = this.drawLettering(n, m);
+    this.textTex?.dispose();
+    this.textTex = null;
+    if (textCanvas) {
+      this.textTex = new THREE.CanvasTexture(textCanvas);
+      this.textTex.minFilter = this.textTex.magFilter = THREE.NearestFilter;
+      this.textTex.generateMipmaps = false;
+    }
+    const m3 = m - rows;
+    this.rtNormal?.dispose(); this.rtRole?.dispose(); this.rtClass?.dispose();
+    const opts = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter };
+    this.rtNormal = new THREE.WebGLRenderTarget(n, m3, opts);
+    this.rtNormal.depthTexture = new THREE.DepthTexture(n, m3);
+    this.rtRole = new THREE.WebGLRenderTarget(n, m3, opts);
+    this.rtClass = new THREE.WebGLRenderTarget(n, m, opts);
+    this.grid = { n, m, textRows: rows, cell };
+
     const u = this.post.uniforms;
-    u.tColor.value = this.rt.texture;
-    u.tDepth.value = this.rt.depthTexture;
-    (u.uLow.value as THREE.Vector2).set(lowW, lowH);
-    u.uCell.value = cell;
-    this.camera.aspect = lowW / lowH;
-    this.camera.updateProjectionMatrix();
+    u.tNormal.value = this.rtNormal.texture;
+    u.tDepth.value = this.rtNormal.depthTexture;
+    u.tRole.value = this.rtRole.texture;
+    u.tText.value = this.textTex;
+    (u.uGrid.value as THREE.Vector2).set(n, m);
+    u.uTextRows.value = rows;
+    this.applyFrustum();
+    this.countClock = 0.9;
   };
+
+  private applyFrustum() {
+    const aspect = this.grid.n / (this.grid.m - this.grid.textRows);
+    const h = this.halfH, w = h * aspect;
+    Object.assign(this.camera, { left: -w, right: w, top: h, bottom: -h });
+    this.camera.updateProjectionMatrix();
+  }
 
   rebuild() {
     const s = this.s;
     clear(this.building);
-    this.anim = { leds: [], fans: [] };
+    this.anim = { leds: [], fans: [], vent: new THREE.Vector3() };
     this.workers.clear();
     this.buildFloor = null;
     this.building.add(makeFoundation(s.found));
@@ -141,10 +219,10 @@ export class Engine {
       this.building.add(g);
       if (s.build?.idx === i) this.buildFloor = g;
     });
-    this.roof = makeRoof(s);
+    this.roof = makeRoof(s, this.anim);
     this.building.add(this.roof);
     for (const w of s.workers) {
-      const m = makeWorker(w);
+      const m = makeWorker();
       this.workers.set(w.id, m);
       this.building.add(m.group);
     }
@@ -152,52 +230,76 @@ export class Engine {
 
     clear(this.options);
     for (const key of Object.keys(FOUNDS) as FoundKey[]) {
-      const g = makeFoundation(key, key === s.found ? '#8FA7DA' : undefined);
+      const g = makeFoundation(key, key === s.found);
       g.position.x = OPTION_X[key];
       g.traverse(o => { o.userData.found = key; });
       this.options.add(g);
     }
 
-    const picking = s.step === 'found';
-    this.building.visible = !picking;
-    this.options.visible = picking;
+    this.building.visible = this.scenery.visible = !s.picking;
+    this.options.visible = s.picking;
+    if (!s.picking) this.labels.innerHTML = '';
+
     const h = baseY(s, s.floors.length);
-    this.sun.target.position.set(0, h / 3, 0);
-    this.sun.position.set(-20, 30 + h * 0.6, 18);
-    this.sun.shadow.camera.top = Math.max(45, h + 10);
-    this.sun.shadow.camera.updateProjectionMatrix();
-    (this.post.uniforms.uInk.value as THREE.Color).set(INKS[s.ink].hex);
-    if (!picking) this.labels.innerHTML = '';
+    this.sun.target.position.set(0, 0, 0);
+    this.sun.position.set(14, 40 + h * 0.6, -6);
+    const sc = this.sun.shadow.camera;
+    Object.assign(sc, { left: -40, right: 40, top: 40 + h, bottom: -40, near: 1, far: 200 });
+    sc.updateProjectionMatrix();
   }
 
-  setInk() { (this.post.uniforms.uInk.value as THREE.Color).set(INKS[this.s.ink].hex); }
-
-  private viewFor(keepDir: boolean) {
+  /** Frames the building (or the foundation choices) to fill the hoop. */
+  fit(animate = true) {
     const s = this.s;
-    if (s.step === 'found') return { tgt: new THREE.Vector3(0, 1, 0), pos: new THREE.Vector3(0, 17, 46) };
-    const top = baseY(s, s.floors.length) + 1.5;
-    const tgt = new THREE.Vector3(1.5, top * 0.45, 0);
-    const dir = keepDir ? this.camera.position.clone().sub(this.controls.target).normalize() : DEFAULT_DIR.clone();
-    return { tgt, pos: tgt.clone().add(dir.multiplyScalar(24 + top * 1.05)) };
+    const box = new THREE.Box3().setFromObject(s.picking ? this.options : this.building);
+    if (!s.picking && s.smoke && s.floors.some(f => f.type === 'cool')) box.expandByPoint(this.anim.vent.clone().add(new THREE.Vector3(1, 7, 0)));
+    if (!s.picking) box.union(new THREE.Box3().setFromObject(this.scenery));
+
+    // Measure the box as the camera currently sees it, so the piece fills the hoop snugly.
+    this.camera.updateMatrixWorld();
+    const view = this.camera.matrixWorldInverse;
+    const min = new THREE.Vector2(Infinity, Infinity), max = new THREE.Vector2(-Infinity, -Infinity);
+    for (let i = 0; i < 8; i++) {
+      const p = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).applyMatrix4(view);
+      min.min(new THREE.Vector2(p.x, p.y));
+      max.max(new THREE.Vector2(p.x, p.y));
+    }
+    const aspect = this.grid.n / (this.grid.m - this.grid.textRows);
+    const toH = Math.max((max.y - min.y) / 2, (max.x - min.x) / 2 / aspect) * 1.06;
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const center = this.controls.target.clone()
+      .addScaledVector(right, (min.x + max.x) / 2)
+      .addScaledVector(up, (min.y + max.y) / 2);
+    if (!animate) {
+      this.halfH = toH;
+      this.camera.position.add(center.clone().sub(this.controls.target));
+      this.controls.target.copy(center);
+      this.applyFrustum();
+      return;
+    }
+    this.fitTween = { t0: performance.now(), fromH: this.halfH, toH, fromT: this.controls.target.clone(), toT: center };
   }
 
-  private placeCamera() {
-    const { tgt, pos } = this.viewFor(false);
-    this.controls.target.copy(tgt);
-    this.camera.position.copy(pos);
-  }
-
-  frameView(keepDir: boolean) {
-    const { tgt, pos } = this.viewFor(keepDir);
-    this.tween = { t0: performance.now(), ft: this.controls.target.clone(), tt: tgt, fp: this.camera.position.clone(), tp: pos };
+  resetView() {
+    this.camera.zoom = 1;
+    this.camera.position.copy(this.controls.target).add(DEFAULT_DIR.clone().multiplyScalar(150));
+    this.camera.lookAt(this.controls.target);
+    this.camera.updateProjectionMatrix();
+    this.fit(true);
   }
 
   private pick(e: PointerEvent) {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    // the 3D image only covers the rows above the lettering
+    const h3 = (this.grid.m - this.grid.textRows) / this.grid.m;
+    const yTop = (e.clientY - r.top) / r.height;
+    if (yTop > h3) return null;
+    ndc.y = -(yTop / h3) * 2 + 1;
     this.raycaster.setFromCamera(ndc, this.camera);
-    const hits = this.raycaster.intersectObject(this.s.step === 'found' ? this.options : this.building, true);
-    return hits.length ? hits[0].object.userData as { floor?: number; found?: FoundKey } : null;
+    const hits = this.raycaster.intersectObject(this.s.picking ? this.options : this.building, true);
+    return hits.length ? (hits[0].object.userData as { floor?: number; found?: FoundKey }) : null;
   }
 
   private onDown = (e: PointerEvent) => { this.down = [e.clientX, e.clientY]; };
@@ -206,81 +308,127 @@ export class Engine {
     if (!this.down || Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) > 6) return;
     const d = this.pick(e);
     if (!d) return;
-    if (this.s.step === 'found' && d.found) this.hooks.onPickFoundation(d.found);
+    if (this.s.picking && d.found) this.hooks.onPickFoundation(d.found);
     else if (d.floor != null) this.hooks.onPickFloor(d.floor);
   };
 
   private onMove = (e: PointerEvent) => {
     if (e.buttons) return;
     const d = this.pick(e);
-    this.hover = this.s.step === 'found' && d?.found ? d.found : null;
+    this.hover = this.s.picking && d?.found ? d.found : null;
     this.renderer.domElement.style.cursor = d && (d.found || d.floor != null) ? 'pointer' : 'grab';
   };
+
+  private setThreads() {
+    const { pattern } = this.s, u = this.post.uniforms;
+    (u.uDark.value as THREE.Color).set(pattern.threads.dark);
+    (u.uLight.value as THREE.Color).set(pattern.threads.light);
+    (u.uAccent.value as THREE.Color).set(pattern.threads.accent);
+    u.uThreads.value = pattern.threadCount;
+    u.uStitchWhite.value = pattern.leaveWhite ? 0 : 1;
+  }
 
   private loop = (now: number) => {
     if (this.disposed) return;
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const s = this.s;
-    const st = stats(s);
-    if (simulate(s, dt, st)) { this.rebuild(); this.hooks.onChange(); }
-    this.animate(dt, now, st.eff);
+    if (simulate(s, dt, stats(s))) { this.rebuild(); this.fit(true); this.hooks.onChange(); }
+    this.animate(dt, now);
 
-    if (this.tween) {
-      const k = Math.min(1, (now - this.tween.t0) / 900), e = 1 - Math.pow(1 - k, 3);
-      this.controls.target.lerpVectors(this.tween.ft, this.tween.tt, e);
-      this.camera.position.lerpVectors(this.tween.fp, this.tween.tp, e);
-      if (k >= 1) this.tween = null;
+    if (this.fitTween) {
+      const k = Math.min(1, (now - this.fitTween.t0) / 700), e = 1 - Math.pow(1 - k, 3);
+      this.halfH = this.fitTween.fromH + (this.fitTween.toH - this.fitTween.fromH) * e;
+      const prev = this.controls.target.clone();
+      this.controls.target.lerpVectors(this.fitTween.fromT, this.fitTween.toT, e);
+      this.camera.position.add(this.controls.target.clone().sub(prev));
+      this.applyFrustum();
+      if (k >= 1) this.fitTween = null;
     }
+    this.controls.autoRotate = s.spin;
     this.controls.update();
-
-    this.renderer.setRenderTarget(this.rt);
-    this.renderer.setClearColor(0x000000, 0);
-    this.renderer.clear();
-    this.renderer.render(this.scene, this.camera);
-    this.renderer.setRenderTarget(null);
-    this.renderer.render(this.postScene, this.postCam);
+    this.setThreads();
+    this.render();
     this.placeLabels();
 
+    this.countClock += dt;
+    if (this.countClock > 1) { this.countClock = 0; this.count(); }
     this.saveClock += dt;
-    if (this.saveClock > 5) { this.saveClock = 0; this.onSave(); }
+    if (this.saveClock > 5) { this.saveClock = 0; this.hooks.onSave(); }
     this.raf = requestAnimationFrame(this.loop);
   };
 
-  private animate(dt: number, now: number, eff: number) {
+  private render() {
+    const r = this.renderer;
+    r.setClearColor(0x000000, 0);
+    this.ground.visible = false;
+    this.scene.overrideMaterial = this.normalMat;
+    r.setRenderTarget(this.rtNormal);
+    r.clear();
+    r.render(this.scene, this.camera);
+    this.scene.overrideMaterial = null;
+    this.ground.visible = true;
+    r.setRenderTarget(this.rtRole);
+    r.clear();
+    r.render(this.scene, this.camera);
+    this.post.uniforms.uMode.value = 0;
+    this.post.uniforms.uCell.value = this.grid.cell;
+    r.setRenderTarget(null);
+    r.render(this.postScene, this.postCam);
+  }
+
+  /** Classifies every stitch once into a tiny target and tallies threads for the key. */
+  private count() {
+    if (!this.rtClass) return;
+    const { n, m } = this.grid, r = this.renderer;
+    this.post.uniforms.uMode.value = 1;
+    this.post.uniforms.uCell.value = 1;
+    r.setRenderTarget(this.rtClass);
+    r.render(this.postScene, this.postCam);
+    const buf = new Uint8Array(n * m * 4);
+    r.readRenderTargetPixels(this.rtClass, 0, 0, n, m, buf);
+    r.setRenderTarget(null);
+    const tally = [0, 0, 0, 0, 0];
+    for (let i = 0; i < buf.length; i += 4) tally[Math.round((buf[i] / 255) * 8)]++;
+    this.hooks.onCounts({
+      dark: tally[CLASS.dark], light: tally[CLASS.light], accent: tally[CLASS.accent], white: tally[CLASS.white],
+      total: tally[1] + tally[2] + tally[3] + tally[4], across: n, down: m,
+    });
+  }
+
+  private animate(dt: number, now: number) {
     const s = this.s, t = now / 1000;
     for (const w of s.workers) {
       const m = this.workers.get(w.id);
       if (!m) continue;
       m.group.visible = !!s.floors[w.floor]?.done && s.inside;
-      m.group.position.set(w.x, baseY(s, w.floor) + 0.2, FD / 2 - 1.4);
+      m.group.position.set(w.x, baseY(s, w.floor) + 0.2, FD / 2 - 1.5);
       m.group.rotation.y = w.pause > 0 ? 0 : w.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       const swing = w.pause > 0 ? 0 : Math.sin(t * 9 + w.id) * 0.6;
       m.legs[0].rotation.x = swing;
       m.legs[1].rotation.x = -swing;
     }
-    for (const f of this.anim.fans) f.rotation.z -= dt * 8;
+    for (const f of this.anim.fans) f.rotation.z -= dt * 6;
     this.ledClock -= dt;
     if (this.ledClock <= 0) {
-      this.ledClock = 0.18;
-      const m = glow(eff < 0.6 ? '#D04848' : '#47A72F');
-      for (const l of this.anim.leds) { l.visible = Math.random() > 0.4; l.material = m; }
+      this.ledClock = 0.35;
+      for (const l of this.anim.leds) l.visible = Math.random() > 0.35;
     }
 
-    const cools = s.floors.filter(f => f.done && f.type === 'cool').length;
-    const top = baseY(s, s.floors.length) + 0.4;
+    const cools = s.floors.some(f => f.done && f.type === 'cool');
     this.puffClock -= dt;
-    if (cools && s.step !== 'found' && this.puffClock <= 0 && this.puffList.length < 2 + cools) {
-      const mesh = new THREE.Mesh(this.puffGeo, mat('#FFFFFF'));
+    if (s.smoke && cools && !s.picking && this.puffClock <= 0 && this.puffList.length < 2) {
+      const mesh = new THREE.Mesh(this.puffGeo);
       this.puffs.add(mesh);
-      this.puffList.push({ mesh, x: -2 + Math.random() * 4, y: top + 1.2, z: (Math.random() - 0.5) * 2, r: 0.7 });
-      this.puffClock = 3 / Math.min(cools, 3);
+      this.puffList.push({ mesh, y0: this.anim.vent.y, age: 0, x: this.anim.vent.x, z: this.anim.vent.z });
+      this.puffClock = 3.2;
     }
     this.puffList = this.puffList.filter(p => {
-      p.y += 0.9 * dt; p.x += 0.35 * dt; p.r = Math.min(p.r + 0.22 * dt, 2);
-      p.mesh.position.set(p.x, p.y, p.z);
-      p.mesh.scale.setScalar(p.r);
-      if (p.y > top + 13 || s.step === 'found') { this.puffs.remove(p.mesh); return false; }
+      p.age += dt;
+      const r = Math.min(0.5 + p.age * 0.35, 1.7);
+      p.mesh.position.set(p.x - p.age * 0.25, p.y0 + 0.6 + p.age * 0.75, p.z);
+      p.mesh.scale.setScalar(r);
+      if (p.age > 8 || !s.smoke || s.picking) { this.puffs.remove(p.mesh); return false; }
       return true;
     });
 
@@ -290,22 +438,23 @@ export class Engine {
       if (this.roof) this.roof.position.y = -(1 - e) * FH;
     }
     for (const g of this.options.children) {
-      const want = this.hover === g.userData.found ? 0.5 : 0;
+      const want = this.hover === g.userData.found ? 0.6 : 0;
       g.position.y += (want - g.position.y) * Math.min(1, dt * 10);
     }
   }
 
   private placeLabels() {
     const s = this.s;
-    if (s.step !== 'found') return;
+    if (!s.picking) return;
     if (!this.labels.childElementCount) {
       this.labels.innerHTML = (Object.keys(FOUNDS) as FoundKey[])
-        .map(k => `<div class="flabel glass" data-k="${k}"><b>${FOUNDS[k].name}</b><span></span></div>`).join('');
+        .map(k => `<div class="flabel" data-k="${k}"><b>${FOUNDS[k].name}</b><span></span></div>`).join('');
     }
-    const w = this.container.clientWidth, h = this.container.clientHeight;
+    const canvas = this.renderer.domElement;
+    const w = canvas.clientWidth, h = canvas.clientHeight * (this.grid.m - this.grid.textRows) / this.grid.m;
     this.labels.querySelectorAll<HTMLElement>('.flabel').forEach(el => {
       const k = el.dataset.k as FoundKey, v = FOUNDS[k];
-      const p = new THREE.Vector3(OPTION_X[k], 3.2, 0).project(this.camera);
+      const p = new THREE.Vector3(OPTION_X[k], 0, FD / 2 + 1).project(this.camera);
       el.style.left = `${((p.x + 1) / 2) * w}px`;
       el.style.top = `${((1 - p.y) / 2) * h}px`;
       el.classList.toggle('on', k === s.found);

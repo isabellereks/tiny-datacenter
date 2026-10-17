@@ -1,46 +1,42 @@
 import * as THREE from 'three';
-import { FD, FH, FW, type FloorType, type FoundKey } from './data';
-import { baseY, floorW, perRow, type Floor, type GameState, type Worker } from './state';
+import { FD, FH, FW, type FloorType, type FoundKey, type Role } from './data';
+import { baseY, floorW, perRow, type Floor, type GameState } from './state';
 
-const mats = new Map<string, THREE.MeshLambertMaterial>();
-const glows = new Map<string, THREE.MeshBasicMaterial>();
-
-export function mat(hex: string) {
-  let m = mats.get(hex);
-  if (!m) { m = new THREE.MeshLambertMaterial({ color: hex }); mats.set(hex, m); }
+/**
+ * Meshes are flat-coloured by role only; the stitch pass reads this colour to pick a thread.
+ * surf = white, light = grey, dark = black, accent = red.
+ */
+const ROLE_COLOR: Record<Role, number> = { surf: 0xffffff, light: 0x808080, dark: 0x000000, accent: 0xff0000 };
+const mats = new Map<Role, THREE.MeshBasicMaterial>();
+export function mat(role: Role) {
+  let m = mats.get(role);
+  if (!m) { m = new THREE.MeshBasicMaterial({ color: ROLE_COLOR[role] }); mats.set(role, m); }
   return m;
 }
 
-export function glow(hex: string) {
-  let m = glows.get(hex);
-  if (!m) { m = new THREE.MeshBasicMaterial({ color: hex }); glows.set(hex, m); }
-  return m;
-}
+type P = THREE.Object3D;
 
-type Mat = string | THREE.Material;
-
-function add(p: THREE.Object3D, geo: THREE.BufferGeometry, m: Mat, x: number, y: number, z: number) {
-  const mesh = new THREE.Mesh(geo, typeof m === 'string' ? mat(m) : m);
+function add(p: P, geo: THREE.BufferGeometry, role: Role, x: number, y: number, z: number) {
+  const mesh = new THREE.Mesh(geo, mat(role));
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   p.add(mesh);
   return mesh;
 }
-const box = (p: THREE.Object3D, w: number, h: number, d: number, m: Mat, x: number, y: number, z: number) =>
-  add(p, new THREE.BoxGeometry(w, h, d), m, x, y, z);
-const cyl = (p: THREE.Object3D, r: number, h: number, m: Mat, x: number, y: number, z: number, seg = 12) =>
-  add(p, new THREE.CylinderGeometry(r, r, h, seg), m, x, y, z);
-const unlit = (mesh: THREE.Mesh) => { mesh.castShadow = false; return mesh; };
+const box = (p: P, w: number, h: number, d: number, r: Role, x: number, y: number, z: number) =>
+  add(p, new THREE.BoxGeometry(w, h, d), r, x, y, z);
+const cyl = (p: P, rad: number, h: number, r: Role, x: number, y: number, z: number, seg = 16) =>
+  add(p, new THREE.CylinderGeometry(rad, rad, h, seg), r, x, y, z);
 
-function prism(p: THREE.Object3D, pts: [number, number][], depth: number, m: Mat, x: number, y: number, z: number) {
+function prism(p: P, pts: [number, number][], depth: number, r: Role, x: number, y: number, z: number) {
   const sh = new THREE.Shape();
   sh.moveTo(pts[0][0], pts[0][1]);
   pts.slice(1).forEach(([px, py]) => sh.lineTo(px, py));
   sh.closePath();
-  return add(p, new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }), m, x, y, z);
+  return add(p, new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }), r, x, y, z);
 }
 
-export function clear(g: THREE.Object3D) {
+export function clear(g: P) {
   while (g.children.length) {
     const c = g.children[0];
     g.remove(c);
@@ -48,105 +44,100 @@ export function clear(g: THREE.Object3D) {
   }
 }
 
-export function makeFoundation(key: FoundKey, tint?: string) {
+export function makeFoundation(key: FoundKey, chosen = false) {
   const g = new THREE.Group();
-  const W = FW + 1, D = FD + 1, top = tint ?? '#FFFFFF';
+  const W = FW + 1, D = FD + 1, top: Role = chosen ? 'light' : 'surf';
   if (key === 'slab') {
     box(g, W, 0.45, D, top, 0, 0.225, 0);
   } else if (key === 'raised') {
-    box(g, W, 0.3, D, '#FFFFFF', 0, 0.15, 0);
-    for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) {
-      const x = -W / 2 + (i + 0.5) * W / 5, z = -D / 2 + (j + 0.5) * D / 4;
-      cyl(g, 0.07, 0.45, '#B0B0B0', x, 0.52, z, 6);
-      box(g, W / 5 - 0.06, 0.12, D / 4 - 0.06, top, x, 0.84, z);
+    box(g, W, 0.3, D, 'surf', 0, 0.15, 0);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+      cyl(g, 0.09, 0.45, 'dark', -W / 2 + (i + 0.5) * W / 4, 0.52, -D / 2 + (j + 0.5) * D / 3, 6);
     }
+    box(g, W, 0.15, D, top, 0, 0.82, 0);
   } else if (key === 'piles') {
     for (const [a, b] of [[-1, -1], [0, -1], [1, -1], [-1, 1], [0, 1], [1, 1]]) {
-      cyl(g, 0.28, 1.4, '#BDBDBD', a * (W / 2 - 0.6), 0.7, b * (D / 2 - 0.6), 10);
+      cyl(g, 0.3, 1.4, 'surf', a * (W / 2 - 0.6), 0.7, b * (D / 2 - 0.6), 12);
     }
     box(g, W, 0.4, D, top, 0, 1.6, 0);
   } else {
-    box(g, W + 2.2, 0.5, D + 2.2, '#FFFFFF', 0, 0.25, 0);
-    box(g, W + 1.1, 0.5, D + 1.1, '#FFFFFF', 0, 0.75, 0);
+    box(g, W + 2.2, 0.5, D + 2.2, 'surf', 0, 0.25, 0);
+    box(g, W + 1.1, 0.5, D + 1.1, 'surf', 0, 0.75, 0);
     box(g, W, 0.3, D, top, 0, 1.15, 0);
   }
   return g;
 }
 
-/** Animated parts collected while building, so the engine can blink and spin them. */
-export interface Animated { leds: THREE.Mesh[]; fans: THREE.Group[] }
+/** Parts the engine animates. */
+export interface Animated { leds: THREE.Mesh[]; fans: THREE.Group[]; vent: THREE.Vector3 }
 
 function interior(s: GameState, g: THREE.Group, type: FloorType, w: number, i: number, anim: Animated) {
   const zb = -FD / 2;
   if (type === 'hall') {
     const n = perRow(s, i), sp = (w - 1.4) / n;
-    for (const z of [zb + 1, -0.6]) {
-      for (let k = 0; k < n; k++) {
-        const x = -w / 2 + 0.7 + sp * (k + 0.5);
-        box(g, sp * 0.72, 1.25, 1, '#9A9A9A', x, 0.2 + 0.625, z);
-        for (const y of [0.45, 0.75, 1.05]) anim.leds.push(unlit(box(g, 0.14, 0.09, 0.04, glow('#47A72F'), x - sp * 0.18, 0.2 + y, z + 0.52)));
-      }
+    for (let k = 0; k < n; k++) {
+      const x = -w / 2 + 0.7 + sp * (k + 0.5);
+      box(g, sp * 0.7, 1.3, 1.1, 'surf', x, 0.85, zb + 1);
+      anim.leds.push(box(g, sp * 0.3, 0.16, 0.05, 'accent', x, 0.8 + (k % 3) * 0.25, zb + 1.58));
     }
-    box(g, w - 0.5, 0.06, 0.35, '#8A8A8A', 0, FH - 0.25, zb + 1);
   } else if (type === 'cool') {
-    const n = Math.max(2, Math.floor(w / 2.6)), sp = (w - 1) / n;
+    const n = Math.max(2, Math.floor(w / 3)), sp = (w - 1) / n;
     for (let k = 0; k < n; k++) {
       const x = -w / 2 + 0.5 + sp * (k + 0.5);
-      box(g, sp * 0.78, 1.3, 1.3, '#DADADA', x, 0.85, zb + 1.1);
-      cyl(g, 0.42, 0.08, '#9A9A9A', x, 0.95, zb + 1.8, 16).rotation.x = Math.PI / 2;
+      box(g, sp * 0.8, 1.3, 1.2, 'surf', x, 0.85, zb + 1.1);
       const fan = new THREE.Group();
-      fan.position.set(x, 0.95, zb + 1.86);
+      fan.position.set(x, 0.9, zb + 1.75);
       g.add(fan);
-      box(fan, 0.7, 0.1, 0.03, '#4A4A4A', 0, 0, 0);
-      box(fan, 0.1, 0.7, 0.03, '#4A4A4A', 0, 0, 0);
+      box(fan, 0.8, 0.14, 0.04, 'dark', 0, 0, 0);
+      box(fan, 0.14, 0.8, 0.04, 'dark', 0, 0, 0);
       anim.fans.push(fan);
     }
-    for (const y of [FH - 0.35, FH - 0.6]) cyl(g, 0.1, w - 0.4, '#8FA7DA', 0, y, zb + 0.5, 8).rotation.z = Math.PI / 2;
+    cyl(g, 0.12, w - 0.4, 'light', 0, FH - 0.35, zb + 0.5, 10).rotation.z = Math.PI / 2;
   } else if (type === 'power') {
-    const n = Math.floor((w - 1) / 1.3);
+    const n = Math.floor((w - 1) / 1.6);
     for (let k = 0; k < n; k++) {
-      const x = -w / 2 + 0.9 + k * 1.3;
-      box(g, 0.9, 1.3, 0.8, '#BDBDBD', x, 0.85, zb + 0.8);
-      box(g, 0.92, 0.12, 0.82, '#F2B43C', x, 1.15, zb + 0.8);
-      anim.leds.push(unlit(box(g, 0.1, 0.1, 0.04, glow('#47A72F'), x + 0.25, 0.55, zb + 1.22)));
+      const x = -w / 2 + 1 + k * 1.6;
+      box(g, 1.1, 1.3, 0.9, 'surf', x, 0.85, zb + 0.9);
+      box(g, 1.12, 0.22, 0.92, 'light', x, 1.15, zb + 0.9);
     }
-    box(g, 2.6, 1, 1.4, '#D0D0D0', w / 2 - 1.8, 0.7, 0.6);
   } else if (type === 'net') {
-    box(g, w - 2, 0.08, 1, '#D6D6D6', 0, 0.8, -0.4);
-    for (const side of [-1, 1]) box(g, 0.08, 0.6, 0.9, '#B0B0B0', side * (w / 2 - 1.2), 0.5, -0.4);
-    const n = Math.floor((w - 2) / 1.6);
+    box(g, w - 2, 0.1, 1, 'surf', 0, 0.8, -0.3);
+    const n = Math.floor((w - 2) / 2);
     for (let k = 0; k < n; k++) {
-      const x = -(n - 1) * 0.8 + k * 1.6;
-      box(g, 1.1, 0.7, 0.08, '#5A5A5A', x, 1.3, -0.75);
-      unlit(box(g, 1, 0.6, 0.02, glow(k % 2 ? '#5FB39C' : '#8FA7DA'), x, 1.3, -0.7));
+      const x = -(n - 1) + k * 2;
+      box(g, 1.3, 0.8, 0.1, 'light', x, 1.35, -0.7);
+      anim.leds.push(box(g, 0.5, 0.12, 0.04, 'accent', x, 1.35, -0.63));
     }
-    box(g, w * 0.55, 0.9, 0.06, '#5A5A5A', 0, 1.25, zb + 0.25);
-    unlit(box(g, w * 0.55 - 0.14, 0.78, 0.02, glow('#2E7D66'), 0, 1.25, zb + 0.29));
   } else if (type === 'break') {
-    const c = '#F7896F', x0 = -w / 2 + 2.2;
-    box(g, 2.6, 0.4, 0.9, c, x0, 0.45, zb + 1);
-    box(g, 2.6, 0.6, 0.25, c, x0, 0.95, zb + 0.65);
-    box(g, 0.25, 0.55, 0.9, c, x0 - 1.3, 0.6, zb + 1);
-    box(g, 0.25, 0.55, 0.9, c, x0 + 1.3, 0.6, zb + 1);
-    box(g, 1.3, 0.08, 0.7, '#B08860', x0, 0.6, zb + 2.2);
-    box(g, 0.6, 1, 0.5, '#3A3A3A', w / 2 - 1, 0.7, zb + 0.6);
-    unlit(box(g, 0.1, 0.1, 0.04, glow('#D04848'), w / 2 - 1, 0.9, zb + 0.87));
-    cyl(g, 0.25, 0.4, '#B08860', w / 2 - 2.4, 0.4, zb + 0.8, 10);
-    add(g, new THREE.IcosahedronGeometry(0.45, 0), '#5FA05A', w / 2 - 2.4, 1, zb + 0.8);
-    box(g, 1.2, 0.8, 0.04, '#F2B43C', x0, 1.5, zb + 0.25);
+    const x0 = -w / 2 + 2.2;
+    box(g, 2.8, 0.45, 1, 'accent', x0, 0.45, zb + 1);
+    box(g, 2.8, 0.7, 0.3, 'accent', x0, 0.95, zb + 0.6);
+    box(g, 1.4, 0.1, 0.8, 'surf', x0, 0.6, zb + 2.3);
+    box(g, 0.7, 1.1, 0.6, 'dark', w / 2 - 1.2, 0.75, zb + 0.6);
+    add(g, new THREE.IcosahedronGeometry(0.5, 0), 'light', w / 2 - 2.6, 1, zb + 0.8);
   } else {
-    box(g, 1.2, 1.45, 0.06, '#E2E2E2', -w / 2 + 1.6, 0.925, zb + 0.23);
-    box(g, 0.1, 0.1, 0.1, '#4A4A4A', -w / 2 + 2, 0.95, zb + 0.3);
-    box(g, 3.2, 0.9, 0.8, '#EDEDED', 0.6, 0.65, -0.6);
-    box(g, 3.24, 0.14, 0.84, '#4A66B5', 0.6, 1.05, -0.6);
-    box(g, 2.4, 0.4, 0.05, '#F2B43C', 0.6, 1.5, zb + 0.24);
-    cyl(g, 0.25, 0.4, '#B08860', w / 2 - 1, 0.4, zb + 0.9, 10);
-    add(g, new THREE.IcosahedronGeometry(0.45, 0), '#5FA05A', w / 2 - 1, 1, zb + 0.9);
+    box(g, 1.2, 1.45, 0.06, 'surf', -w / 2 + 1.6, 0.925, zb + 0.23);
+    box(g, 3.2, 0.9, 0.9, 'surf', 0.6, 0.65, -0.6);
+    box(g, 3.24, 0.16, 0.94, 'light', 0.6, 1.08, -0.6);
   }
 }
 
+function facade(g: THREE.Group, w: number, i: number) {
+  const z = FD / 2 + 0.02;
+  const window = (x: number, y: number) => box(g, 0.8, 0.6, 0.06, 'light', x, y, z);
+  if (i === 0) {
+    box(g, 1.1, 1.4, 0.06, 'surf', -w / 2 + 2, 0.9, z);
+    box(g, 0.12, 0.12, 0.1, 'dark', -w / 2 + 2.3, 0.9, z + 0.04);
+    const port = cyl(g, 0.38, 0.06, 'light', w / 2 - 2, 1.05, z, 20);
+    port.rotation.x = Math.PI / 2;
+    return;
+  }
+  const n = Math.max(1, Math.floor(w / 3));
+  for (let k = 0; k < n; k++) window(-(n - 1) * 1.5 + k * 3, 1);
+}
+
 export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
-  const g = new THREE.Group(), w = floorW(s, i), m = f.color;
+  const g = new THREE.Group(), w = floorW(s, i), m = f.fill;
   g.position.y = baseY(s, i);
   box(g, w, 0.2, FD, m, 0, 0.1, 0);
   box(g, w, FH, 0.2, m, 0, FH / 2, -FD / 2 + 0.1);
@@ -154,103 +145,85 @@ export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
   box(g, 0.2, FH, FD, m, w / 2 - 0.1, FH / 2, 0);
   if (s.inside) {
     box(g, w, 0.2, 0.3, m, 0, FH - 0.1, FD / 2 - 0.15);
+    interior(s, g, f.type, w, i, anim);
   } else {
     box(g, w, FH, 0.2, m, 0, FH / 2, FD / 2 - 0.1);
-    const n = Math.floor(w / 2.2);
-    for (let k = 0; k < n; k++) {
-      const x = -(n - 1) * 1.1 + k * 2.2;
-      if (i === 0 && k === 0) box(g, 0.9, 1.3, 0.08, '#9A9A9A', x, 0.85, FD / 2 + 0.02);
-      else box(g, 0.9, 0.55, 0.08, '#9A9A9A', x, 1, FD / 2 + 0.02);
-    }
+    facade(g, w, i);
   }
-  interior(s, g, f.type, w, i, anim);
   g.traverse(o => { o.userData.floor = i; });
   return g;
 }
 
-export function makeRoof(s: GameState) {
+export function makeRoof(s: GameState, anim: Animated) {
   const n = s.floors.length;
-  const g = new THREE.Group(), w = floorW(s, n - 1), top = baseY(s, n), wall = s.floors[n - 1].color;
-  box(g, w + 0.2, 0.25, FD + 0.2, wall, 0, top + 0.125, 0);
+  const g = new THREE.Group(), w = floorW(s, n - 1), top = baseY(s, n), fill = s.floors[n - 1].fill;
+  box(g, w + 0.2, 0.25, FD + 0.2, fill, 0, top + 0.125, 0);
   const t = top + 0.25;
+  anim.vent.set(0, t + 1.5, 0);
   const teeth = (x0: number, span: number) => {
-    const k = Math.max(2, Math.round(span / 2.4)), tw = span / k;
-    for (let j = 0; j < k; j++) {
-      prism(g, [[0, 0], [tw, 0], [tw, 1.25]], FD, '#FFFFFF', x0 + j * tw, t, -FD / 2);
-      unlit(box(g, 0.06, 0.9, FD - 0.6, '#8FA7DA', x0 + (j + 1) * tw - 0.05, t + 0.55, 0));
-    }
+    const k = Math.max(2, Math.round(span / 2.6)), tw = span / k;
+    for (let j = 0; j < k; j++) prism(g, [[0, 0], [tw, 0], [0, 1.4]], FD, 'surf', x0 + j * tw, t, -FD / 2);
   };
   if (s.shape === 'shed') {
     teeth(-w / 2, w);
-    const ht = top + 1.2, L = Math.min(ht * 0.55, 11);
-    prism(g, [[0, 0], [L, 0], [0, ht]], FD, '#FFFFFF', w / 2, 0, -FD / 2);
-    cyl(g, 0.45, 1.6, '#FFFFFF', w / 2 + L * 0.28, ht * 0.72 + 0.5, 0, 10);
-    box(g, 0.5, 0.7, 0.08, '#9A9A9A', w / 2 + L * 0.6, ht * 0.38, FD / 2 + 0.04);
+    const ht = top + 1.4, L = Math.min(ht * 0.62, 12);
+    prism(g, [[0, 0], [L, 0], [0, ht]], FD, 'surf', w / 2, 0, -FD / 2);
+    const cx = w / 2 + L * 0.22, cy = ht * 0.78;
+    box(g, 0.9, 2.2, 0.9, 'surf', cx, cy + 0.6, 0);
+    anim.vent.set(cx, cy + 2, 0);
   } else if (s.shape === 'saw') {
     teeth(-w / 2, w);
   } else if (s.shape === 'hangar') {
-    const v = add(g, new THREE.CylinderGeometry(w / 2, w / 2, FD, 28, 1, false, Math.PI / 2, Math.PI), '#FFFFFF', 0, t, 0);
+    const v = add(g, new THREE.CylinderGeometry(w / 2, w / 2, FD, 32, 1, false, Math.PI / 2, Math.PI), 'surf', 0, t, 0);
     v.rotation.x = Math.PI / 2;
-    v.scale.set(1, 1, 0.5);
+    v.scale.set(1, 1, 0.55);
+    anim.vent.set(0, t + w * 0.28 + 1, 0);
   } else {
-    for (const z of [FD / 2, -FD / 2]) box(g, w + 0.2, 0.45, 0.15, '#FFFFFF', 0, t + 0.22, z);
-    for (const side of [-1, 1]) box(g, 0.15, 0.45, FD, '#FFFFFF', side * (w / 2), t + 0.22, 0);
-    const hvac = (x: number) => {
-      box(g, 2, 0.8, 1.6, '#E8E8E8', x, t + 0.4, -0.8);
-      unlit(cyl(g, 0.5, 0.08, '#9A9A9A', x, t + 0.84, -0.8, 14));
-    };
-    if (w > 7) { hvac(-w / 2 + 2); hvac(w / 2 - 2.5); } else hvac(0);
-    const mast = s.shape === 'tower' ? 4 : 2.6;
-    cyl(g, 0.05, mast, '#9A9A9A', w / 2 - 0.8, t + mast / 2, FD / 2 - 1, 6);
+    for (const z of [FD / 2, -FD / 2]) box(g, w + 0.2, 0.45, 0.15, 'surf', 0, t + 0.22, z);
+    for (const side of [-1, 1]) box(g, 0.15, 0.45, FD, 'surf', side * (w / 2), t + 0.22, 0);
+    box(g, 2.2, 0.9, 1.8, 'surf', -w / 4, t + 0.45, -0.6);
+    const stack = cyl(g, 0.45, 1.6, 'surf', w / 4, t + 0.8, -0.6, 16);
+    anim.vent.set(stack.position.x, t + 2, -0.6);
+    if (s.shape === 'tower') cyl(g, 0.06, 3, 'dark', w / 2 - 0.8, t + 1.5, FD / 2 - 1, 6);
   }
   g.traverse(o => { o.userData.floor = n - 1; });
   return g;
 }
 
-export function makeWorker(w: Worker) {
+export function makeWorker() {
   const g = new THREE.Group();
-  const legs = [-0.09, 0.09].map(x => {
+  const legs = [-0.1, 0.1].map(x => {
     const pivot = new THREE.Group();
-    pivot.position.set(x, 0.38, 0);
+    pivot.position.set(x, 0.4, 0);
     g.add(pivot);
-    box(pivot, 0.13, 0.36, 0.14, '#2F3440', 0, -0.18, 0);
+    box(pivot, 0.16, 0.4, 0.16, 'dark', 0, -0.2, 0);
     return pivot;
   });
-  box(g, 0.4, 0.42, 0.24, w.shirt, 0, 0.6, 0);
-  box(g, 0.3, 0.3, 0.3, w.skin, 0, 0.97, 0);
-  box(g, 0.32, 0.1, 0.32, w.hair, 0, 1.15, 0);
-  box(g, 0.32, 0.26, 0.08, w.hair, 0, 1.03, -0.14);
+  box(g, 0.5, 0.5, 0.3, 'accent', 0, 0.65, 0);
+  box(g, 0.38, 0.36, 0.36, 'surf', 0, 1.1, 0);
+  box(g, 0.4, 0.12, 0.4, 'dark', 0, 1.32, 0);
   return { group: g, legs };
 }
 
 export function makeScenery(s: GameState, g: THREE.Group) {
   clear(g);
-  const W = '#FFFFFF';
   if (s.loc === 'dalles') {
-    [[-18, -6], [-21, 3], [-15, 9], [20, -9], [23, 2], [-8, -15], [10, -16]].forEach(([x, z], k) => {
-      const h = 2.6 + (k % 3) * 0.6;
-      cyl(g, 0.18, 0.7, '#B08860', x, 0.35, z, 6);
-      add(g, new THREE.ConeGeometry(1 + (k % 2) * 0.25, h, 7), W, x, 0.7 + h / 2, z);
+    [[-10, -5, 2.6], [-12, 1, 3.2], [-9, 5, 2.2]].forEach(([x, z, h]) => {
+      cyl(g, 0.18, 0.6, 'dark', x, 0.3, z, 6);
+      add(g, new THREE.ConeGeometry(1, h, 8), 'surf', x, 0.6 + h / 2, z);
     });
-    unlit(box(g, 120, 0.05, 3, '#9FB6E6', 0, 0.03, 16));
   } else if (s.loc === 'reykjavik') {
-    for (const [x, z, r, h] of [[-26, -28, 10, 13], [2, -36, 13, 16], [30, -26, 9, 11]]) {
-      add(g, new THREE.ConeGeometry(r, h, 5), W, x, h / 2, z);
-    }
+    add(g, new THREE.ConeGeometry(5, 7, 5), 'surf', -12, 3.5, -10);
+    add(g, new THREE.ConeGeometry(3.5, 5, 5), 'surf', -16, 2.5, -3);
   } else if (s.loc === 'phoenix') {
     const cactus = (x: number, z: number) => {
-      cyl(g, 0.35, 3.2, W, x, 1.6, z, 8);
-      cyl(g, 0.25, 1.2, W, x - 0.7, 2.1, z, 8); box(g, 0.7, 0.3, 0.3, W, x - 0.35, 1.6, z);
-      cyl(g, 0.25, 1, W, x + 0.7, 1.7, z, 8); box(g, 0.7, 0.3, 0.3, W, x + 0.35, 1.3, z);
+      cyl(g, 0.35, 3, 'surf', x, 1.5, z, 10);
+      cyl(g, 0.25, 1.1, 'surf', x - 0.75, 2, z, 10);
+      box(g, 0.75, 0.3, 0.3, 'surf', x - 0.38, 1.5, z);
     };
-    cactus(-17, 4); cactus(19, -4); cactus(-12, -12);
-    box(g, 14, 4, 6, W, -6, 2, -28);
-    box(g, 9, 3, 5, W, 14, 1.5, -30);
+    cactus(-10, 2); cactus(-12, -4);
   } else {
-    for (const [x, z, w, h, d] of [[-24, -10, 9, 3.2, 6], [24, -8, 8, 4, 7], [0, -26, 12, 3, 7], [-22, 10, 6, 2.4, 5]]) {
-      box(g, w, h, d, W, x, h / 2, z);
-      box(g, 1.6, 0.7, 1.2, '#E8E8E8', x - w / 4, h + 0.35, z);
-      box(g, 1.6, 0.7, 1.2, '#E8E8E8', x + w / 4, h + 0.35, z);
-    }
+    box(g, 6, 2.6, 5, 'surf', -12, 1.3, -6);
+    box(g, 1.4, 0.6, 1, 'surf', -13, 2.9, -6);
   }
 }

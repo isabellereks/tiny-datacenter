@@ -1,27 +1,34 @@
 import {
   CUSTS, FH, FOUNDS, FW, LOCS, TYPES,
-  type BuildableType, type CustKey, type FloorType, type FoundKey, type InkKey,
-  type LocKey, type ShapeKey, type Step, type StitchKey,
+  type BuildableType, type CustKey, type FloorType, type FoundKey,
+  type LocKey, type Role, type ShapeKey, type ThreadKey,
 } from './data';
 
-export interface Floor { type: FloorType; color: string; done: boolean }
+export interface Floor { type: FloorType; fill: Role; done: boolean }
 
 export interface Worker {
   id: number; name: string; floor: number;
   x: number; dir: 1 | -1; speed: number; pause: number;
-  hair: string; skin: string; shirt: string;
+}
+
+export interface Pattern {
+  across: number;
+  threadCount: 2 | 3;
+  leaveWhite: boolean;
+  lettering: string;
+  threads: Record<ThreadKey, string>;
 }
 
 export interface GameState {
   cash: number;
-  step: Step;
+  picking: boolean;
   loc: LocKey;
   found: FoundKey;
   shape: ShapeKey;
   cust: CustKey;
-  ink: InkKey;
-  stitch: StitchKey;
   inside: boolean;
+  spin: boolean;
+  smoke: boolean;
   sel: number;
   next: BuildableType;
   build: { idx: number; t0: number; dur: number } | null;
@@ -29,6 +36,7 @@ export interface GameState {
   floors: Floor[];
   workers: Worker[];
   log: string[];
+  pattern: Pattern;
 }
 
 export interface Stats {
@@ -36,27 +44,35 @@ export interface Stats {
   demand: number; pSup: number; cSup: number;
 }
 
-const KEY = 'tiny-datacenter-v1';
+const KEY = 'tiny-datacenter-v2';
 
 export function fresh(): GameState {
   return {
-    cash: 300, step: 'floors', loc: 'dalles', found: 'slab', shape: 'shed', cust: 'ai',
-    ink: 'delft', stitch: 'M', inside: true, sel: 1, next: 'hall', build: null, nid: 2,
+    cash: 300, picking: false, loc: 'dalles', found: 'slab', shape: 'shed', cust: 'ai',
+    inside: false, spin: false, smoke: true, sel: 1, next: 'hall', build: null, nid: 2,
     floors: [
-      { type: 'lobby', color: '#FFFFFF', done: true },
-      { type: 'hall', color: '#FFFFFF', done: true },
-      { type: 'power', color: '#FFFFFF', done: true },
-      { type: 'cool', color: '#FFFFFF', done: true },
+      { type: 'lobby', fill: 'surf', done: true },
+      { type: 'hall', fill: 'surf', done: true },
+      { type: 'power', fill: 'surf', done: true },
+      { type: 'cool', fill: 'surf', done: true },
     ],
-    workers: [{ id: 1, name: 'Dana', floor: 1, x: 0, dir: 1, speed: 1.1, pause: 0, hair: '#5B3A1E', skin: '#D9A27E', shirt: '#F2B43C' }],
+    workers: [{ id: 1, name: 'Dana', floor: 1, x: 0, dir: 1, speed: 1.1, pause: 0 }],
     log: ['Opened with a lobby, one server hall, power and cooling.'],
+    pattern: {
+      across: 115, threadCount: 3, leaveWhite: true, lettering: 'tiny datacenter',
+      threads: { dark: '#0045D1', light: '#99BBFF', accent: '#FF7A45' },
+    },
   };
 }
 
 export function load(): GameState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...fresh(), ...(JSON.parse(raw) as Partial<GameState>) };
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<GameState>;
+      const base = fresh();
+      return { ...base, ...saved, pattern: { ...base.pattern, ...saved.pattern }, picking: false };
+    }
   } catch { /* storage unavailable */ }
   return fresh();
 }

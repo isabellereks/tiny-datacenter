@@ -1,34 +1,37 @@
-import { CUSTS, FOUNDS, HAIR, LOCS, NAMES, SHIRT, SKIN, TYPES, type BuildableType, type CustKey, type FoundKey, type InkKey, type LocKey, type ShapeKey, type Step, type StitchKey } from './data';
+import { CUSTS, FOUNDS, LOCS, NAMES, TYPES, type BuildableType, type CustKey, type FoundKey, type LocKey, type Role, type ShapeKey, type ThreadKey } from './data';
 import { floorCost, fresh, hireCost, note, type GameState } from './state';
 
 export type Action =
-  | { type: 'step'; step: Step }
+  | { type: 'pick'; on: boolean }
   | { type: 'next'; floor: BuildableType }
   | { type: 'build' }
-  | { type: 'color'; hex: string }
+  | { type: 'fill'; role: Role }
   | { type: 'hire' }
   | { type: 'loc'; loc: LocKey }
   | { type: 'cust'; cust: CustKey }
   | { type: 'found'; found: FoundKey }
   | { type: 'shape'; shape: ShapeKey }
-  | { type: 'ink'; ink: InkKey }
-  | { type: 'stitch'; stitch: StitchKey }
   | { type: 'inside'; inside: boolean }
+  | { type: 'spin'; on: boolean }
+  | { type: 'smoke'; on: boolean }
   | { type: 'select'; floor: number }
+  | { type: 'across'; n: number }
+  | { type: 'threadCount'; n: 2 | 3 }
+  | { type: 'leaveWhite'; on: boolean }
+  | { type: 'lettering'; text: string }
+  | { type: 'thread'; key: ThreadKey; hex: string }
   | { type: 'reset' };
 
-/** What the 3D scene must do after an action. */
-export interface Effects { rebuild?: boolean; frame?: 'default' | 'keep'; resize?: boolean; replace?: GameState }
+/** What the scene must do after an action. */
+export interface Effects { rebuild?: boolean; refit?: boolean; pattern?: boolean; replace?: GameState }
 
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
 export function apply(s: GameState, a: Action): Effects {
   switch (a.type) {
-    case 'step': {
-      const was = s.step;
-      s.step = a.step;
-      return { rebuild: true, frame: was === 'found' || a.step === 'found' ? 'default' : undefined };
-    }
+    case 'pick':
+      s.picking = a.on;
+      return { rebuild: true, refit: true };
     case 'next':
       s.next = a.floor;
       return {};
@@ -36,14 +39,14 @@ export function apply(s: GameState, a: Action): Effects {
       const cost = floorCost(s);
       if (s.cash < cost || s.build || s.floors.length >= FOUNDS[s.found].max) return {};
       s.cash -= cost;
-      s.floors.push({ type: s.next, color: s.floors[s.floors.length - 1].color, done: false });
+      s.floors.push({ type: s.next, fill: s.floors[s.floors.length - 1].fill, done: false });
       s.build = { idx: s.floors.length - 1, t0: Date.now(), dur: 1800 };
       s.sel = s.build.idx;
       note(s, `Started floor ${s.build.idx}: ${TYPES[s.next].name.toLowerCase()}.`);
-      return { rebuild: true, frame: 'keep' };
+      return { rebuild: true, refit: true };
     }
-    case 'color':
-      s.floors[s.sel].color = a.hex;
+    case 'fill':
+      s.floors[s.sel].fill = a.role;
       return { rebuild: true };
     case 'hire': {
       const cost = hireCost(s);
@@ -52,17 +55,15 @@ export function apply(s: GameState, a: Action): Effects {
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
-      s.workers.push({
-        id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1,
-        speed: 0.8 + Math.random() * 0.7, pause: 0, hair: pick(HAIR), skin: pick(SKIN), shirt: pick(SHIRT),
-      });
+      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0 });
+      if (!s.inside) s.inside = true;
       note(s, `Hired ${name} for floor ${s.sel}.`);
       return { rebuild: true };
     }
     case 'loc':
       s.loc = a.loc;
       note(s, `Moved to ${LOCS[a.loc].name}.`);
-      return { rebuild: true };
+      return { rebuild: true, refit: true };
     case 'cust':
       s.cust = a.cust;
       note(s, `Now serving: ${CUSTS[a.cust].name}.`);
@@ -72,26 +73,41 @@ export function apply(s: GameState, a: Action): Effects {
       if (a.found === s.found || s.cash < F.cost || s.floors.length > F.max || s.build) return {};
       s.cash -= F.cost;
       s.found = a.found;
+      s.picking = false;
       note(s, `Poured a ${F.name.toLowerCase()}.`);
-      return { rebuild: true };
+      return { rebuild: true, refit: true };
     }
     case 'shape':
       s.shape = a.shape;
-      return { rebuild: true };
-    case 'ink':
-      s.ink = a.ink;
-      return {};
-    case 'stitch':
-      s.stitch = a.stitch;
-      return { resize: true };
+      return { rebuild: true, refit: true };
     case 'inside':
       s.inside = a.inside;
       return { rebuild: true };
+    case 'spin':
+      s.spin = a.on;
+      return {};
+    case 'smoke':
+      s.smoke = a.on;
+      return { refit: true };
     case 'select':
       s.sel = a.floor;
-      s.step = 'floors';
-      return { rebuild: true };
+      return {};
+    case 'across':
+      s.pattern.across = a.n;
+      return { pattern: true };
+    case 'threadCount':
+      s.pattern.threadCount = a.n;
+      return {};
+    case 'leaveWhite':
+      s.pattern.leaveWhite = a.on;
+      return {};
+    case 'lettering':
+      s.pattern.lettering = a.text;
+      return { pattern: true };
+    case 'thread':
+      s.pattern.threads[a.key] = a.hex;
+      return {};
     case 'reset':
-      return { replace: fresh(), rebuild: true, frame: 'default' };
+      return { replace: fresh(), rebuild: true, refit: true, pattern: true };
   }
 }
