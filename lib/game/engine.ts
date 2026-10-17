@@ -78,6 +78,7 @@ export class Engine {
   private marchers: Marcher[] = [];
   private riotCash = 0;
   private goalClock = 0;
+  private thread = '';
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
   private roof: THREE.Group | null = null;
@@ -303,6 +304,9 @@ export class Engine {
     (u.uGroundEdge.value as THREE.Color).set(L.edge);
     (u.uGroundDeco.value as THREE.Color).set(L.deco);
     document.body.style.backgroundColor = L.cloth;
+    // the UI's fabric patches take their tint from the location's cloth
+    document.documentElement.style.setProperty('--cloth', L.cloth);
+    document.documentElement.style.setProperty('--hole', L.hole);
 
     const h = baseY(s, s.floors.length);
     this.sun.target.position.set(0, 0, 0);
@@ -447,6 +451,7 @@ export class Engine {
     this.controls.update();
     const u = this.post.uniforms;
     (u.uOutline.value as THREE.Color).set(s.look.outline);
+    if (s.look.outline !== this.thread) { this.thread = s.look.outline; document.documentElement.style.setProperty('--thread', s.look.outline); }
     (u.uShade.value as THREE.Color).set(s.look.shade);
     (u.uAccent.value as THREE.Color).set(s.look.accent);
     // gaps smaller than a couple of stitches aren't worth a line

@@ -134,6 +134,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
               <b>Building permit</b>
               <span>{L.name}</span>
             </div>
+            <div className="permit-fields">
             <label className="permit-field">
               <span>Datacenter name</span>
               <input value={s.look.name} maxLength={24} placeholder="Hillside Compute"
@@ -144,12 +145,13 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
               <input value={s.look.owner} maxLength={24} placeholder="Alex Rivera"
                 onChange={e => dispatch({ type: 'owner', text: e.target.value })} />
             </label>
+            </div>
             <div className="permit-rows">
-              <span>Floors</span><b>{s.floors.length}</b>
-              <span>Land</span><b>{FOUNDS[s.found].acres} acres</b>
-              <span>Power use</span><b>{l.hallMW.toFixed(1)} MW</b>
-              <span>Trees to cut</span><b>{imp.cleared}</b>
-              <span>Water a month</span><b>{imp.waterML.toFixed(1)} million litres</b>
+              <div><span>Floors</span><b>{s.floors.length}</b></div>
+              <div><span>Land</span><b>{FOUNDS[s.found].acres} acres</b></div>
+              <div><span>Power</span><b>{l.hallMW.toFixed(1)} MW</b></div>
+              <div><span>Trees cut</span><b>{imp.cleared}</b></div>
+              <div><span>Water/mo</span><b>{imp.waterML.toFixed(1)} ML</b></div>
             </div>
             {approved && <div className={`stamp ${stampFont}`} aria-live="assertive">Approved</div>}
           </div>
