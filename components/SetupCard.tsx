@@ -73,7 +73,7 @@ export function SetupCard({ s, dispatch, onHeight }: { s: GameState; dispatch: (
             </div>
             <div className="facts-grid">
               <Fact label="Power cost">{rate(L.power, 65, 80)}</Fact>
-              <Fact label="Cooling cost">{rate(L.pue, 1.15, 1.35)}</Fact>
+              <Fact label="Cooling cost">{rate(L.coolCost, 0.7, 1.2)}</Fact>
               <Fact label="Water use">{rate(L.water, 0.5, 2)}</Fact>
               <Fact label="Taxes">{rate(L.propertyTax, 0.004, 0.011)}</Fact>
               <Fact label="Pollution">{rate(L.carbon, 0.1, 0.35)}</Fact>
@@ -100,7 +100,7 @@ export function SetupCard({ s, dispatch, onHeight }: { s: GameState; dispatch: (
             <button aria-label="Remove a floor" disabled={s.floors.length <= 2} onClick={() => dispatch({ type: 'height', n: s.floors.length - 1 })}>−</button>
             <ol className="floorlist" reversed>
               {s.floors.map((f, k) => (
-                <li key={k}><span>{TYPES[f.type].name}</span><span>{money(floorPrice(f.type, k))}</span></li>
+                <li key={k}><span>{TYPES[f.type].name}</span><span>{money(floorPrice(s.loc, f.type, k))}</span></li>
               )).reverse()}
             </ol>
             <button aria-label="Add a floor" disabled={s.floors.length >= maxStart} onClick={() => dispatch({ type: 'height', n: s.floors.length + 1 })}>+</button>

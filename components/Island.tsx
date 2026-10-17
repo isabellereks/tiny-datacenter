@@ -10,7 +10,7 @@ import {
   COMPLAINTS, REPLANT_COST, UPGRADES, foundationUpgradeCost, nextFoundation, score, type Impact,
 } from '@/lib/game/events';
 import {
-  buildCost, dateLabel, isBroken, money, techsOn, utilization, type GameState, type Ledger,
+  buildCost, dateLabel, floorPrice, isBroken, money, techsOn, utilization, type GameState, type Ledger,
 } from '@/lib/game/state';
 import { Threads } from './Threads';
 
@@ -191,12 +191,12 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
             <div className="chips">
               {BUILDABLE.map(t => (
                 <Chip key={t} on={s.next === t} onClick={() => dispatch({ type: 'next', floor: t })}>
-                  <b>{TYPES[t].name}</b><small>{TYPES[t].note}</small>
+                  <b>{TYPES[t].name}</b><small>{TYPES[t].note}</small><small className="chip-price">{money(floorPrice(s.loc, t, n))}</small>
                 </Chip>
               ))}
             </div>
-            <Meter label="Power" value={l.hallMW} max={l.powerMW} text={`${l.hallMW.toFixed(1)} of ${l.powerMW.toFixed(1)} MW`} bad={l.hallMW > l.powerMW} />
-            <Meter label="Cooling" value={l.hallMW} max={l.coolMW} text={`${l.hallMW.toFixed(1)} of ${l.coolMW.toFixed(1)} MW`} bad={l.hallMW > l.coolMW} />
+            <Meter label="Power" value={l.hallMW} max={l.powerMW} text={`${l.hallMW.toFixed(1)}/${l.powerMW.toFixed(1)} MW`} bad={l.hallMW > l.powerMW} />
+            <Meter label="Cooling" value={l.hallMW} max={l.coolMW} text={`${l.hallMW.toFixed(1)}/${l.coolMW.toFixed(1)} MW`} bad={l.hallMW > l.coolMW} />
             {l.eff < 0.999 && <p className="warn">Need more {l.pe < 1 ? 'power' : 'cooling'}. Halls at {Math.round(l.eff * 100)}%.</p>}
             <Threads label="New floor color" value={s.nextFill} onPick={fill => dispatch({ type: 'nextFill', fill })} />
             {n < max ? (

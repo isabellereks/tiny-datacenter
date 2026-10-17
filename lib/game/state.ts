@@ -85,10 +85,11 @@ export interface Ledger {
 const KEY = 'tiny-datacenter-v4';
 
 /** Price of a floor: taller floors cost a little more to build. */
-export const floorPrice = (type: FloorType, index: number) => Math.round(TYPES[type].cost * (1 + 0.08 * index));
+export const floorPrice = (loc: LocKey, type: FloorType, index: number) =>
+  Math.round(TYPES[type].cost * (type === 'cool' ? LOCS[loc].coolCost : 1) * (1 + 0.05 * index));
 
 export function fresh(): GameState {
-  const floors: Floor[] = (['lobby', 'hall', 'power', 'cool'] as FloorType[]).map((type, i) => ({ type, fill: 'cloth', done: true, cost: floorPrice(type, i) }));
+  const floors: Floor[] = (['lobby', 'hall', 'power', 'cool'] as FloorType[]).map((type, i) => ({ type, fill: 'cloth', done: true, cost: floorPrice('dalles', type, i) }));
   return {
     phase: 'setup', step: 'loc', cash: 0,
     loc: 'dalles', found: 'slab', shape: 'box', cust: 'ai',
@@ -145,7 +146,7 @@ export function setupCost(s: GameState) {
   const land = landCost(s.loc, s.found);
   const found = FOUNDS[s.found].cost;
   const shape = SHAPES[s.shape].cost;
-  const floors = s.floors.reduce((t, f, i) => t + floorPrice(f.type, i), 0);
+  const floors = s.floors.reduce((t, f, i) => t + floorPrice(s.loc, f.type, i), 0);
   return { land, found, shape, floors, total: land + found + shape + floors, left: BUDGET - (land + found + shape + floors) };
 }
 
@@ -153,7 +154,7 @@ export function setupCost(s: GameState) {
 export const assets = (s: GameState) =>
   FOUNDS[s.found].cost + SHAPES[s.shape].cost + s.floors.reduce((t, f) => t + (f.done ? f.cost : 0), 0);
 
-export const buildCost = (s: GameState) => floorPrice(s.next, s.floors.length);
+export const buildCost = (s: GameState) => floorPrice(s.loc, s.next, s.floors.length);
 export const baseY = (s: GameState, i: number) => FOUNDS[s.found].h + i * FH;
 export const floorW = (s: GameState, i: number) => (s.shape === 'tower' ? FW * (1 - Math.min(Math.floor(i / 3), 3) * 0.12) : FW);
 export const perRow = (s: GameState, i: number) => Math.max(2, Math.floor((floorW(s, i) - 1.4) / 2));

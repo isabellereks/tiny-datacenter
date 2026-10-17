@@ -30,7 +30,7 @@ const addTrust = (s: GameState, d: number) => { s.trust = Math.max(0, Math.min(1
 
 export const COMPLAINTS: Complaint[] = [
   {
-    id: 'trees', from: 'Neighbors', wait: 2, sting: 12,
+    id: 'trees', from: 'Neighbors', wait: 4, sting: 12,
     title: (_, i) => `You cut down ${i.cleared} trees`,
     body: 'They want them replanted.',
     active: (_, i) => i.cleared >= 8,
@@ -40,7 +40,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'noise', from: 'Neighbors', wait: 3, sting: 10,
+    id: 'noise', from: 'Neighbors', wait: 6, sting: 10,
     title: () => 'Your fans are too loud',
     body: 'They want a sound wall.',
     active: s => s.floors.length >= 6 && !s.up.soundWalls,
@@ -50,7 +50,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'water', from: 'Water board', wait: 2, sting: 12,
+    id: 'water', from: 'Water board', wait: 4, sting: 12,
     title: () => 'You use too much water',
     body: 'They want you to switch to water-saving cooling.',
     active: (s, i) => i.waterML >= 4 && !s.up.closedLoop,
@@ -60,7 +60,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'grid', from: 'Power company', wait: 2, sting: 8,
+    id: 'grid', from: 'Power company', wait: 4, sting: 8,
     title: () => 'You are overloading the grid',
     body: 'They want you to buy wind power.',
     active: (s, _, l) => l.itMW >= 10 && !s.up.renewables,
@@ -70,7 +70,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'carbon', from: 'Newspaper', wait: 4, sting: 8,
+    id: 'carbon', from: 'Newspaper', wait: 8, sting: 8,
     title: () => 'You pollute too much',
     body: 'They are writing a story about you.',
     active: (s, i) => i.carbonT >= 1000 && !s.up.renewables,
@@ -99,44 +99,44 @@ export const UPGRADES = [
 ] as const;
 export const REPLANT_COST = 200_000;
 
-const COOLDOWN = 8;
+const COOLDOWN = 16;
 
 export interface Goal { text: string; hint: string; reward: number; done: (s: GameState, l: Ledger) => boolean }
 
 /** The first goals double as a tutorial. */
 export const GOALS: Goal[] = [
   {
-    text: 'Hire a tech', reward: 250_000,
+    text: 'Hire a tech', reward: 500_000,
     hint: 'Tap the server hall, then tap Hire.',
     done: s => s.workers.length > 0,
   },
   {
-    text: 'Earn $250k in a month', reward: 500_000,
+    text: 'Earn $250k in a month', reward: 2_000_000,
     hint: 'More techs means more money.',
     done: s => (s.books?.net ?? 0) >= 250_000,
   },
   {
-    text: 'Build a second server hall', reward: 1_000_000,
+    text: 'Build a second server hall', reward: 5_000_000,
     hint: 'Tap the bar at the top, then Build. Keep an eye on power and cooling.',
     done: s => hallCount(s) >= 2,
   },
   {
-    text: 'Fill a hall with 3 techs', reward: 750_000,
+    text: 'Fill a hall with 3 techs', reward: 3_000_000,
     hint: 'Full halls earn the most.',
     done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS),
   },
   {
-    text: 'Keep trust above 50 for 2 years', reward: 2_000_000,
+    text: 'Keep trust above 50 for 5 years', reward: 10_000_000,
     hint: 'Handle complaints and buy upgrades in Town.',
-    done: s => s.month >= 24 && s.trust > 50,
+    done: s => s.month >= 60 && s.trust > 50,
   },
   {
-    text: 'Earn $1M in a month', reward: 3_000_000,
+    text: 'Earn $1M in a month', reward: 15_000_000,
     hint: 'Add halls and network floors.',
     done: s => (s.books?.net ?? 0) >= 1_000_000,
   },
   {
-    text: 'Build 12 floors', reward: 5_000_000,
+    text: 'Build 12 floors', reward: 25_000_000,
     hint: 'You may need a bigger foundation.',
     done: s => s.floors.filter(f => f.done).length >= 12,
   },
@@ -161,12 +161,12 @@ export function endOfMonth(s: GameState) {
 
   // problems nobody has fixed wear down trust; a quiet month builds it back
   const open = COMPLAINTS.filter(c => c.id !== 'protest' && c.active(s, i, l)).length;
-  addTrust(s, open ? -1.5 * open : 1);
+  addTrust(s, open ? -0.75 * open : 0.5);
 
   // a hall can go down; it's likelier when power or cooling is short or nobody is watching it
   const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
   for (const { k } of halls) {
-    const p = 0.05 + (l.eff < 1 ? 0.15 : 0) + (techsOn(s, k) === 0 ? 0.05 : 0);
+    const p = 0.025 + (l.eff < 1 ? 0.08 : 0) + (techsOn(s, k) === 0 ? 0.025 : 0);
     if (s.broken.length < 2 && Math.random() < p) {
       s.broken.push({ floor: k, t: 0 });
       note(s, techsOn(s, k) ? `Floor ${k} is down. Your crew is fixing it.` : `Floor ${k} is down. Tap it to fix.`);
@@ -224,7 +224,7 @@ export function endGame(s: GameState, reason: 'town' | 'broke') {
 export function score(s: GameState) {
   const parts = {
     profit: Math.round(Math.max(0, s.tally.profit) / 100_000),
-    months: Math.floor(s.month) * 5,
+    months: Math.floor(s.month) * 2,
     goals: s.tally.goals * 100,
     fixed: s.tally.fixed * 20,
     ignored: -s.tally.ignored * 150,

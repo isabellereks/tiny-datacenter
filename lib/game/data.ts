@@ -40,6 +40,8 @@ export interface Location {
   demand: number;
   /** tonnes of CO2 per MWh from the local grid */
   carbon: number;
+  /** price of cooling equipment here: hot places need big chillers, cold places use outside air */
+  coolCost: number;
   trees: number;
   taxNote: string;
   /** cloth tint, ground patch edge and ground texture threads */
@@ -59,8 +61,8 @@ export interface Customer {
 }
 
 /** Money for land and the first build. Whatever is left is your starting cash. */
-export const BUDGET = 40_000_000;
-export const MONTH_SECONDS = 6;
+export const BUDGET = 100_000_000;
+export const MONTH_SECONDS = 3;
 export const HOURS_PER_MONTH = 730;
 export const TECH_SALARY = 8_000;
 export const HIRE_FEE = 15_000;
@@ -73,28 +75,28 @@ export const LOCS: Record<LocKey, Location> = {
   dalles: {
     name: 'The Dalles, Oregon', short: 'Oregon', note: 'Cheap power. Lots of trees.',
     land: 150_000, power: 60, pue: 1.2, water: 1, waterPrice: 1.5,
-    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, trees: 26,
+    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, trees: 26,
     taxNote: 'Almost no property tax.',
     cloth: '#F2F5EE', hole: '#E2E7DA', edge: '#A8D5BA', deco: '#2E8B57',
   },
   reykjavik: {
     name: 'Reykjavík, Iceland', short: 'Iceland', note: 'Free cooling. Customers pay less.',
     land: 120_000, power: 45, pue: 1.12, water: 0.1, waterPrice: 1,
-    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, trees: 10,
+    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, trees: 10,
     taxNote: 'Lowest profit tax.',
     cloth: '#F1F4F8', hole: '#DFE5EE', edge: '#C9B6F2', deco: '#99BBFF',
   },
   phoenix: {
     name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot. Uses lots of water.',
     land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
-    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, trees: 14,
+    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, trees: 14,
     taxNote: 'Normal taxes.',
     cloth: '#FAF3E7', hole: '#EDE1CC', edge: '#E9D3A6', deco: '#E0A458',
   },
   ashburn: {
     name: 'Ashburn, Virginia', short: 'Virginia', note: 'Best customers. Pricey land.',
     land: 2_000_000, power: 85, pue: 1.3, water: 1.2, waterPrice: 2,
-    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, trees: 18,
+    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, trees: 18,
     taxNote: 'High property tax.',
     cloth: '#F5F4F1', hole: '#E5E3DD', edge: '#B8BCC6', deco: '#7D8597',
   },
@@ -122,13 +124,14 @@ export const CUSTS: Record<CustKey, Customer> = {
   games: { name: 'Game servers', note: 'Pays the least. Easy to run.', price: 170, mw: 2, base: 0.5, per: 0.17, net: 1.5 },
 };
 
+/** Build prices land near real ones: about $10M per MW of IT, with power gear ~$3.5M/MW and cooling ~$2M/MW. */
 export const TYPES: Record<FloorType, { name: string; short: string; cost: number; note: string }> = {
-  hall: { name: 'Server hall', short: 'Server hall', cost: 6_000_000, note: 'Earns money.' },
-  power: { name: 'Power', short: 'Power', cost: 4_000_000, note: '+6 MW power.' },
-  cool: { name: 'Cooling', short: 'Cooling', cost: 3_000_000, note: '+6 MW cooling.' },
-  net: { name: 'Network', short: 'Network', cost: 2_000_000, note: 'Halls earn more.' },
+  hall: { name: 'Server hall', short: 'Server hall', cost: 10_000_000, note: 'Earns money.' },
+  power: { name: 'Power', short: 'Power', cost: 21_000_000, note: '+6 MW power.' },
+  cool: { name: 'Cooling', short: 'Cooling', cost: 12_000_000, note: '+6 MW cooling.' },
+  net: { name: 'Network', short: 'Network', cost: 3_000_000, note: 'Halls earn more.' },
   break: { name: 'Break room', short: 'Break room', cost: 500_000, note: 'Techs work faster.' },
-  lobby: { name: 'Lobby', short: 'Lobby', cost: 1_000_000, note: 'Front desk.' },
+  lobby: { name: 'Lobby', short: 'Lobby', cost: 2_000_000, note: 'Front desk.' },
 };
 export const BUILDABLE: BuildableType[] = ['hall', 'power', 'cool', 'net', 'break'];
 

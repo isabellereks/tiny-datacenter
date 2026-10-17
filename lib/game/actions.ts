@@ -61,7 +61,7 @@ export function apply(s: GameState, a: Action): Effects {
       settle(s);
       if (n > s.floors.length) {
         const i = s.floors.length;
-        s.floors.push({ type: STARTER[i], fill: s.floors[i - 1].fill, done: false, cost: floorPrice(STARTER[i], i) });
+        s.floors.push({ type: STARTER[i], fill: s.floors[i - 1].fill, done: false, cost: floorPrice(s.loc, STARTER[i], i) });
         startBuild(s, 650);
       } else if (n < s.floors.length) {
         s.floors.pop();
@@ -78,6 +78,7 @@ export function apply(s: GameState, a: Action): Effects {
       settle(s);
       s.phase = 'play';
       s.cash = c.left;
+      s.floors.forEach((f, i) => { f.cost = floorPrice(s.loc, f.type, i); });
       s.inside = true;
       s.spin = false;
       s.nextFill = s.floors[s.floors.length - 1].fill;

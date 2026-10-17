@@ -4,11 +4,12 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## How to play
 
-**Set up.** You get a $40M budget. Pick a location, a foundation, a shape, your floors, a customer and colors. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
+**Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your floors, a customer and colors. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
 
 **Run it.** The bar at the top shows the month, your cash, profit per month and trust. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
 
 - Server halls earn money. They need enough power and cooling floors to run at full speed.
+- Building costs about what real datacenters do, roughly $10M per MW. Power gear is the biggest cost, then cooling, which is cheapest in Iceland and most expensive in Arizona.
 - Techs fill halls with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
 - Every month you pay for power, water, staff, property tax and profit tax. Three months in debt and you go bankrupt.
 - Building cuts down trees and uses water and power. Neighbors, the water board, the power company and the paper will complain. Pay to fix it or ignore it. Ignoring costs trust and score.
@@ -16,12 +17,12 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## Locations
 
-| | Land | Power | Notes |
-|---|---|---|---|
-| Oregon | $150k/acre | $60/MWh | Hydro power, lots of trees, almost no property tax |
-| Iceland | $120k/acre | $45/MWh | Free cooling, little water, customers pay less |
-| Arizona | $600k/acre | $75/MWh | Hot, uses lots of water |
-| Virginia | $2M/acre | $85/MWh | Customers pay the most, high property tax |
+| | Land | Power | Cooling floor | Notes |
+|---|---|---|---|---|
+| Oregon | $150k/acre | $60/MWh | $10M | Hydro power, lots of trees, almost no property tax |
+| Iceland | $120k/acre | $45/MWh | $7M | Free cooling, little water, customers pay less |
+| Arizona | $600k/acre | $75/MWh | $17M | Hot, uses lots of water |
+| Virginia | $2M/acre | $85/MWh | $12M | Customers pay the most, high property tax |
 
 Prices, taxes, PUE and water use are rough estimates based on public figures.
 
