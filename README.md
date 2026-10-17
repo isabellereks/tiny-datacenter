@@ -1,16 +1,29 @@
 # tiny datacenter simulator
 
-A Tiny Tower–style idle game where you build a datacenter layer by layer. It's 3D, but every frame is drawn as cross-stitch on cloth.
+A simulator game where you build and run a datacenter, floor by floor. It's 3D, drawn as cross-stitch on cloth.
 
-**Build it.** A short setup walks you through it: pour a foundation (tap it right on the cloth), pick a shape, choose where it goes, set how tall to start, colour each layer with thread, choose who you're serving, and name it. The name gets stitched underneath.
+## How to play
 
-**Run it.** Once you open for business, everything lives in a dynamic island at the top. It shows the day, cash and status, pops up with news, and expands into Build, Floor, Crew, Impact, Site and Look.
+**Set up.** You get a $40M budget. Pick a location, a foundation, a shape, your floors, a customer and colors. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
 
-- Stack floors (server halls, cooling, power, network, break rooms) and hire tiny techs to staff the halls
-- Each location has its own cloth, ground and scenery: Oregon pines, Icelandic snow, Arizona desert, Virginia's data center alley
-- Building clears the trees around your lot, and the Impact tab tracks trees, water, carbon and goodwill
-- Days pass while you play. Stay at a stage too long and complaints arrive: neighbors, the water board, the utility, protests. Fix them or ignore them; goodwill scales your revenue
-- Drag to turn the building, scroll to zoom; Inside shows the floors and crew, Outside shows the facade
+**Run it.** The bar at the top shows the month, your cash, profit per month and trust. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
+
+- Server halls earn money. They need enough power and cooling floors to run at full speed.
+- Techs fill halls with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
+- Every month you pay for power, water, staff, property tax and profit tax. Three months in debt and you go bankrupt.
+- Building cuts down trees and uses water and power. Neighbors, the water board, the power company and the paper will complain. Pay to fix it or ignore it. Ignoring costs trust and score.
+- If trust hits 0, the town tears down your datacenter and you lose all your money.
+
+## Locations
+
+| | Land | Power | Notes |
+|---|---|---|---|
+| Oregon | $150k/acre | $60/MWh | Hydro power, lots of trees, almost no property tax |
+| Iceland | $120k/acre | $45/MWh | Free cooling, little water, customers pay less |
+| Arizona | $600k/acre | $75/MWh | Hot, uses lots of water |
+| Virginia | $2M/acre | $85/MWh | Customers pay the most, high property tax |
+
+Prices, taxes, PUE and water use are rough estimates based on public figures.
 
 ## Run it
 
@@ -23,8 +36,8 @@ Then open http://localhost:3000.
 
 ## How it's built
 
-- Next.js (App Router) + React + TypeScript
-- three.js renders the scene twice at stitch resolution (view normals + depth, then flat role colours and the lit ground); `lib/game/stitchPass.ts` turns every cell into a thread and draws the X stitches
-- Game logic is plain TypeScript in `lib/game/`: `state.ts` (economy and days), `actions.ts` (player actions), `events.ts` (environmental impact and complaints), `models.ts` (3D pieces and scenery), `engine.ts` (render loop and camera)
-- UI lives in `components/`: `Game`, `SetupCard` for the build walkthrough, `Island` for the dynamic island
+- Next.js (App Router), React and TypeScript
+- three.js renders the scene twice at stitch resolution; `lib/game/stitchPass.ts` turns every cell into an X stitch
+- `lib/game/`: `data.ts` (prices and rates), `state.ts` (monthly books and simulation), `events.ts` (complaints, outages, goals, score, endings), `actions.ts` (player actions), `models.ts` (3D pieces), `engine.ts` (render loop, camera, the ending)
+- `components/`: `SetupCard` (setup), `Island` (top bar), `GoalCard`, `EndCard`
 - Progress saves to `localStorage`

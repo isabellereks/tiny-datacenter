@@ -1,27 +1,14 @@
-import { CUSTS, FOUNDS, LOCS, type FoundKey } from './data';
-import { money, note, stats, type GameState } from './state';
+import { FOUNDS, LOCS, MAX_TECHS, SHAPES, type FoundKey } from './data';
+import { hallCount, ledger, money, note, techsOn, type GameState, type Ledger } from './state';
 
-/** Real seconds per in-game day. */
-export const DAY_SECONDS = 12;
+export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
-export interface Impact {
-  trees: number;
-  cleared: number;
-  water: number;
-  carbon: number;
-}
-
-const FOUND_TIER: Record<FoundKey, number> = { slab: 0, raised: 1, piles: 2, bedrock: 3 };
-
-export function impact(s: GameState): Impact {
+/** Trees cleared for the site: more land and more floors clear more. */
+export function impact(s: GameState, l: Ledger = ledger(s)): Impact {
   const L = LOCS[s.loc];
-  const floors = s.floors.length;
-  const raw = Math.round(1.2 * floors + FOUND_TIER[s.found] * 1.5 + Math.max(0, floors - 6) * 0.8);
+  const raw = Math.round((FOUNDS[s.found].acres * 0.8 + s.floors.length * 0.6) * SHAPES[s.shape].trees);
   const cleared = Math.max(0, Math.min(L.trees, raw - s.replanted));
-  const cools = s.floors.filter(f => f.done && f.type === 'cool').length;
-  const water = cools * L.water * (s.up.closedLoop ? 0.3 : 1);
-  const carbon = stats(s).demand * L.carbon * (s.up.renewables ? 0.3 : 1);
-  return { trees: L.trees, cleared, water, carbon };
+  return { trees: L.trees, cleared, waterML: l.waterML, carbonT: l.carbonT };
 }
 
 export interface Choice { label: string; cost?: number; apply: (s: GameState) => void }
@@ -30,85 +17,175 @@ export interface Complaint {
   from: string;
   title: (s: GameState, i: Impact) => string;
   body: string;
-  when: (s: GameState, i: Impact, daysAtStage: number) => boolean;
+  /** true while the problem behind the complaint is still there */
+  active: (s: GameState, i: Impact, l: Ledger) => boolean;
+  /** months the problem has to last before someone complains */
+  wait: number;
   choices: Choice[];
+  /** trust lost when ignored */
+  sting: number;
 }
 
-const rep = (s: GameState, d: number) => { s.rep = Math.max(0, Math.min(100, s.rep + d)); };
+const addTrust = (s: GameState, d: number) => { s.trust = Math.max(0, Math.min(100, s.trust + d)); };
 
 export const COMPLAINTS: Complaint[] = [
   {
-    id: 'trees', from: 'Friends of the Forest',
-    title: (_, i) => `You’ve cleared ${i.cleared} trees`,
-    body: 'People walk their dogs out here. They want the woods back.',
-    when: (_, i, d) => i.cleared >= 6 && d >= 2,
+    id: 'trees', from: 'Neighbors', wait: 2, sting: 12,
+    title: (_, i) => `You cut down ${i.cleared} trees`,
+    body: 'They want them replanted.',
+    active: (_, i) => i.cleared >= 8,
     choices: [
-      { label: 'Plant a grove', cost: 600, apply: s => { s.replanted += 5; rep(s, 8); } },
-      { label: 'Ignore', apply: s => rep(s, -12) },
+      { label: 'Plant trees', cost: 200_000, apply: s => { s.replanted += 6; addTrust(s, 8); } },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'noise', from: 'Your neighbors',
-    title: () => 'The fans hum all night',
-    body: 'Three households signed a letter. Nobody has slept since floor five.',
-    when: (s, _, d) => s.floors.length >= 5 && d >= 3 && !s.up.soundWalls,
+    id: 'noise', from: 'Neighbors', wait: 3, sting: 10,
+    title: () => 'Your fans are too loud',
+    body: 'They want a sound wall.',
+    active: s => s.floors.length >= 6 && !s.up.soundWalls,
     choices: [
-      { label: 'Build sound walls', cost: 500, apply: s => { s.up.soundWalls = true; rep(s, 6); } },
-      { label: 'Ignore', apply: s => rep(s, -10) },
+      { label: 'Build a sound wall', cost: 1_500_000, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'water', from: 'County water board',
-    title: (_, i) => `Your cooling drinks ${i.water.toFixed(1)} ML a day`,
-    body: 'That’s a lot of water during a dry year. The board wants a plan.',
-    when: (s, i, d) => i.water >= 1.5 && d >= 2 && !s.up.closedLoop,
+    id: 'water', from: 'Water board', wait: 2, sting: 12,
+    title: () => 'You use too much water',
+    body: 'They want you to switch to water-saving cooling.',
+    active: (s, i) => i.waterML >= 4 && !s.up.closedLoop,
     choices: [
-      { label: 'Closed-loop cooling', cost: 900, apply: s => { s.up.closedLoop = true; rep(s, 8); } },
-      { label: 'Ignore', apply: s => rep(s, -10) },
+      { label: 'Switch cooling', cost: 4_000_000, apply: s => { s.up.closedLoop = true; addTrust(s, 8); } },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'grid', from: 'The utility',
-    title: () => 'You’re straining the grid',
-    body: 'Brownouts hit the neighborhood twice this week. They’d like you to bring your own power.',
-    when: (s, _, d) => stats(s).demand >= 6 && d >= 2 && !s.up.renewables,
+    id: 'grid', from: 'Power company', wait: 2, sting: 8,
+    title: () => 'You are overloading the grid',
+    body: 'They want you to buy wind power.',
+    active: (s, _, l) => l.itMW >= 10 && !s.up.renewables,
     choices: [
-      { label: 'Sign a wind contract', cost: 1200, apply: s => { s.up.renewables = true; rep(s, 6); } },
-      { label: 'Ignore', apply: s => rep(s, -8) },
+      { label: 'Buy wind power', cost: 3_000_000, apply: s => { s.up.renewables = true; addTrust(s, 6); } },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'carbon', from: 'A local reporter',
-    title: (_, i) => `${i.carbon.toFixed(1)} tons of CO₂ a day`,
-    body: 'They’re running a story on the town’s biggest polluters. You made the list.',
-    when: (s, i) => i.carbon >= 2.5 && s.day >= 8,
+    id: 'carbon', from: 'Newspaper', wait: 4, sting: 8,
+    title: () => 'You pollute too much',
+    body: 'They are writing a story about you.',
+    active: (s, i) => i.carbonT >= 1000 && !s.up.renewables,
     choices: [
-      { label: 'Buy offsets', cost: 400, apply: s => rep(s, 4) },
-      { label: 'No comment', apply: s => rep(s, -8) },
+      { label: 'Buy offsets', cost: 100_000, apply: s => addTrust(s, 4) },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'protest', from: 'Out front',
-    title: () => 'There’s a protest at the gate',
-    body: '“Data centers drink our future.” A few dozen people and one very loud drum.',
-    when: s => s.rep < 50,
+    id: 'protest', from: 'Protesters', wait: 0, sting: 6,
+    title: () => 'People are protesting outside',
+    body: 'If trust hits zero, the town shuts you down.',
+    active: s => s.trust < 40,
     choices: [
-      { label: 'Hold a town hall', cost: 300, apply: s => rep(s, 12) },
-      { label: 'Ignore', apply: s => rep(s, -5) },
+      { label: 'Hold a meeting', cost: 200_000, apply: s => addTrust(s, 12) },
+      { label: 'Ignore', apply: () => {} },
     ],
   },
 ];
 
-const COOLDOWN_DAYS = 8;
+/** Upgrades you can buy before anyone complains. */
+export const UPGRADES = [
+  { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, note: 'Stops noise complaints.' },
+  { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, note: '85% less water.' },
+  { key: 'renewables', name: 'Wind power', cost: 3_000_000, note: '90% less pollution.' },
+] as const;
+export const REPLANT_COST = 200_000;
 
-/** Called once per new day. Opens the first complaint whose moment has come. */
-export function checkComplaints(s: GameState) {
+const COOLDOWN = 8;
+
+export interface Goal { text: string; hint: string; reward: number; done: (s: GameState, l: Ledger) => boolean }
+
+/** The first goals double as a tutorial. */
+export const GOALS: Goal[] = [
+  {
+    text: 'Hire a tech', reward: 250_000,
+    hint: 'Tap the server hall, then tap Hire.',
+    done: s => s.workers.length > 0,
+  },
+  {
+    text: 'Earn $250k in a month', reward: 500_000,
+    hint: 'More techs means more money.',
+    done: s => (s.books?.net ?? 0) >= 250_000,
+  },
+  {
+    text: 'Build a second server hall', reward: 1_000_000,
+    hint: 'Tap the bar at the top, then Build. Keep an eye on power and cooling.',
+    done: s => hallCount(s) >= 2,
+  },
+  {
+    text: 'Fill a hall with 3 techs', reward: 750_000,
+    hint: 'Full halls earn the most.',
+    done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS),
+  },
+  {
+    text: 'Keep trust above 50 for 2 years', reward: 2_000_000,
+    hint: 'Handle complaints and buy upgrades in Town.',
+    done: s => s.month >= 24 && s.trust > 50,
+  },
+  {
+    text: 'Earn $1M in a month', reward: 3_000_000,
+    hint: 'Add halls and network floors.',
+    done: s => (s.books?.net ?? 0) >= 1_000_000,
+  },
+  {
+    text: 'Build 12 floors', reward: 5_000_000,
+    hint: 'You may need a bigger foundation.',
+    done: s => s.floors.filter(f => f.done).length >= 12,
+  },
+];
+
+/** Checks the current goal and pays out when it's met. */
+export function checkGoal(s: GameState, l: Ledger) {
+  const g = GOALS[s.goal];
+  if (!g || !g.done(s, l)) return false;
+  s.cash += g.reward;
+  s.goal++;
+  s.tally.goals++;
+  note(s, `Goal complete: +${money(g.reward)}`);
+  return true;
+}
+
+/** Runs once at the end of each month: books, trust, outages, complaints and endings. */
+export function endOfMonth(s: GameState) {
+  const l = ledger(s);
+  s.books = l;
+  const i = impact(s, l);
+
+  // problems nobody has fixed wear down trust; a quiet month builds it back
+  const open = COMPLAINTS.filter(c => c.id !== 'protest' && c.active(s, i, l)).length;
+  addTrust(s, open ? -1.5 * open : 1);
+
+  // a hall can go down; it's likelier when power or cooling is short or nobody is watching it
+  const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
+  for (const { k } of halls) {
+    const p = 0.05 + (l.eff < 1 ? 0.15 : 0) + (techsOn(s, k) === 0 ? 0.05 : 0);
+    if (s.broken.length < 2 && Math.random() < p) {
+      s.broken.push({ floor: k, t: 0 });
+      note(s, techsOn(s, k) ? `Floor ${k} is down. Your crew is fixing it.` : `Floor ${k} is down. Tap it to fix.`);
+    }
+  }
+
+  if (s.cash < 0) {
+    s.debt++;
+    if (s.debt === 1) note(s, 'You are in debt. 3 months like this and you go bankrupt.');
+  } else s.debt = 0;
+
+  if (s.trust <= 0) { endGame(s, 'town'); return; }
+  if (s.debt >= 3) { endGame(s, 'broke'); return; }
+
   if (s.complaint) return;
-  const i = impact(s);
-  const days = s.day - s.stageDay;
+  const atSize = s.month - s.stageMonth;
   for (const c of COMPLAINTS) {
-    if ((s.cooldown[c.id] ?? 0) > s.day) continue;
-    if (c.when(s, i, days)) {
+    if ((s.cooldown[c.id] ?? 0) > s.month) continue;
+    if (c.active(s, i, l) && atSize >= c.wait) {
       s.complaint = c.id;
       return;
     }
@@ -122,17 +199,44 @@ export function resolveComplaint(s: GameState, choice: number) {
   if (ch.cost && s.cash < ch.cost) return;
   if (ch.cost) s.cash -= ch.cost;
   ch.apply(s);
-  s.cooldown[c.id] = s.day + COOLDOWN_DAYS;
+  if (!ch.cost) {
+    addTrust(s, -c.sting);
+    s.tally.ignored++;
+    note(s, `Trust −${c.sting}`);
+  } else {
+    note(s, `${ch.label}: −${money(ch.cost)}`);
+  }
+  s.cooldown[c.id] = s.month + COOLDOWN;
   s.complaint = null;
-  note(s, ch.cost ? `${ch.label} · −${money(ch.cost)}` : `Ignored: ${c.from.toLowerCase()}`);
+  if (s.trust <= 0) endGame(s, 'town');
 }
 
-export const repMultiplier = (s: GameState) => 0.6 + 0.4 * (s.rep / 100);
+export function endGame(s: GameState, reason: 'town' | 'broke') {
+  s.phase = 'over';
+  s.over = { reason, t0: Date.now(), done: reason === 'broke' };
+  s.complaint = null;
+  s.inside = false;
+  s.spin = false;
+  note(s, reason === 'town' ? 'The town shut you down' : 'You went bankrupt');
+}
+
+/** Score: profit and time survived, plus goals and fixes, minus every complaint you ignored. */
+export function score(s: GameState) {
+  const parts = {
+    profit: Math.round(Math.max(0, s.tally.profit) / 100_000),
+    months: Math.floor(s.month) * 5,
+    goals: s.tally.goals * 100,
+    fixed: s.tally.fixed * 20,
+    ignored: -s.tally.ignored * 150,
+  };
+  return { total: Math.max(0, Object.values(parts).reduce((a, b) => a + b, 0)), parts };
+}
 
 export function nextFoundation(s: GameState): FoundKey | null {
   const order: FoundKey[] = ['slab', 'raised', 'piles', 'bedrock'];
   return order[order.indexOf(s.found) + 1] ?? null;
 }
 
-export const customerName = (s: GameState) => CUSTS[s.cust].name;
-export const foundationName = (s: GameState) => FOUNDS[s.found].name;
+/** Moving to a bigger foundation: the new foundation plus the extra land it needs. */
+export const foundationUpgradeCost = (s: GameState, to: FoundKey) =>
+  FOUNDS[to].cost + LOCS[s.loc].land * Math.max(0, FOUNDS[to].acres - FOUNDS[s.found].acres);

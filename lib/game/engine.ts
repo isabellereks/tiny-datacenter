@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { FD, FH, FOUNDS, LOCS, STITCH, type FoundKey, type LocKey } from './data';
-import { DAY_SECONDS, checkComplaints, impact } from './events';
-import { clear, makeFloor, makeFoundation, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
-import { baseY, simulate, stats, type GameState } from './state';
+import { CROWD, FD, FH, FOUNDS, FW, LOCS, MONTH_SECONDS, STITCH, type FoundKey, type LocKey } from './data';
+import { checkGoal, endOfMonth, impact } from './events';
+import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
+import { baseY, ledger, simulate, type GameState } from './state';
 import { createStitchMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
@@ -26,6 +26,10 @@ export interface EngineHooks {
 
 interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number }
 interface Falling { obj: THREE.Group; t: number; axis: THREE.Vector3 }
+interface Marcher { group: THREE.Group; legs: THREE.Group[]; sign: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; phase: number }
+
+/** The town storming the datacenter: walk in, then the floors come down one by one from the top. */
+const RIOT = { walk: 3, collapse: 4.5, hold: 1.2 };
 
 /** A tileable texture for the ground patch: blue everywhere, cyan where a stitch of texture goes. */
 function groundTexture(loc: LocKey) {
@@ -68,7 +72,12 @@ export class Engine {
   private textTex: THREE.CanvasTexture | null = null;
   private grid = { n: 200, m: 150, cell: 5, vn: 200, vm: 150, textBottom: 0, textRows: 0 };
   private insets = { top: 80, bottom: 40 };
-  private anim: Animated = { leds: [], fans: [], vent: new THREE.Vector3() };
+  private anim: Animated = { leds: [], fans: [], alarms: [], vent: new THREE.Vector3() };
+  private floorGroups: THREE.Group[] = [];
+  private crowd = new THREE.Group();
+  private marchers: Marcher[] = [];
+  private riotCash = 0;
+  private goalClock = 0;
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
   private roof: THREE.Group | null = null;
@@ -116,7 +125,7 @@ export class Engine {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = 0.005;
     this.ground.receiveShadow = true;
-    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs);
+    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.post));
     this.post.uniforms.uNear.value = this.camera.near;
     this.post.uniforms.uFar.value = this.camera.far;
@@ -228,17 +237,24 @@ export class Engine {
   rebuild() {
     const s = this.s;
     clear(this.building);
-    this.anim = { leds: [], fans: [], vent: new THREE.Vector3() };
+    this.anim = { leds: [], fans: [], alarms: [], vent: new THREE.Vector3() };
     this.workers.clear();
     this.buildFloor = null;
+    this.floorGroups = [];
     this.building.add(makeFoundation(s.found));
-    s.floors.forEach((f, i) => {
-      const g = makeFloor(s, i, f, this.anim);
-      this.building.add(g);
-      if (s.build?.idx === i) this.buildFloor = g;
-    });
-    this.roof = makeRoof(s, this.anim);
-    this.building.add(this.roof);
+    // once the town has torn it down, only the foundation is left
+    const razed = s.over?.reason === 'town' && s.over.done;
+    if (!razed) {
+      s.floors.forEach((f, i) => {
+        const g = makeFloor(s, i, f, this.anim);
+        this.building.add(g);
+        this.floorGroups.push(g);
+        if (s.build?.idx === i) this.buildFloor = g;
+      });
+      this.roof = makeRoof(s, this.anim);
+      this.building.add(this.roof);
+    } else this.roof = null;
+    this.makeCrowd();
     for (const w of s.workers) {
       const m = makeWorker();
       m.group.scale.setScalar(1.15);
@@ -296,6 +312,27 @@ export class Engine {
     sc.updateProjectionMatrix();
   }
 
+  /** Townspeople for the town ending. They gather around the lot. */
+  private makeCrowd() {
+    const s = this.s;
+    clear(this.crowd);
+    this.marchers = [];
+    if (s.over?.reason !== 'town') return;
+    const n = 22;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + (k % 3) * 0.07;
+      const m = makePerson(CROWD[k % CROWD.length]);
+      m.group.scale.setScalar(1.9);
+      const near = 1 + (k % 2) * 0.35;
+      const to = new THREE.Vector3(Math.cos(a) * (FW / 2 + 2.2) * near, 0, Math.sin(a) * (FD / 2 + 2.2) * near);
+      const from = new THREE.Vector3(Math.cos(a) * 17, 0, Math.sin(a) * 15);
+      m.group.position.copy(s.over.done ? to : from);
+      this.crowd.add(m.group);
+      this.marchers.push({ ...m, from, to, phase: k * 0.7 });
+    }
+    this.riotCash = s.cash;
+  }
+
   private get homeDir() { return this.s.phase === 'play' && this.s.inside ? INSIDE_DIR : OUTSIDE_DIR; }
 
   private get picking() { return this.s.phase === 'setup' && this.s.step === 'found'; }
@@ -306,9 +343,9 @@ export class Engine {
     const picking = this.picking;
     const box = new THREE.Box3().setFromObject(picking ? this.options : this.building);
     if (!picking) {
-      if (s.smoke && s.floors.some(f => f.type === 'cool')) box.expandByPoint(this.anim.vent.clone().add(new THREE.Vector3(1, 6, 0)));
+      if (s.smoke && s.phase !== 'over' && s.floors.some(f => f.type === 'cool')) box.expandByPoint(this.anim.vent.clone().add(new THREE.Vector3(1, 6, 0)));
       // Outside, show the whole lot. Inside, frame the tower so the floors and crew read, Tiny Tower style.
-      const lot = s.phase === 'play' && s.inside ? 0.35 : 0.65;
+      const lot = s.phase === 'over' ? 0.6 : s.phase === 'play' && s.inside ? 0.35 : 0.65;
       for (const [x, z] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) box.expandByPoint(new THREE.Vector3(x * GROUND_R * lot, 0, z * GROUND_R * lot));
     }
 
@@ -380,10 +417,21 @@ export class Engine {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const s = this.s;
-    const { built, newDay } = simulate(s, dt, stats(s), DAY_SECONDS);
-    if (built) { this.rebuild(); this.fit(true); }
-    if (newDay) checkComplaints(s);
-    if (built || newDay) this.hooks.onChange();
+    const wasOver = s.phase === 'over';
+    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS);
+    if (newMonth) endOfMonth(s);
+    let changed = built || newMonth || fixed;
+    this.goalClock += dt;
+    if (s.phase === 'play' && this.goalClock > 0.5) { this.goalClock = 0; if (checkGoal(s, ledger(s))) changed = true; }
+    if (s.phase === 'over' && !wasOver) {
+      this.rebuild();
+      this.resetView();
+    } else if (built || (newMonth && s.broken.length) || fixed) {
+      this.rebuild();
+      if (built) this.fit(true);
+    }
+    if (this.riot(now)) changed = true;
+    if (changed) this.hooks.onChange();
     this.animate(dt, now);
 
     if (this.fitTween) {
@@ -409,6 +457,54 @@ export class Engine {
     if (this.saveClock > 5) { this.saveClock = 0; this.hooks.onSave(); }
     this.raf = requestAnimationFrame(this.loop);
   };
+
+  /** Runs the town ending. Returns true when it finishes. */
+  private riot(now: number) {
+    const s = this.s;
+    if (s.over?.reason !== 'town' || !this.marchers.length) return false;
+    const t = now / 1000;
+    const el = s.over.done ? Infinity : (Date.now() - s.over.t0) / 1000;
+    const walk = Math.min(1, el / RIOT.walk);
+    for (const m of this.marchers) {
+      const p = m.group.position;
+      if (walk < 1) {
+        p.lerpVectors(m.from, m.to, walk);
+        m.group.rotation.y = Math.atan2(m.to.x - m.from.x, m.to.z - m.from.z);
+        const swing = Math.sin(t * 9 + m.phase) * 0.6;
+        m.legs[0].rotation.x = swing;
+        m.legs[1].rotation.x = -swing;
+      } else {
+        p.x = m.to.x; p.z = m.to.z;
+        p.y = Math.abs(Math.sin(t * 6 + m.phase)) * 0.35;
+        m.group.rotation.y = Math.atan2(-m.to.x, -m.to.z);
+        m.legs[0].rotation.x = m.legs[1].rotation.x = 0;
+      }
+      m.sign.rotation.z = Math.sin(t * 5 + m.phase) * 0.25;
+    }
+    if (s.over.done) return false;
+
+    // the floors come down from the top while the cash drains away
+    const k = Math.max(0, Math.min(1, (el - RIOT.walk) / RIOT.collapse));
+    const n = this.floorGroups.length;
+    const gone = k * (n + 1);
+    if (this.roof) this.roof.visible = gone < 1;
+    this.floorGroups.forEach((g, i) => {
+      const from = n - i; // the top floor goes first, right after the roof
+      const f = Math.max(0, Math.min(1, gone - from));
+      g.scale.y = Math.max(0.001, 1 - f);
+      g.visible = f < 1;
+    });
+    this.building.position.x = k > 0 && k < 1 ? Math.sin(t * 45) * 0.12 : 0;
+    s.cash = this.riotCash * (1 - k);
+    if (el >= RIOT.walk + RIOT.collapse + RIOT.hold) {
+      s.cash = 0;
+      s.over.done = true;
+      this.building.position.x = 0;
+      this.rebuild();
+      return true;
+    }
+    return false;
+  }
 
   private render() {
     const r = this.renderer;
@@ -441,6 +537,8 @@ export class Engine {
       m.legs[1].rotation.x = -swing;
     }
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
+    const blink = Math.floor(t * 3) % 2 === 0;
+    for (const a of this.anim.alarms) a.visible = blink;
     this.ledClock -= dt;
     if (this.ledClock <= 0) {
       this.ledClock = 0.35;
@@ -457,7 +555,7 @@ export class Engine {
 
     const cools = s.floors.some(f => f.done && f.type === 'cool');
     this.puffClock -= dt;
-    if (s.smoke && cools && !this.picking && this.puffClock <= 0 && this.puffList.length < 2) {
+    if (s.smoke && cools && !this.picking && s.phase !== 'over' && this.puffClock <= 0 && this.puffList.length < 2) {
       const mesh = new THREE.Mesh(this.puffGeo, mat('surf'));
       this.puffs.add(mesh);
       this.puffList.push({ mesh, y0: this.anim.vent.y, age: 0, x: this.anim.vent.x, z: this.anim.vent.z });
@@ -468,7 +566,7 @@ export class Engine {
       const r = Math.min(0.5 + p.age * 0.35, 1.7);
       p.mesh.position.set(p.x - p.age * 0.25, p.y0 + 0.6 + p.age * 0.75, p.z);
       p.mesh.scale.setScalar(r);
-      if (p.age > 8 || !s.smoke || this.picking) { this.puffs.remove(p.mesh); return false; }
+      if (p.age > 8 || !s.smoke || this.picking || s.phase === 'over') { this.puffs.remove(p.mesh); return false; }
       return true;
     });
 

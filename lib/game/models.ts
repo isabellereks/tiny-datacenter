@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
-import { baseY, floorW, perRow, type Floor, type GameState } from './state';
+import { baseY, floorW, isBroken, perRow, type Floor, type GameState } from './state';
 
 /**
  * Meshes are flat-coloured with a code the stitch pass decodes:
@@ -84,7 +84,7 @@ export function makeFoundation(key: FoundKey, chosen = false) {
 }
 
 /** Parts the engine animates. */
-export interface Animated { leds: THREE.Mesh[]; fans: THREE.Group[]; vent: THREE.Vector3 }
+export interface Animated { leds: THREE.Mesh[]; fans: THREE.Group[]; alarms: THREE.Mesh[]; vent: THREE.Vector3 }
 
 function interior(s: GameState, g: THREE.Group, type: FloorType, w: number, i: number, anim: Animated) {
   const zb = -FD / 2;
@@ -162,6 +162,11 @@ export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
     box(g, w, FH, 0.2, m, 0, FH / 2, FD / 2 - 0.1);
     facade(g, w, i);
   }
+  if (isBroken(s, i) && f.done) {
+    // a warning light the engine blinks, on the wall facing the camera
+    const z = s.inside ? -FD / 2 + 0.25 : FD / 2 + 0.06;
+    anim.alarms.push(box(g, 1.4, 0.5, 0.12, 'accent', w / 2 - 1.4, FH - 0.45, z));
+  }
   g.traverse(o => { o.userData.floor = i; });
   return g;
 }
@@ -200,6 +205,27 @@ export function makeRoof(s: GameState, anim: Animated) {
   }
   g.traverse(o => { o.userData.floor = n - 1; });
   return g;
+}
+
+/** A townsperson holding a sign. */
+export function makePerson(shirt: string) {
+  const g = new THREE.Group();
+  const legs = [-0.12, 0.12].map(x => {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.45, 0);
+    g.add(pivot);
+    box(pivot, 0.2, 0.45, 0.2, 'dark', 0, -0.22, 0);
+    return pivot;
+  });
+  box(g, 0.6, 0.55, 0.36, shirt, 0, 0.72, 0);
+  box(g, 0.46, 0.42, 0.42, 'surf', 0, 1.22, 0);
+  box(g, 0.5, 0.14, 0.46, 'dark', 0, 1.47, 0);
+  const sign = new THREE.Group();
+  sign.position.set(0.38, 0.9, 0.1);
+  g.add(sign);
+  box(sign, 0.08, 1.5, 0.08, 'dark', 0, 0.75, 0);
+  box(sign, 1, 0.65, 0.08, 'surf', 0, 1.55, 0.02);
+  return { group: g, legs, sign };
 }
 
 export function makeWorker() {

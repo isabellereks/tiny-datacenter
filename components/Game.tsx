@@ -3,10 +3,11 @@
 import { Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
-import { LOCS } from '@/lib/game/data';
 import { Engine } from '@/lib/game/engine';
 import { impact } from '@/lib/game/events';
-import { load, save, stats, type GameState } from '@/lib/game/state';
+import { isBroken, ledger, load, save, type GameState } from '@/lib/game/state';
+import { EndCard } from './EndCard';
+import { GoalCard } from './GoalCard';
 import { Island, type Tab } from './Island';
 import { SetupCard } from './SetupCard';
 
@@ -25,6 +26,7 @@ export default function Game() {
   const [tab, setTab] = useState<Tab>('build');
   const [activity, setActivity] = useState<string | null>(null);
   const [cardH, setCardH] = useState(260);
+  const [goalH, setGoalH] = useState(0);
   const redraw = useCallback(() => setTick(t => t + 1), []);
 
   /** New log lines briefly pop the island, like a live activity. */
@@ -34,7 +36,7 @@ export default function Game() {
       lastLog.current = line;
       setActivity(line);
       window.clearTimeout(activityTimer.current);
-      activityTimer.current = window.setTimeout(() => setActivity(null), 2800);
+      activityTimer.current = window.setTimeout(() => setActivity(null), 3200);
     }
   }, []);
 
@@ -70,8 +72,11 @@ export default function Game() {
       state: () => stateRef.current!,
       onChange: () => { announce(); save(stateRef.current!); redraw(); },
       onPickFloor: floor => {
+        const s = stateRef.current;
+        if (!s || s.phase === 'over') return;
+        if (s.phase === 'play' && isBroken(s, floor)) { dispatch({ type: 'repair', floor }); return; }
         dispatch({ type: 'select', floor });
-        if (stateRef.current?.phase === 'play') { setOpen(true); setTab('floor'); }
+        if (s.phase === 'play') { setOpen(true); setTab('floor'); }
       },
       onPickFoundation: found => dispatch({ type: 'found', found }),
       onFirstInteraction: () => {
@@ -95,36 +100,32 @@ export default function Game() {
   }, [dispatch, redraw, announce]);
 
   const s = stateRef.current;
-  const setup = s?.phase === 'setup';
+  const phase = s?.phase;
+  const ended = phase === 'over' && !!s?.over?.done;
 
   useEffect(() => {
-    engineRef.current?.setInsets(ISLAND_SPACE, setup ? cardH + 24 : 16);
-  }, [setup, cardH, s]);
+    const bottom = phase === 'setup' || ended ? cardH + 24 : phase === 'play' && goalH ? goalH + 24 : 16;
+    engineRef.current?.setInsets(phase === 'setup' ? 24 : ISLAND_SPACE, bottom);
+  }, [phase, ended, cardH, goalH]);
 
-  const imp = s ? impact(s) : null;
+  const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
+
+  if (!s) return <main className="app"><div className="stage" ref={hostRef} /></main>;
+  const l = ledger(s);
+  const imp = impact(s, l);
   return (
     <main className="app">
       <div className="stage" ref={hostRef} />
-      {s && imp && (setup ? (
-        <>
-          <div className="island compact planning" aria-live="polite">
-            <div className="island-in">
-              <span className="compact static">
-                <span className="day">Planning</span>
-                <span className="muted">{LOCS[s.loc].short}</span>
-                <span className="trees">{imp.cleared ? `${imp.cleared} trees cleared` : 'No trees cut yet'}</span>
-              </span>
-            </div>
-          </div>
-          <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} />
-        </>
-      ) : (
+      {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} />}
+      {phase !== 'setup' && !ended && (
         <Island
-          s={s} st={stats(s)} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
+          s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
           dispatch={dispatch} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} onTab={setTab}
           onResetView={() => engineRef.current?.resetView()}
         />
-      ))}
+      )}
+      {phase === 'play' && !open && <GoalCard s={s} onHeight={setGoalH} />}
+      {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} />}
     </main>
   );
 }

@@ -1,9 +1,9 @@
 import {
-  CUSTS, FOUNDS, LOCS, NAMES, SETUP, STARTER, TYPES,
+  FOUNDS, HIRE_FEE, MAX_TECHS, NAMES, SETUP, STARTER, TYPES,
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
-import { resolveComplaint } from './events';
-import { floorCost, fresh, hireCost, note, type GameState } from './state';
+import { foundationUpgradeCost, REPLANT_COST, resolveComplaint, UPGRADES } from './events';
+import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, type GameState, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -15,10 +15,14 @@ export type Action =
   | { type: 'build' }
   | { type: 'fill'; fill: Fill }
   | { type: 'hire' }
+  | { type: 'fire'; id: number }
+  | { type: 'repair'; floor: number }
   | { type: 'loc'; loc: LocKey }
   | { type: 'cust'; cust: CustKey }
   | { type: 'found'; found: FoundKey }
   | { type: 'shape'; shape: ShapeKey }
+  | { type: 'upgrade'; key: keyof Upgrades }
+  | { type: 'replant' }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
   | { type: 'smoke'; on: boolean }
@@ -56,8 +60,8 @@ export function apply(s: GameState, a: Action): Effects {
       const n = Math.max(2, Math.min(a.n, STARTER.length, FOUNDS[s.found].max));
       settle(s);
       if (n > s.floors.length) {
-        const fill = s.floors[s.floors.length - 1].fill;
-        s.floors.push({ type: STARTER[s.floors.length], fill, done: false });
+        const i = s.floors.length;
+        s.floors.push({ type: STARTER[i], fill: s.floors[i - 1].fill, done: false, cost: floorPrice(STARTER[i], i) });
         startBuild(s, 650);
       } else if (n < s.floors.length) {
         s.floors.pop();
@@ -69,14 +73,16 @@ export function apply(s: GameState, a: Action): Effects {
       s.floors.forEach(f => { f.fill = a.fill; });
       return { rebuild: true };
     case 'open': {
+      const c = setupCost(s);
+      if (c.left < 0) return {};
       settle(s);
       s.phase = 'play';
-      s.cash = 500;
+      s.cash = c.left;
       s.inside = true;
       s.spin = false;
       s.nextFill = s.floors[s.floors.length - 1].fill;
       s.sel = Math.max(0, s.floors.findIndex(f => f.type === 'hall'));
-      note(s, `${s.look.name.trim() || 'Your datacenter'} is open · serving ${CUSTS[s.cust].name.toLowerCase()}`);
+      note(s, `${s.look.name.trim() || 'Your datacenter'} is open`);
       return { rebuild: true, layout: true, home: true };
     }
     case 'next':
@@ -86,38 +92,53 @@ export function apply(s: GameState, a: Action): Effects {
       s.nextFill = a.fill;
       return {};
     case 'build': {
-      const cost = floorCost(s);
+      const cost = buildCost(s);
       if (s.cash < cost || s.build || s.floors.length >= FOUNDS[s.found].max) return {};
       s.cash -= cost;
-      s.floors.push({ type: s.next, fill: s.nextFill, done: false });
+      const i = s.floors.length;
+      s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost });
       startBuild(s, 1800);
-      s.sel = s.floors.length - 1;
-      s.stageDay = s.day;
-      note(s, `Stitching floor ${s.sel} · ${TYPES[s.next].name}`);
+      s.sel = i;
+      s.stageMonth = s.month;
+      note(s, `Building a ${TYPES[s.next].name.toLowerCase()}`);
       return { rebuild: true, refit: true };
     }
     case 'fill':
       s.floors[s.sel].fill = a.fill;
       return { rebuild: true };
     case 'hire': {
-      const cost = hireCost(s);
-      if (s.cash < cost || s.floors[s.sel]?.type !== 'hall') return {};
-      s.cash -= cost;
+      const f = s.floors[s.sel];
+      if (s.cash < HIRE_FEE || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
+      s.cash -= HIRE_FEE;
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
       s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0 });
       s.inside = true;
-      note(s, `${name} joined floor ${s.sel}`);
+      note(s, `Hired ${name}`);
+      return { rebuild: true };
+    }
+    case 'fire': {
+      const w = s.workers.find(x => x.id === a.id);
+      if (!w) return {};
+      s.workers = s.workers.filter(x => x.id !== a.id);
+      note(s, `${w.name} left`);
+      return { rebuild: true };
+    }
+    case 'repair': {
+      if (!isBroken(s, a.floor)) return {};
+      s.broken = s.broken.filter(b => b.floor !== a.floor);
+      s.tally.fixed++;
+      note(s, `Fixed floor ${a.floor}`);
       return { rebuild: true };
     }
     case 'loc':
+      if (s.phase !== 'setup') return {};
       s.loc = a.loc;
-      if (s.phase === 'play') note(s, `Moved to ${LOCS[a.loc].name}`);
       return { rebuild: true, refit: true };
     case 'cust':
+      if (s.phase !== 'setup') return {};
       s.cust = a.cust;
-      if (s.phase === 'play') note(s, `Now serving ${CUSTS[a.cust].name.toLowerCase()}`);
       return {};
     case 'found': {
       const F = FOUNDS[a.found];
@@ -126,15 +147,34 @@ export function apply(s: GameState, a: Action): Effects {
         while (s.floors.length > F.max) s.floors.pop();
         return { rebuild: true };
       }
-      if (a.found === s.found || s.cash < F.cost || s.floors.length > F.max || s.build) return {};
-      s.cash -= F.cost;
+      const cost = foundationUpgradeCost(s, a.found);
+      if (s.phase !== 'play' || F.max <= FOUNDS[s.found].max || s.cash < cost || s.build) return {};
+      s.cash -= cost;
       s.found = a.found;
-      note(s, `Poured a ${F.name.toLowerCase()} · up to ${F.max} floors`);
+      s.stageMonth = s.month;
+      note(s, `New foundation: ${F.max} floors max`);
       return { rebuild: true, refit: true };
     }
     case 'shape':
+      if (s.phase !== 'setup') return {};
       s.shape = a.shape;
       return { rebuild: true, refit: true };
+    case 'upgrade': {
+      const u = UPGRADES.find(x => x.key === a.key);
+      if (!u || s.up[a.key] || s.cash < u.cost) return {};
+      s.cash -= u.cost;
+      s.up[a.key] = true;
+      s.trust = Math.min(100, s.trust + 4);
+      note(s, `Bought ${u.name.toLowerCase()}`);
+      return {};
+    }
+    case 'replant':
+      if (s.cash < REPLANT_COST) return {};
+      s.cash -= REPLANT_COST;
+      s.replanted += 6;
+      s.trust = Math.min(100, s.trust + 3);
+      note(s, 'Planted 6 trees');
+      return { rebuild: true };
     case 'inside':
       s.inside = a.on;
       return { rebuild: true, home: true };
@@ -155,10 +195,10 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'name':
       s.look.name = a.text;
-      return { layout: true };
+      return { layout: true, refit: true };
     case 'resolve':
       resolveComplaint(s, a.choice);
-      return { rebuild: true };
+      return { rebuild: true, home: s.phase === 'over' };
     case 'reset':
       return { replace: fresh(), rebuild: true, refit: true, layout: true };
   }
