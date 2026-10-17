@@ -173,7 +173,7 @@ export const SETUP: { key: SetupStep; title: string; sub: string }[] = [
   { key: 'height', title: 'Add floors', sub: 'You need a server hall, power and cooling to earn money.' },
   { key: 'cust', title: 'Pick a customer', sub: 'They decide how much each hall earns.' },
   { key: 'color', title: 'Pick colors', sub: 'Tap a floor, then a color.' },
-  { key: 'name', title: 'Name it', sub: 'The name is stitched under the building.' },
+  { key: 'name', title: 'Apply for a permit', sub: 'The town wants to know what you are building and who is in charge.' },
 ];
 
 export const NAMES = ['Dana', 'Ravi', 'Mo', 'Kiko', 'Jules', 'Tam', 'Ola', 'Bex', 'Nico', 'Sol', 'Wren', 'Ari', 'Pip', 'Juno', 'Ezra', 'Lu', 'Femi', 'Yuki', 'Ines', 'Bo', 'Cass', 'Dev', 'Rin', 'Theo'];

@@ -1,5 +1,5 @@
 import { FOUNDS, LOCS, MAX_TECHS, SHAPES, type FoundKey } from './data';
-import { hallCount, ledger, money, note, techsOn, type GameState, type Ledger } from './state';
+import { hallCount, ledger, money, note, ownerName, techsOn, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -16,7 +16,7 @@ export interface Complaint {
   id: string;
   from: string;
   title: (s: GameState, i: Impact) => string;
-  body: string;
+  body: (s: GameState) => string;
   /** true while the problem behind the complaint is still there */
   active: (s: GameState, i: Impact, l: Ledger) => boolean;
   /** months the problem has to last before someone complains */
@@ -32,7 +32,7 @@ export const COMPLAINTS: Complaint[] = [
   {
     id: 'trees', from: 'Neighbors', wait: 4, sting: 12,
     title: (_, i) => `You cut down ${i.cleared} trees`,
-    body: 'They want them replanted.',
+    body: s => `They want ${ownerName(s)} to replant them.`,
     active: (_, i) => i.cleared >= 8,
     choices: [
       { label: 'Plant trees', cost: 200_000, apply: s => { s.replanted += 6; addTrust(s, 8); } },
@@ -42,7 +42,7 @@ export const COMPLAINTS: Complaint[] = [
   {
     id: 'noise', from: 'Neighbors', wait: 6, sting: 10,
     title: () => 'Your fans are too loud',
-    body: 'They want a sound wall.',
+    body: s => `They want ${ownerName(s)} to build a sound wall.`,
     active: s => s.floors.length >= 6 && !s.up.soundWalls,
     choices: [
       { label: 'Build a sound wall', cost: 1_500_000, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
@@ -52,7 +52,7 @@ export const COMPLAINTS: Complaint[] = [
   {
     id: 'water', from: 'Water board', wait: 4, sting: 12,
     title: () => 'You use too much water',
-    body: 'They want you to switch to water-saving cooling.',
+    body: s => `They want ${ownerName(s)} to switch to water-saving cooling.`,
     active: (s, i) => i.waterML >= 4 && !s.up.closedLoop,
     choices: [
       { label: 'Switch cooling', cost: 4_000_000, apply: s => { s.up.closedLoop = true; addTrust(s, 8); } },
@@ -62,7 +62,7 @@ export const COMPLAINTS: Complaint[] = [
   {
     id: 'grid', from: 'Power company', wait: 4, sting: 8,
     title: () => 'You are overloading the grid',
-    body: 'They want you to buy wind power.',
+    body: s => `They want ${ownerName(s)} to buy wind power.`,
     active: (s, _, l) => l.itMW >= 10 && !s.up.renewables,
     choices: [
       { label: 'Buy wind power', cost: 3_000_000, apply: s => { s.up.renewables = true; addTrust(s, 6); } },
@@ -71,8 +71,8 @@ export const COMPLAINTS: Complaint[] = [
   },
   {
     id: 'carbon', from: 'Newspaper', wait: 8, sting: 8,
-    title: () => 'You pollute too much',
-    body: 'They are writing a story about you.',
+    title: s => `${ownerName(s)} named a top polluter`,
+    body: () => 'They are writing a story and want a comment.',
     active: (s, i) => i.carbonT >= 1000 && !s.up.renewables,
     choices: [
       { label: 'Buy offsets', cost: 100_000, apply: s => addTrust(s, 4) },
@@ -81,8 +81,8 @@ export const COMPLAINTS: Complaint[] = [
   },
   {
     id: 'protest', from: 'Protesters', wait: 0, sting: 6,
-    title: () => 'People are protesting outside',
-    body: 'If trust hits zero, the town shuts you down.',
+    title: s => `People are protesting ${ownerName(s)}`,
+    body: s => `Their signs say "${ownerName(s).toUpperCase()} OUT". If trust hits zero, the town shuts you down.`,
     active: s => s.trust < 40,
     choices: [
       { label: 'Hold a meeting', cost: 200_000, apply: s => addTrust(s, 12) },

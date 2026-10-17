@@ -1,6 +1,6 @@
 'use client';
 
-import { Silkscreen } from 'next/font/google';
+import { Pixelify_Sans, Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
 import { Engine } from '@/lib/game/engine';
@@ -9,9 +9,12 @@ import { isBroken, ledger, load, save, type GameState } from '@/lib/game/state';
 import { EndCard } from './EndCard';
 import { GoalCard } from './GoalCard';
 import { Island, type Tab } from './Island';
+import { News, storyFor, type Story } from './News';
 import { SetupCard } from './SetupCard';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
+/** UI text: a pixel face that stays readable at small sizes. */
+const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 const ISLAND_SPACE = 76;
 
 export default function Game() {
@@ -27,6 +30,9 @@ export default function Game() {
   const [activity, setActivity] = useState<string | null>(null);
   const [cardH, setCardH] = useState(260);
   const [goalH, setGoalH] = useState(0);
+  const [flash, setFlash] = useState<Story | null>(null);
+  const lastComplaint = useRef<string | null>(null);
+  const flashTimer = useRef<number | undefined>(undefined);
   const redraw = useCallback(() => setTick(t => t + 1), []);
 
   /** New log lines briefly pop the island, like a live activity. */
@@ -108,23 +114,38 @@ export default function Game() {
     engineRef.current?.setInsets(phase === 'setup' ? 24 : ISLAND_SPACE, bottom);
   }, [phase, ended, cardH, goalH]);
 
+  // complaints that make the news get a short broadcast
+  const complaintNow = s?.complaint ?? null;
+  useEffect(() => {
+    const st = stateRef.current;
+    if (!st || complaintNow === lastComplaint.current) return;
+    lastComplaint.current = complaintNow;
+    if (complaintNow === 'protest' || complaintNow === 'carbon') {
+      setFlash(storyFor(st, complaintNow));
+      window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+    }
+  }, [complaintNow]);
+
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 
-  if (!s) return <main className="app"><div className="stage" ref={hostRef} /></main>;
+  if (!s) return <main className={`app ${ui.variable}`}><div className="stage" ref={hostRef} /></main>;
   const l = ledger(s);
   const imp = impact(s, l);
   return (
-    <main className="app">
+    <main className={`app ${ui.variable}`}>
       <div className="stage" ref={hostRef} />
-      {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} />}
-      {phase !== 'setup' && !ended && (
+      {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
+      {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
+      {phase === 'play' && flash && <News s={s} story={flash} full={false} font={pixel.className} />}
+      {phase === 'play' && !ended && (
         <Island
           s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
           dispatch={dispatch} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} onTab={setTab}
           onResetView={() => engineRef.current?.resetView()}
         />
       )}
-      {phase === 'play' && !open && <GoalCard s={s} onHeight={setGoalH} />}
+      {phase === 'play' && !open && !flash && <GoalCard s={s} onHeight={setGoalH} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} />}
     </main>
   );

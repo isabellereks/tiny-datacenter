@@ -17,6 +17,8 @@ export interface Look {
   shade: string;
   accent: string;
   name: string;
+  /** the player, named on the permit; the town blames them by name */
+  owner: string;
 }
 
 export interface Upgrades { soundWalls: boolean; closedLoop: boolean; renewables: boolean }
@@ -97,7 +99,7 @@ export function fresh(): GameState {
     floors,
     workers: [],
     log: [],
-    look: { stitch: 'M', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '' },
+    look: { stitch: 'M', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
     month: 0, stageMonth: 0, trust: 70, replanted: 0,
     up: { soundWalls: false, closedLoop: false, renewables: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
@@ -125,6 +127,9 @@ export function load(): GameState {
 export function save(s: GameState): void {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
 }
+
+export const ownerName = (s: GameState) => s.look.owner.trim() || 'The owner';
+export const siteName = (s: GameState) => s.look.name.trim() || 'the datacenter';
 
 export const note = (s: GameState, line: string) => { s.log = [line, ...s.log].slice(0, 8); };
 

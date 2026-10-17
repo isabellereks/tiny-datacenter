@@ -30,6 +30,7 @@ export type Action =
   | { type: 'stitch'; size: StitchSize }
   | { type: 'outline'; hex: string }
   | { type: 'name'; text: string }
+  | { type: 'owner'; text: string }
   | { type: 'resolve'; choice: number }
   | { type: 'reset' };
 
@@ -197,6 +198,9 @@ export function apply(s: GameState, a: Action): Effects {
     case 'name':
       s.look.name = a.text;
       return { layout: true, refit: true };
+    case 'owner':
+      s.look.owner = a.text;
+      return {};
     case 'resolve':
       resolveComplaint(s, a.choice);
       return { rebuild: true, home: s.phase === 'over' };

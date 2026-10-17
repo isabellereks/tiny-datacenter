@@ -4,7 +4,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## How to play
 
-**Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your floors, a customer and colors. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
+**Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your floors, a customer and colors, then apply for a building permit with your datacenter's name and yours. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
 
 **Run it.** The bar at the top shows the month, your cash, profit per month and trust. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
 
@@ -13,7 +13,8 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - Techs fill halls with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
 - Every month you pay for power, water, staff, property tax and profit tax. Three months in debt and you go bankrupt.
 - Building cuts down trees and uses water and power. Neighbors, the water board, the power company and the paper will complain. Pay to fix it or ignore it. Ignoring costs trust and score.
-- If trust hits 0, the town tears down your datacenter and you lose all your money.
+- Complaints and protests call you out by name. Big ones make the local news.
+- If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
 
 ## Locations
 

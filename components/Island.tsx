@@ -122,7 +122,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
       <div className="alert" role="alertdialog" aria-labelledby="alert-title">
         <span className="from">{complaint.from}</span>
         <h2 id="alert-title">{complaint.title(s, imp)}</h2>
-        <p>{complaint.body}</p>
+        <p>{complaint.body(s)}</p>
         <div className="choices">
           {complaint.choices.map((c, k) => (
             <button key={c.label} className={k === 0 ? 'pill white' : 'pill'} disabled={!!c.cost && s.cash < c.cost}

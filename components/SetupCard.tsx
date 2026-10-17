@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { setupIndex, type Action } from '@/lib/game/actions';
 import {
   BUDGET, CUSTS, FOUNDS, LOCS, SETUP, SHAPES, STARTER, TYPES,
@@ -26,8 +26,9 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   return <div className="fact"><span>{label}</span><b>{children}</b></div>;
 }
 
-export function SetupCard({ s, dispatch, onHeight }: { s: GameState; dispatch: (a: Action) => void; onHeight: (h: number) => void }) {
+export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; dispatch: (a: Action) => void; onHeight: (h: number) => void; stampFont: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [approved, setApproved] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -128,17 +129,39 @@ export function SetupCard({ s, dispatch, onHeight }: { s: GameState; dispatch: (
           </div>
         )}
         {s.step === 'name' && (
-          <input className="name" value={s.look.name} maxLength={24} placeholder="Hillside Compute"
-            aria-label="Datacenter name" onChange={e => dispatch({ type: 'name', text: e.target.value })} autoFocus />
+          <div className="permit">
+            <div className="permit-head">
+              <b>Building permit</b>
+              <span>{L.name}</span>
+            </div>
+            <label className="permit-field">
+              <span>Datacenter name</span>
+              <input value={s.look.name} maxLength={24} placeholder="Hillside Compute"
+                onChange={e => dispatch({ type: 'name', text: e.target.value })} autoFocus />
+            </label>
+            <label className="permit-field">
+              <span>Your name</span>
+              <input value={s.look.owner} maxLength={24} placeholder="Alex Rivera"
+                onChange={e => dispatch({ type: 'owner', text: e.target.value })} />
+            </label>
+            <div className="permit-rows">
+              <span>Floors</span><b>{s.floors.length}</b>
+              <span>Land</span><b>{FOUNDS[s.found].acres} acres</b>
+              <span>Power use</span><b>{l.hallMW.toFixed(1)} MW</b>
+              <span>Trees to cut</span><b>{imp.cleared}</b>
+              <span>Water a month</span><b>{imp.waterML.toFixed(1)} million litres</b>
+            </div>
+            {approved && <div className={`stamp ${stampFont}`} aria-live="assertive">Approved</div>}
+          </div>
         )}
       </div>
 
-      <div className="forecast" aria-label="Forecast">
+      {s.step !== 'name' && <div className="forecast" aria-label="Forecast">
         <Fact label="Profit/mo">{hasHall && l.eff > 0 ? <span className={l.net < 0 ? 'neg' : undefined}>{money(l.net)}</span> : <span className="neg">$0</span>}</Fact>
         <Fact label="Power">{l.hallMW.toFixed(1)} / {l.powerMW.toFixed(1)} MW</Fact>
         <Fact label="Cooling">{l.hallMW.toFixed(1)} / {l.coolMW.toFixed(1)} MW</Fact>
         <Fact label="Trees cut">{imp.cleared}/{imp.trees}</Fact>
-      </div>
+      </div>}
       {(l.eff < 0.999 || !hasHall) && (
         <p className="warn-line">{!hasHall ? 'Add a server hall to earn money.' : `Need more ${l.pe < 1 ? 'power' : 'cooling'}. Halls at ${Math.round(l.eff * 100)}%.`}</p>
       )}
@@ -147,7 +170,8 @@ export function SetupCard({ s, dispatch, onHeight }: { s: GameState; dispatch: (
         {i > 0 ? <button className="back" onClick={() => go(-1)}>Back</button> : <span />}
         {over && <span className="foot-note">Over budget. Pick cheaper options.</span>}
         {last
-          ? <button className="go" disabled={over} onClick={() => dispatch({ type: 'open' })}>Open</button>
+          ? <button className="go" disabled={over || approved || !s.look.name.trim() || !s.look.owner.trim()}
+              onClick={() => { setApproved(true); window.setTimeout(() => dispatch({ type: 'open' }), 1200); }}>Submit permit</button>
           : <button className="go" onClick={() => go(1)}>Next</button>}
       </div>
     </div>
