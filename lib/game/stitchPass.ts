@@ -1,13 +1,12 @@
 import * as THREE from 'three';
-
-/** Stitch classes written by the classify mode and counted for the thread key. */
-export const CLASS = { none: 0, dark: 1, light: 2, accent: 3, white: 4 } as const;
+import { PALETTE } from './data';
 
 /**
- * Turns two low-res renders (view normals + depth, and flat role colours) into cross stitches.
- * Each grid cell is one stitch. Lines win: silhouettes, creases, depth steps and role changes
- * become dark outline stitches. Remaining "surf" faces are shaded by facing: lit faces stay
- * unstitched, side faces get the light thread, faces turned away get the dark thread.
+ * Turns two low-res renders into cross stitches, one stitch per grid cell.
+ *  - tNormal: view-space normals (alpha marks objects) with depth in tDepth.
+ *  - tRole:   objects carry a role code (red = role / 8, green = palette index / 16);
+ *             the ground patch is lit blue, darker where shadowed, with green marking texture.
+ * Lines win: silhouettes, creases, depth steps and role changes become outline stitches.
  */
 export function createStitchMaterial() {
   return new THREE.ShaderMaterial({
@@ -17,20 +16,21 @@ export function createStitchMaterial() {
       tRole: { value: null },
       tText: { value: null },
       uGrid: { value: new THREE.Vector2(1, 1) },
+      uTextBottom: { value: 0 },
       uTextRows: { value: 0 },
       uCell: { value: 6 },
-      uMode: { value: 0 },
-      uThreads: { value: 3 },
-      uStitchWhite: { value: 0 },
       uNear: { value: 1 },
-      uFar: { value: 300 },
-      uLightDir: { value: new THREE.Vector3(-0.8, 0.45, 0.4).normalize() },
-      uCloth: { value: new THREE.Color('#F8F7F3') },
-      uHole: { value: new THREE.Color('#EDEBE4') },
-      uDark: { value: new THREE.Color('#0045D1') },
-      uLight: { value: new THREE.Color('#99BBFF') },
+      uFar: { value: 400 },
+      uDepthEdge: { value: 0.5 },
+      uLightDir: { value: new THREE.Vector3(-0.55, 0.6, 0.58).normalize() },
+      uCloth: { value: new THREE.Color('#F5F4F1') },
+      uHole: { value: new THREE.Color('#E5E3DD') },
+      uOutline: { value: new THREE.Color('#0045D1') },
+      uShade: { value: new THREE.Color('#99BBFF') },
       uAccent: { value: new THREE.Color('#FF7A45') },
-      uWhite: { value: new THREE.Color('#FFFFFF') },
+      uGroundEdge: { value: new THREE.Color('#A8D5BA') },
+      uGroundDeco: { value: new THREE.Color('#2E8B57') },
+      uPalette: { value: PALETTE.map(h => new THREE.Color(h)) },
     },
     vertexShader: /* glsl */ `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: /* glsl */ `
@@ -40,65 +40,86 @@ export function createStitchMaterial() {
       uniform sampler2D tRole;
       uniform sampler2D tText;
       uniform vec2 uGrid;
+      uniform float uTextBottom;
       uniform float uTextRows;
       uniform float uCell;
-      uniform int uMode;
-      uniform float uThreads;
-      uniform float uStitchWhite;
       uniform float uNear;
       uniform float uFar;
+      uniform float uDepthEdge;
       uniform vec3 uLightDir;
       uniform vec3 uCloth;
       uniform vec3 uHole;
-      uniform vec3 uDark;
-      uniform vec3 uLight;
+      uniform vec3 uOutline;
+      uniform vec3 uShade;
       uniform vec3 uAccent;
-      uniform vec3 uWhite;
+      uniform vec3 uGroundEdge;
+      uniform vec3 uGroundDeco;
+      uniform vec3 uPalette[${PALETTE.length}];
 
       bool isObj(vec2 uv){ return texture2D(tNormal, uv).a > 0.5; }
       vec3 nrm(vec2 uv){ return normalize(texture2D(tNormal, uv).rgb * 2.0 - 1.0); }
       float dep(vec2 uv){ return uNear + texture2D(tDepth, uv).r * (uFar - uNear); }
-      vec3 role(vec2 uv){ return texture2D(tRole, uv).rgb; }
+      bool isGround(vec2 uv){ vec4 r = texture2D(tRole, uv); return !isObj(uv) && r.b > 0.02; }
 
-      int classify(vec2 cell){
-        if (cell.y < uTextRows) {
-          vec2 tuv = (cell + 0.5) / vec2(uGrid.x, uTextRows);
-          return texture2D(tText, tuv).a > 0.5 ? 1 : 0;
+      vec3 paletteAt(int idx){
+        vec3 c = uPalette[0];
+        for (int i = 0; i < ${PALETTE.length}; i++) if (i == idx) c = uPalette[i];
+        return c;
+      }
+
+      // rgb = thread colour, a = 1 when this cell is stitched
+      vec4 threadAt(vec2 cell){
+        if (uTextRows > 0.0 && cell.y >= uTextBottom && cell.y < uTextBottom + uTextRows) {
+          vec2 tuv = (cell - vec2(0.0, uTextBottom) + 0.5) / vec2(uGrid.x, uTextRows);
+          if (texture2D(tText, tuv).a > 0.5) return vec4(uOutline, 1.0);
         }
-        vec2 g = vec2(uGrid.x, uGrid.y - uTextRows);
-        vec2 uv = (cell - vec2(0.0, uTextRows) + 0.5) / g;
-        vec2 tx = 1.0 / g;
+        vec2 uv = (cell + 0.5) / uGrid;
+        vec2 r = vec2(1.0 / uGrid.x, 0.0), u = vec2(0.0, 1.0 / uGrid.y);
         vec4 rr = texture2D(tRole, uv);
-        if (!isObj(uv)) return (rr.a > 0.03 && rr.a < 0.98) ? 1 : 0;
+
+        if (!isObj(uv)) {
+          if (rr.b <= 0.02) return vec4(0.0);
+          if (rr.b < 0.45) return vec4(mix(uShade, uOutline, 0.45), 1.0);
+          if (!isGround(uv + r) || !isGround(uv - r) || !isGround(uv + u) || !isGround(uv - u)) return vec4(uGroundEdge, 1.0);
+          if (rr.g > rr.b * 0.5) return vec4(uGroundDeco, 1.0);
+          return vec4(0.0);
+        }
 
         vec3 n = nrm(uv);
         float d = dep(uv);
-        vec2 r = vec2(tx.x, 0.0), u = vec2(0.0, tx.y);
-        if (!isObj(uv + r) || !isObj(uv - r) || !isObj(uv + u) || !isObj(uv - u)) return 1;
-        if (dep(uv + r) - d > 0.5 || dep(uv - r) - d > 0.5 || dep(uv + u) - d > 0.5 || dep(uv - u) - d > 0.5) return 1;
-        if (dot(n, nrm(uv + r)) < 0.8 || dot(n, nrm(uv + u)) < 0.8) return 1;
-        if (distance(rr.rgb, role(uv + r)) > 0.3 || distance(rr.rgb, role(uv + u)) > 0.3) return 1;
+        if (!isObj(uv + r) || !isObj(uv - r) || !isObj(uv + u) || !isObj(uv - u)) return vec4(uOutline, 1.0);
+        // A step in depth is a line; a flat wall seen edge-on is not. Its depth slopes but doesn't bend,
+        // so require both a farther neighbour and curvature, and only outline the nearer side.
+        float dr = dep(uv + r), dl = dep(uv - r), du = dep(uv + u), dd = dep(uv - u);
+        float lapX = abs(dr + dl - 2.0 * d), lapY = abs(du + dd - 2.0 * d);
+        if ((lapX > uDepthEdge && max(dr, dl) - d > uDepthEdge) || (lapY > uDepthEdge && max(du, dd) - d > uDepthEdge)) return vec4(uOutline, 1.0);
+        if (dot(n, nrm(uv + r)) < 0.8 || dot(n, nrm(uv + u)) < 0.8) return vec4(uOutline, 1.0);
+        if (distance(rr.rg, texture2D(tRole, uv + r).rg) > 0.03 || distance(rr.rg, texture2D(tRole, uv + u).rg) > 0.03) return vec4(uOutline, 1.0);
 
-        if (rr.r < 0.2 && rr.g < 0.2) return 1;
-        if (rr.r > 0.8 && rr.g < 0.2) return uThreads > 2.5 ? 3 : 1;
-        if (rr.r < 0.8) return 2;
+        int role = int(floor(rr.r * 8.0 + 0.5));
         float s = dot(n, uLightDir);
-        if (s > 0.15) return uStitchWhite > 0.5 ? 4 : 0;
-        if (s > -0.6) return 2;
-        return 1;
+        if (role == 1) return vec4(uShade, 1.0);
+        if (role == 2) return vec4(uOutline, 1.0);
+        if (role == 3) return vec4(uAccent, 1.0);
+        if (role == 4) {
+          vec3 c = paletteAt(int(floor(rr.g * 16.0 + 0.5)));
+          if (s > 0.15) return vec4(c, 1.0);
+          return vec4(mix(c, uOutline, s > -0.75 ? 0.25 : 0.5), 1.0);
+        }
+        if (s > 0.15) return vec4(0.0);
+        if (s > -0.75) return vec4(uShade, 1.0);
+        return vec4(uOutline, 1.0);
       }
 
       void main(){
         vec2 px = gl_FragCoord.xy;
         vec2 cell = floor(px / uCell);
-        int k = classify(cell);
-        if (uMode == 1) { gl_FragColor = vec4(float(k) / 8.0, 0.0, 0.0, 1.0); return; }
-
         vec2 f = fract(px / uCell);
         float corner = length(0.5 - abs(f - 0.5));
         vec3 col = mix(uHole, uCloth, smoothstep(0.03, 0.09, corner));
-        if (k > 0) {
-          vec3 th = k == 1 ? uDark : k == 2 ? uLight : k == 3 ? uAccent : uWhite;
+        vec4 t = threadAt(cell);
+        if (t.a > 0.5) {
+          vec3 th = t.rgb;
           float w = 0.29;
           float aa = 1.2 / uCell;
           float d1 = abs(f.x - f.y) * 0.7071;

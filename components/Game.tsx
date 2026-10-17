@@ -3,23 +3,40 @@
 import { Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
-import { Engine, type StitchCounts } from '@/lib/game/engine';
+import { LOCS } from '@/lib/game/data';
+import { Engine } from '@/lib/game/engine';
+import { impact } from '@/lib/game/events';
 import { load, save, stats, type GameState } from '@/lib/game/state';
-import { Panel } from './Panel';
+import { Island, type Tab } from './Island';
+import { SetupCard } from './SetupCard';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
+const ISLAND_SPACE = 76;
 
 export default function Game() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const hoopRef = useRef<HTMLDivElement>(null);
-  const labelsRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<GameState | null>(null);
   const engineRef = useRef<Engine | null>(null);
   const armedRef = useRef(false);
+  const lastLog = useRef<string | undefined>(undefined);
+  const activityTimer = useRef<number | undefined>(undefined);
   const [, setTick] = useState(0);
-  const [counts, setCounts] = useState<StitchCounts | null>(null);
-  const [touched, setTouched] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>('build');
+  const [activity, setActivity] = useState<string | null>(null);
+  const [cardH, setCardH] = useState(260);
   const redraw = useCallback(() => setTick(t => t + 1), []);
+
+  /** New log lines briefly pop the island, like a live activity. */
+  const announce = useCallback(() => {
+    const line = stateRef.current?.log[0];
+    if (line && line !== lastLog.current) {
+      lastLog.current = line;
+      setActivity(line);
+      window.clearTimeout(activityTimer.current);
+      activityTimer.current = window.setTimeout(() => setActivity(null), 2800);
+    }
+  }, []);
 
   const dispatch = useCallback((a: Action) => {
     const s = stateRef.current;
@@ -28,61 +45,86 @@ export default function Game() {
     armedRef.current = false;
 
     const fx = apply(s, a);
-    if (fx.replace) stateRef.current = fx.replace;
+    if (fx.replace) {
+      stateRef.current = fx.replace;
+      lastLog.current = undefined;
+      setOpen(false);
+    }
     const engine = engineRef.current;
     if (engine) {
+      if (fx.layout) engine.layout();
       if (fx.rebuild) engine.rebuild();
-      if (fx.pattern) engine.layout();
-      if (fx.refit) engine.fit(true);
+      if (fx.home) engine.resetView();
+      else if (fx.refit) engine.fit(true);
     }
+    if (a.type === 'open') setOpen(false);
+    announce();
     save(stateRef.current!);
     redraw();
-  }, [redraw]);
+  }, [redraw, announce]);
 
   useEffect(() => {
     stateRef.current = load();
-    const engine = new Engine(hostRef.current!, hoopRef.current!, labelsRef.current!, {
+    lastLog.current = stateRef.current.log[0];
+    const engine = new Engine(hostRef.current!, {
       state: () => stateRef.current!,
-      onChange: () => { save(stateRef.current!); redraw(); },
-      onCounts: setCounts,
-      onPickFloor: floor => dispatch({ type: 'select', floor }),
+      onChange: () => { announce(); save(stateRef.current!); redraw(); },
+      onPickFloor: floor => {
+        dispatch({ type: 'select', floor });
+        if (stateRef.current?.phase === 'play') { setOpen(true); setTab('floor'); }
+      },
       onPickFoundation: found => dispatch({ type: 'found', found }),
-      onFirstInteraction: () => setTouched(true),
+      onFirstInteraction: () => {
+        const s = stateRef.current;
+        if (s?.phase === 'play' && s.spin) { s.spin = false; redraw(); }
+      },
       onSave: () => save(stateRef.current!),
     }, pixel.style.fontFamily);
     engineRef.current = engine;
     redraw();
     const id = window.setInterval(redraw, 250);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
     return () => {
       window.clearInterval(id);
+      window.removeEventListener('keydown', onKey);
       save(stateRef.current!);
       engine.dispose();
       engineRef.current = null;
     };
-  }, [dispatch, redraw]);
+  }, [dispatch, redraw, announce]);
 
   const s = stateRef.current;
+  const setup = s?.phase === 'setup';
+
+  useEffect(() => {
+    engineRef.current?.setInsets(ISLAND_SPACE, setup ? cardH + 24 : 16);
+  }, [setup, cardH, s]);
+
+  const imp = s ? impact(s) : null;
   return (
     <main className="app">
-      <div className="fabric" ref={hostRef}>
-        <div className="hoop" ref={hoopRef}>
-          <div className="labels" ref={labelsRef} />
-        </div>
-        {s && (
-          <div className="toolbar" role="toolbar" aria-label="View">
-            <button aria-pressed={s.spin} onClick={() => dispatch({ type: 'spin', on: !s.spin })}>Spin</button>
-            <button aria-pressed={s.smoke} onClick={() => dispatch({ type: 'smoke', on: !s.smoke })}>Smoke</button>
-            <button aria-pressed={s.inside} onClick={() => dispatch({ type: 'inside', inside: !s.inside })}>Inside</button>
-            {s.picking
-              ? <button onClick={() => dispatch({ type: 'pick', on: false })}>Done</button>
-              : <button onClick={() => engineRef.current?.resetView()}>Reset view</button>}
-            <span className={touched && !s.picking ? 'gone' : ''}>
-              {s.picking ? 'Click a foundation to pour it' : 'Drag to turn the factory · up and down to tilt'}
-            </span>
+      <div className="stage" ref={hostRef} />
+      {s && imp && (setup ? (
+        <>
+          <div className="island compact planning" aria-live="polite">
+            <div className="island-in">
+              <span className="compact static">
+                <span className="day">Planning</span>
+                <span className="muted">{LOCS[s.loc].short}</span>
+                <span className="trees">{imp.cleared ? `${imp.cleared} trees cleared` : 'No trees cut yet'}</span>
+              </span>
+            </div>
           </div>
-        )}
-      </div>
-      {s && <Panel s={s} st={stats(s)} counts={counts} dispatch={dispatch} armed={armedRef.current} />}
+          <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} />
+        </>
+      ) : (
+        <Island
+          s={s} st={stats(s)} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
+          dispatch={dispatch} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} onTab={setTab}
+          onResetView={() => engineRef.current?.resetView()}
+        />
+      ))}
     </main>
   );
 }

@@ -1,15 +1,16 @@
 # tiny datacenter simulator
 
-A Tiny Tower–style idle game where you build a datacenter floor by floor. The building is 3D, but it is drawn as a cross-stitch pattern: two or three threads, white left unstitched, outlines on every edge.
+A Tiny Tower–style idle game where you build a datacenter layer by layer. It's 3D, but every frame is drawn as cross-stitch on cloth.
 
-- Pick a **site** (The Dalles, Reykjavík, Phoenix, Ashburn) and **who you serve** (AI lab, streaming, bank, game servers)
-- Click a **foundation** right in the scene — it sets how tall you can build
-- Choose a **shape**: lean-to, sawtooth, box, setback tower, hangar
-- Stack **floors**: server halls, cooling, power, network, break rooms; fill each with blank cloth, light or dark thread
-- Tune the **pattern**: stitches across, thread colours, stitched lettering, and recolour threads from a DMC palette
-- The thread key counts stitches and skeins and gives the finished size on 14-count aida
-- **Hire tiny techs** to staff server halls
-- Drag to turn the factory, up and down to tilt, scroll to zoom; Inside shows the cutaway with the crew
+**Build it.** A short setup walks you through it: pour a foundation (tap it right on the cloth), pick a shape, choose where it goes, set how tall to start, colour each layer with thread, choose who you're serving, and name it. The name gets stitched underneath.
+
+**Run it.** Once you open for business, everything lives in a dynamic island at the top. It shows the day, cash and status, pops up with news, and expands into Build, Floor, Crew, Impact, Site and Look.
+
+- Stack floors (server halls, cooling, power, network, break rooms) and hire tiny techs to staff the halls
+- Each location has its own cloth, ground and scenery: Oregon pines, Icelandic snow, Arizona desert, Virginia's data center alley
+- Building clears the trees around your lot, and the Impact tab tracks trees, water, carbon and goodwill
+- Days pass while you play. Stay at a stage too long and complaints arrive: neighbors, the water board, the utility, protests. Fix them or ignore them; goodwill scales your revenue
+- Drag to turn the building, scroll to zoom; Inside shows the floors and crew, Outside shows the facade
 
 ## Run it
 
@@ -23,7 +24,7 @@ Then open http://localhost:3000.
 ## How it's built
 
 - Next.js (App Router) + React + TypeScript
-- three.js renders the scene twice at stitch resolution (view normals + depth, then flat role colours); `lib/game/stitchPass.ts` classifies every cell into a thread and draws the X stitches
-- Game logic is plain TypeScript in `lib/game/` (`state.ts` for the economy, `actions.ts` for player actions, `models.ts` for the 3D pieces, `engine.ts` for the render loop)
-- UI lives in `components/` (`Game` for the fabric and toolbar, `Panel` for the pattern and build controls)
+- three.js renders the scene twice at stitch resolution (view normals + depth, then flat role colours and the lit ground); `lib/game/stitchPass.ts` turns every cell into a thread and draws the X stitches
+- Game logic is plain TypeScript in `lib/game/`: `state.ts` (economy and days), `actions.ts` (player actions), `events.ts` (environmental impact and complaints), `models.ts` (3D pieces and scenery), `engine.ts` (render loop and camera)
+- UI lives in `components/`: `Game`, `SetupCard` for the build walkthrough, `Island` for the dynamic island
 - Progress saves to `localStorage`

@@ -1,34 +1,49 @@
 import * as THREE from 'three';
-import { FD, FH, FW, type FloorType, type FoundKey, type Role } from './data';
+import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
 import { baseY, floorW, perRow, type Floor, type GameState } from './state';
 
 /**
- * Meshes are flat-coloured by role only; the stitch pass reads this colour to pick a thread.
- * surf = white, light = grey, dark = black, accent = red.
+ * Meshes are flat-coloured with a code the stitch pass decodes:
+ * red = role id / 8, green = palette index / 16, blue = 0 (blue is reserved for the ground).
  */
-const ROLE_COLOR: Record<Role, number> = { surf: 0xffffff, light: 0x808080, dark: 0x000000, accent: 0xff0000 };
-const mats = new Map<Role, THREE.MeshBasicMaterial>();
-export function mat(role: Role) {
-  let m = mats.get(role);
-  if (!m) { m = new THREE.MeshBasicMaterial({ color: ROLE_COLOR[role] }); mats.set(role, m); }
+const ROLE_ID: Record<Role, number> = { surf: 0, light: 1, dark: 2, accent: 3, fill: 4 };
+const mats = new Map<string, THREE.MeshBasicMaterial>();
+
+function code(role: Role, idx = 0) {
+  const key = `${role}:${idx}`;
+  let m = mats.get(key);
+  if (!m) {
+    m = new THREE.MeshBasicMaterial({ color: new THREE.Color(ROLE_ID[role] / 8, idx / 16, 0) });
+    mats.set(key, m);
+  }
   return m;
 }
 
-type P = THREE.Object3D;
+/** Material for a role, or for a thread colour from the palette. */
+export function mat(r: Role | Fill): THREE.MeshBasicMaterial {
+  if (r === 'surf' || r === 'light' || r === 'dark' || r === 'accent' || r === 'cloth') return code(r === 'cloth' ? 'surf' : r);
+  const idx = PALETTE.indexOf(r.toUpperCase());
+  return idx < 0 ? code('surf') : code('fill', idx);
+}
 
-function add(p: P, geo: THREE.BufferGeometry, role: Role, x: number, y: number, z: number) {
-  const mesh = new THREE.Mesh(geo, mat(role));
+type P = THREE.Object3D;
+type M = Role | Fill;
+
+function add(p: P, geo: THREE.BufferGeometry, r: M, x: number, y: number, z: number) {
+  const mesh = new THREE.Mesh(geo, mat(r));
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   p.add(mesh);
   return mesh;
 }
-const box = (p: P, w: number, h: number, d: number, r: Role, x: number, y: number, z: number) =>
+const box = (p: P, w: number, h: number, d: number, r: M, x: number, y: number, z: number) =>
   add(p, new THREE.BoxGeometry(w, h, d), r, x, y, z);
-const cyl = (p: P, rad: number, h: number, r: Role, x: number, y: number, z: number, seg = 16) =>
+const cyl = (p: P, rad: number, h: number, r: M, x: number, y: number, z: number, seg = 16) =>
   add(p, new THREE.CylinderGeometry(rad, rad, h, seg), r, x, y, z);
+const cone = (p: P, rad: number, h: number, r: M, x: number, y: number, z: number, seg = 8) =>
+  add(p, new THREE.ConeGeometry(rad, h, seg), r, x, y, z);
 
-function prism(p: P, pts: [number, number][], depth: number, r: Role, x: number, y: number, z: number) {
+function prism(p: P, pts: [number, number][], depth: number, r: M, x: number, y: number, z: number) {
   const sh = new THREE.Shape();
   sh.moveTo(pts[0][0], pts[0][1]);
   pts.slice(1).forEach(([px, py]) => sh.lineTo(px, py));
@@ -46,7 +61,7 @@ export function clear(g: P) {
 
 export function makeFoundation(key: FoundKey, chosen = false) {
   const g = new THREE.Group();
-  const W = FW + 1, D = FD + 1, top: Role = chosen ? 'light' : 'surf';
+  const W = FW + 1, D = FD + 1, top: M = chosen ? 'light' : 'surf';
   if (key === 'slab') {
     box(g, W, 0.45, D, top, 0, 0.225, 0);
   } else if (key === 'raised') {
@@ -114,7 +129,7 @@ function interior(s: GameState, g: THREE.Group, type: FloorType, w: number, i: n
     box(g, 2.8, 0.7, 0.3, 'accent', x0, 0.95, zb + 0.6);
     box(g, 1.4, 0.1, 0.8, 'surf', x0, 0.6, zb + 2.3);
     box(g, 0.7, 1.1, 0.6, 'dark', w / 2 - 1.2, 0.75, zb + 0.6);
-    add(g, new THREE.IcosahedronGeometry(0.5, 0), 'light', w / 2 - 2.6, 1, zb + 0.8);
+    add(g, new THREE.IcosahedronGeometry(0.5, 0), '#2E8B57', w / 2 - 2.6, 1, zb + 0.8);
   } else {
     box(g, 1.2, 1.45, 0.06, 'surf', -w / 2 + 1.6, 0.925, zb + 0.23);
     box(g, 3.2, 0.9, 0.9, 'surf', 0.6, 0.65, -0.6);
@@ -124,16 +139,14 @@ function interior(s: GameState, g: THREE.Group, type: FloorType, w: number, i: n
 
 function facade(g: THREE.Group, w: number, i: number) {
   const z = FD / 2 + 0.02;
-  const window = (x: number, y: number) => box(g, 0.8, 0.6, 0.06, 'light', x, y, z);
   if (i === 0) {
     box(g, 1.1, 1.4, 0.06, 'surf', -w / 2 + 2, 0.9, z);
     box(g, 0.12, 0.12, 0.1, 'dark', -w / 2 + 2.3, 0.9, z + 0.04);
-    const port = cyl(g, 0.38, 0.06, 'light', w / 2 - 2, 1.05, z, 20);
-    port.rotation.x = Math.PI / 2;
+    cyl(g, 0.38, 0.06, 'light', w / 2 - 2, 1.05, z, 20).rotation.x = Math.PI / 2;
     return;
   }
   const n = Math.max(1, Math.floor(w / 3));
-  for (let k = 0; k < n; k++) window(-(n - 1) * 1.5 + k * 3, 1);
+  for (let k = 0; k < n; k++) box(g, 0.8, 0.6, 0.06, 'light', -(n - 1) * 1.5 + k * 3, 1, z);
 }
 
 export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
@@ -144,7 +157,6 @@ export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
   box(g, 0.2, FH, FD, m, -w / 2 + 0.1, FH / 2, 0);
   box(g, 0.2, FH, FD, m, w / 2 - 0.1, FH / 2, 0);
   if (s.inside) {
-    box(g, w, 0.2, 0.3, m, 0, FH - 0.1, FD / 2 - 0.15);
     interior(s, g, f.type, w, i, anim);
   } else {
     box(g, w, FH, 0.2, m, 0, FH / 2, FD / 2 - 0.1);
@@ -192,38 +204,91 @@ export function makeRoof(s: GameState, anim: Animated) {
 
 export function makeWorker() {
   const g = new THREE.Group();
-  const legs = [-0.1, 0.1].map(x => {
+  const legs = [-0.12, 0.12].map(x => {
     const pivot = new THREE.Group();
-    pivot.position.set(x, 0.4, 0);
+    pivot.position.set(x, 0.45, 0);
     g.add(pivot);
-    box(pivot, 0.16, 0.4, 0.16, 'dark', 0, -0.2, 0);
+    box(pivot, 0.2, 0.45, 0.2, 'dark', 0, -0.22, 0);
     return pivot;
   });
-  box(g, 0.5, 0.5, 0.3, 'accent', 0, 0.65, 0);
-  box(g, 0.38, 0.36, 0.36, 'surf', 0, 1.1, 0);
-  box(g, 0.4, 0.12, 0.4, 'dark', 0, 1.32, 0);
+  box(g, 0.6, 0.55, 0.36, 'accent', 0, 0.72, 0);
+  box(g, 0.46, 0.42, 0.42, 'surf', 0, 1.22, 0);
+  box(g, 0.5, 0.14, 0.46, 'dark', 0, 1.47, 0);
   return { group: g, legs };
 }
 
-export function makeScenery(s: GameState, g: THREE.Group) {
-  clear(g);
-  if (s.loc === 'dalles') {
-    [[-10, -5, 2.6], [-12, 1, 3.2], [-9, 5, 2.2]].forEach(([x, z, h]) => {
-      cyl(g, 0.18, 0.6, 'dark', x, 0.3, z, 6);
-      add(g, new THREE.ConeGeometry(1, h, 8), 'surf', x, 0.6 + h / 2, z);
-    });
-  } else if (s.loc === 'reykjavik') {
-    add(g, new THREE.ConeGeometry(5, 7, 5), 'surf', -12, 3.5, -10);
-    add(g, new THREE.ConeGeometry(3.5, 5, 5), 'surf', -16, 2.5, -3);
-  } else if (s.loc === 'phoenix') {
-    const cactus = (x: number, z: number) => {
-      cyl(g, 0.35, 3, 'surf', x, 1.5, z, 10);
-      cyl(g, 0.25, 1.1, 'surf', x - 0.75, 2, z, 10);
-      box(g, 0.75, 0.3, 0.3, 'surf', x - 0.38, 1.5, z);
-    };
-    cactus(-10, 2); cactus(-12, -4);
-  } else {
-    box(g, 6, 2.6, 5, 'surf', -12, 1.3, -6);
-    box(g, 1.4, 0.6, 1, 'surf', -13, 2.9, -6);
+// ---------- the lot: trees that get cleared, and a landmark per location ----------
+
+/** Deterministic tree spots around the lot, nearest first, avoiding the building footprint. */
+function treeSpots(loc: LocKey, count: number) {
+  let seed = loc.length * 9301 + count * 49297;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  const spots: [number, number][] = [];
+  let guard = 0;
+  while (spots.length < count && guard++ < 4000) {
+    const a = rnd() * Math.PI * 2, r = 8.5 + rnd() * 8.5;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.85;
+    if (x > -8 && x < 19 && z > -6.5 && z < 6.5) continue;
+    if (spots.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.2)) continue;
+    spots.push([x, z]);
   }
+  return spots.sort((p, q) => Math.hypot(p[0], p[1]) - Math.hypot(q[0], q[1]));
+}
+
+export function makeTree(loc: LocKey, k: number) {
+  const g = new THREE.Group();
+  const h = 2.4 + (k % 3) * 0.5;
+  if (loc === 'dalles') {
+    cyl(g, 0.18, 0.6, SCENERY_THREADS.bark, 0, 0.3, 0, 6);
+    cone(g, 1, h, '#2E8B57', 0, 0.6 + h / 2, 0, 8);
+  } else if (loc === 'reykjavik') {
+    cyl(g, 0.12, h * 0.7, 'surf', 0, h * 0.35, 0, 6);
+    add(g, new THREE.IcosahedronGeometry(0.7, 0), SCENERY_THREADS.moss, 0, h * 0.75, 0);
+  } else if (loc === 'phoenix') {
+    cyl(g, 0.32, h, '#2E8B57', 0, h / 2, 0, 10);
+    cyl(g, 0.22, 1, '#2E8B57', -0.65, h * 0.6, 0, 10);
+    box(g, 0.65, 0.26, 0.26, '#2E8B57', -0.33, h * 0.45, 0);
+  } else {
+    cyl(g, 0.2, 1, SCENERY_THREADS.bark, 0, 0.5, 0, 8);
+    add(g, new THREE.IcosahedronGeometry(1.1, 1), '#2E8B57', 0, 1.6 + (k % 2) * 0.3, 0);
+  }
+  return g;
+}
+
+function stump() {
+  const g = new THREE.Group();
+  cyl(g, 0.3, 0.3, SCENERY_THREADS.bark, 0, 0.15, 0, 8);
+  return g;
+}
+
+function landmark(loc: LocKey, g: THREE.Group) {
+  if (loc === 'dalles') {
+    box(g, 60, 0.04, 3.2, '#99BBFF', 0, 0.02, 13).castShadow = false;
+  } else if (loc === 'reykjavik') {
+    cone(g, 6, 8, SCENERY_THREADS.snow, -14, 4, -17, 5);
+    cone(g, 4, 5.5, SCENERY_THREADS.snow, -5, 2.75, -20, 5);
+    cone(g, 3, 4, SCENERY_THREADS.snow, 18, 2, -15, 5);
+  } else if (loc === 'phoenix') {
+    box(g, 9, 3.4, 5, SCENERY_THREADS.sand, -12, 1.7, -16);
+    box(g, 6, 2.4, 4, SCENERY_THREADS.sand, 16, 1.2, -15);
+  } else {
+    box(g, 7, 2.6, 5, 'surf', -15, 1.3, -14);
+    box(g, 1.6, 0.6, 1.2, 'surf', -16, 2.9, -14);
+    box(g, 6, 2.2, 4.5, 'surf', 17, 1.1, -13);
+  }
+}
+
+export interface TreeSpot { x: number; z: number; k: number }
+
+/** Builds the lot: standing trees, stumps for the first `cleared` spots, and the landmark. */
+export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared: number): TreeSpot[] {
+  clear(g);
+  landmark(s.loc, g);
+  const spots = treeSpots(s.loc, total).map(([x, z], k) => ({ x, z, k }));
+  for (const sp of spots) {
+    const t = sp.k < cleared ? stump() : makeTree(s.loc, sp.k);
+    t.position.set(sp.x, 0, sp.z);
+    g.add(t);
+  }
+  return spots;
 }
