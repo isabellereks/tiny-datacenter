@@ -25,8 +25,8 @@ export function GoalCard({ s, onHeight }: { s: GameState; onHeight: (h: number) 
       {down ? (
         <>
           <span className="goal-no">Outage</span>
-          <b>Floor {down.floor} is down</b>
-          <p>Tap it to fix. Techs fix their own floor.</p>
+          <b>Floor {down.floor + 1} is down</b>
+          <p>Tap it to call a repair crew, or hire a tech there.</p>
         </>
       ) : g && (
         <>

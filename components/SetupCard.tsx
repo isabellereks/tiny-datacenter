@@ -110,7 +110,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
         {s.step === 'cust' && (
           <div className="opts four">
             {keys<CustKey>(CUSTS).map(k => (
-              <Option key={k} title={CUSTS[k].name} price={`$${CUSTS[k].price}/kW`} sub={CUSTS[k].note} on={s.cust === k} onClick={() => dispatch({ type: 'cust', cust: k })} />
+              <Option key={k} title={CUSTS[k].name} price={`$${CUSTS[k].price}/kW/mo`} sub={CUSTS[k].note} on={s.cust === k} onClick={() => dispatch({ type: 'cust', cust: k })} />
             ))}
           </div>
         )}

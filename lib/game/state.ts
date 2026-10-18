@@ -1,5 +1,5 @@
 import {
-  BUDGET, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LOCS, POWER_MW, SHAPES, TECH_SALARY, TYPES,
+  BUDGET, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LOCS, COMMUNITY_FUND, POWER_MW, SHAPES, SOLAR_MW, SUBSTATION_MW, TECH_SALARY, TYPES,
   type BuildableType, type CustKey, type Fill, type FloorType, type FoundKey,
   type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
@@ -21,7 +21,12 @@ export interface Look {
   owner: string;
 }
 
-export interface Upgrades { soundWalls: boolean; closedLoop: boolean; renewables: boolean }
+export interface Upgrades {
+  soundWalls: boolean; closedLoop: boolean; renewables: boolean;
+  solar: boolean; batteries: boolean; heat: boolean;
+  /** paying the town every month */
+  fund: boolean;
+}
 
 export interface Tally { profit: number; fixed: number; ignored: number; goals: number }
 
@@ -31,6 +36,8 @@ export interface GameState {
   cash: number;
   loc: LocKey;
   found: FoundKey;
+  /** foundation picked at setup, so upgrading it later can be a goal */
+  startFound: FoundKey;
   shape: ShapeKey;
   cust: CustKey;
   inside: boolean;
@@ -52,6 +59,12 @@ export interface GameState {
   /** how much the town trusts you, 0 to 100. At 0 the town shuts you down. */
   trust: number;
   replanted: number;
+  /** lingering good feeling from gifts, and anger from ignored complaints; both fade */
+  goodwill: number; grudge: number;
+  /** substations you paid the utility for; each adds grid capacity */
+  substations: number;
+  /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
+  gridLevel: number;
   up: Upgrades;
   complaint: string | null;
   cooldown: Record<string, number>;
@@ -72,6 +85,7 @@ export interface Ledger {
   power: number;
   water: number;
   staff: number;
+  fund: number;
   propertyTax: number;
   incomeTax: number;
   net: number;
@@ -80,6 +94,8 @@ export interface Ledger {
   powerMW: number; coolMW: number;
   pe: number; ce: number; eff: number;
   pue: number;
+  /** what the site wants from the town grid, what the grid can give, and the ratio */
+  gridMW: number; gridCap: number; strain: number;
   /** megalitres of water and tonnes of CO2 per month */
   waterML: number; carbonT: number;
 }
@@ -94,14 +110,14 @@ export function fresh(): GameState {
   const floors: Floor[] = (['lobby', 'hall', 'power', 'cool'] as FloorType[]).map((type, i) => ({ type, fill: 'cloth', done: true, cost: floorPrice('dalles', type, i) }));
   return {
     phase: 'setup', step: 'loc', cash: 0,
-    loc: 'dalles', found: 'slab', shape: 'box', cust: 'ai',
+    loc: 'dalles', found: 'slab', startFound: 'slab', shape: 'box', cust: 'ai',
     inside: false, spin: true, smoke: true, sel: 0, next: 'hall', nextFill: 'cloth', build: null, nid: 1,
     floors,
     workers: [],
     log: [],
     look: { stitch: 'M', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
-    month: 0, stageMonth: 0, trust: 70, replanted: 0,
-    up: { soundWalls: false, closedLoop: false, renewables: false },
+    month: 0, stageMonth: 0, trust: 70, replanted: 0, substations: 0, gridLevel: 0, goodwill: 0, grudge: 0,
+    up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, fund: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0 },
     books: null, over: null,
@@ -189,25 +205,59 @@ export function ledger(s: GameState): Ledger {
   const ce = hallMW ? Math.min(1, coolMW / hallMW) : 1;
   const eff = pe * ce;
 
-  const itMW = working.reduce((t, o) => t + K.mw * utilization(s, o.i), 0) * eff;
+  const pue = L.pue + (s.up.closedLoop ? 0.05 : 0);
+  const wanted = working.reduce((t, o) => t + K.mw * utilization(s, o.i), 0) * eff;
+  // the town grid can only give so much; past that the utility cuts you back
+  // solar covers part of the load; batteries shave the peaks
+  const gridCap = L.grid + s.substations * SUBSTATION_MW;
+  const onsite = s.up.solar ? SOLAR_MW : 0;
+  const peak = s.up.batteries ? 0.85 : 1;
+  const gridMW = Math.max(0, wanted * pue - onsite);
+  const strain = (gridMW * peak) / gridCap;
+  const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue);
   const trustPay = 0.85 + 0.15 * (s.trust / 100);
   const revenue = itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
 
-  const pue = L.pue + (s.up.closedLoop ? 0.05 : 0);
-  const mwh = itMW * HOURS_PER_MONTH * pue;
-  const power = mwh * L.power * (s.up.renewables ? 1.05 : 1);
+  const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
+  // a strained grid charges more for peak power
+  const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
+  const power = mwh * L.power * surcharge * (s.up.renewables ? 1.05 : 1);
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
   const water = (litres / 1000) * L.waterPrice;
   const staff = s.workers.length * TECH_SALARY;
+  const fund = s.up.fund ? COMMUNITY_FUND : 0;
   const propertyTax = (assets(s) * L.propertyTax) / 12;
-  const pre = revenue - power - water - staff - propertyTax;
+  const pre = revenue - power - water - staff - fund - propertyTax;
   const incomeTax = Math.max(0, pre) * L.incomeTax;
 
   return {
-    revenue, power, water, staff, propertyTax, incomeTax, net: pre - incomeTax,
-    itMW, hallMW, powerMW, coolMW, pe, ce, eff, pue,
+    revenue, power, water, staff, fund, propertyTax, incomeTax, net: pre - incomeTax,
+    itMW, hallMW, powerMW, coolMW, pe, ce, eff, pue, gridMW, gridCap, strain,
     waterML: litres / 1e6, carbonT: mwh * L.carbon * (s.up.renewables ? 0.1 : 1),
   };
+}
+
+/** How the town grid is holding up at a given strain. */
+export const gridLevel = (strain: number) => (strain >= 1 ? 3 : strain >= 0.85 ? 2 : strain >= 0.6 ? 1 : 0);
+export const GRID_LABEL = ['Fine', 'Tight', 'Brownouts', 'Blackouts'];
+
+/** Monthly profit change from adding a finished floor of this type on top. */
+export function buildDelta(s: GameState, type: FloorType) {
+  const extra: Floor = { type, fill: 'cloth', done: true, cost: floorPrice(s.loc, type, s.floors.length) };
+  return ledger({ ...s, floors: [...s.floors, extra] }).net - ledger(s).net;
+}
+
+/** Monthly profit change from hiring one more tech on a floor, salary included. */
+export function hireDelta(s: GameState, floor: number) {
+  const w: Worker = { id: -1, name: '', floor, x: 0, dir: 1, speed: 0, pause: 0 };
+  return ledger({ ...s, workers: [...s.workers, w] }).net - ledger(s).net;
+}
+
+/** One hall's share of monthly income. */
+export function hallIncome(s: GameState, l: Ledger, i: number) {
+  if (isBroken(s, i) || !s.floors[i]?.done) return 0;
+  const used = s.floors.reduce((t, f, k) => t + (f.done && f.type === 'hall' && !isBroken(s, k) ? utilization(s, k) : 0), 0);
+  return used ? (l.revenue * utilization(s, i)) / used : 0;
 }
 
 /** Advances money, the calendar, workers, repairs and construction. */
@@ -226,7 +276,7 @@ export function simulate(s: GameState, dt: number, monthSeconds: number): { buil
       const crew = s.workers.filter(w => w.floor === b.floor);
       if (crew.length) b.t += dt * crew.length;
       if (b.t >= 4) {
-        note(s, `${crew[0].name} fixed floor ${b.floor}`);
+        note(s, `${crew[0].name} fixed floor ${b.floor + 1}`);
         s.tally.fixed++;
         fixed = true;
       }

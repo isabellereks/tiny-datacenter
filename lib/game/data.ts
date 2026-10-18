@@ -42,6 +42,8 @@ export interface Location {
   carbon: number;
   /** price of cooling equipment here: hot places need big chillers, cold places use outside air */
   coolCost: number;
+  /** MW the local grid can spare for you before the town feels it */
+  grid: number;
   trees: number;
   taxNote: string;
   /** cloth tint, ground patch edge and ground texture threads */
@@ -67,6 +69,15 @@ export const HOURS_PER_MONTH = 730;
 export const TECH_SALARY = 8_000;
 export const HIRE_FEE = 15_000;
 export const MAX_TECHS = 3;
+/** a substation adds this much grid capacity; each one costs more than the last */
+export const SUBSTATION_MW = 20;
+export const SUBSTATION_COST = 8_000_000;
+/** an onsite solar farm, averaged over day and night */
+export const SOLAR_MW = 3;
+/** monthly payment to the town under a community agreement */
+export const COMMUNITY_FUND = 100_000;
+/** an outside repair crew, for a hall with no techs on it */
+export const REPAIR_COST = 150_000;
 /** MW each power floor can deliver and each cooling floor can remove, before bonuses */
 export const POWER_MW = 6;
 export const COOL_MW = 6;
@@ -75,28 +86,28 @@ export const LOCS: Record<LocKey, Location> = {
   dalles: {
     name: 'The Dalles, Oregon', short: 'Oregon', note: 'Cheap power. Lots of trees.',
     land: 150_000, power: 60, pue: 1.2, water: 1, waterPrice: 1.5,
-    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, trees: 26,
+    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, trees: 26,
     taxNote: 'Almost no property tax.',
     cloth: '#F2F5EE', hole: '#E2E7DA', edge: '#A8D5BA', deco: '#2E8B57',
   },
   reykjavik: {
     name: 'Reykjavík, Iceland', short: 'Iceland', note: 'Free cooling. Customers pay less.',
     land: 120_000, power: 45, pue: 1.12, water: 0.1, waterPrice: 1,
-    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, trees: 10,
+    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, grid: 24, trees: 10,
     taxNote: 'Lowest profit tax.',
     cloth: '#F1F4F8', hole: '#DFE5EE', edge: '#C9B6F2', deco: '#99BBFF',
   },
   phoenix: {
     name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot. Uses lots of water.',
     land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
-    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, trees: 14,
+    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, trees: 14,
     taxNote: 'Normal taxes.',
     cloth: '#FAF3E7', hole: '#EDE1CC', edge: '#E9D3A6', deco: '#E0A458',
   },
   ashburn: {
     name: 'Ashburn, Virginia', short: 'Virginia', note: 'Best customers. Pricey land.',
     land: 2_000_000, power: 85, pue: 1.3, water: 1.2, waterPrice: 2,
-    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, trees: 18,
+    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, grid: 16, trees: 18,
     taxNote: 'High property tax.',
     cloth: '#F5F4F1', hole: '#E5E3DD', edge: '#B8BCC6', deco: '#7D8597',
   },
@@ -131,7 +142,7 @@ export const TYPES: Record<FloorType, { name: string; short: string; cost: numbe
   cool: { name: 'Cooling', short: 'Cooling', cost: 12_000_000, note: '+6 MW cooling.' },
   net: { name: 'Network', short: 'Network', cost: 3_000_000, note: 'Halls earn more.' },
   break: { name: 'Break room', short: 'Break room', cost: 500_000, note: 'Techs work faster.' },
-  lobby: { name: 'Lobby', short: 'Lobby', cost: 2_000_000, note: 'Front desk.' },
+  lobby: { name: 'Lobby', short: 'Lobby', cost: 2_000_000, note: 'Where staff and visitors come in.' },
 };
 export const BUILDABLE: BuildableType[] = ['hall', 'power', 'cool', 'net', 'break'];
 
@@ -167,13 +178,13 @@ export const STITCH: Record<StitchSize, { px: number; label: string }> = {
 
 export type SetupStep = 'loc' | 'found' | 'shape' | 'height' | 'cust' | 'color' | 'name';
 export const SETUP: { key: SetupStep; title: string; sub: string }[] = [
-  { key: 'loc', title: 'Pick a location', sub: 'Land, power and taxes cost different amounts in each place.' },
+  { key: 'loc', title: 'Pick a location', sub: 'Land, power, water and taxes cost different amounts in each place.' },
   { key: 'found', title: 'Pick a foundation', sub: 'Bigger foundations hold more floors but need more land.' },
-  { key: 'shape', title: 'Pick a shape', sub: 'Each shape has a small bonus.' },
-  { key: 'height', title: 'Add floors', sub: 'You need a server hall, power and cooling to earn money.' },
-  { key: 'cust', title: 'Pick a customer', sub: 'They decide how much each hall earns.' },
-  { key: 'color', title: 'Pick colors', sub: 'Tap a floor, then a color.' },
-  { key: 'name', title: 'Apply for a permit', sub: 'The town wants to know what you are building and who is in charge.' },
+  { key: 'shape', title: 'Pick a shape', sub: 'Each shape gives a small bonus.' },
+  { key: 'height', title: 'Add floors', sub: 'To earn money you need a server hall, plus power and cooling for it.' },
+  { key: 'cust', title: 'Pick a customer', sub: 'Your customer sets how much each hall earns and how much power it uses.' },
+  { key: 'color', title: 'Pick colors', sub: 'Tap a floor, then pick a thread color.' },
+  { key: 'name', title: 'Apply for a permit', sub: 'Name your datacenter and sign as the owner.' },
 ];
 
 export const NAMES = ['Dana', 'Ravi', 'Mo', 'Kiko', 'Jules', 'Tam', 'Ola', 'Bex', 'Nico', 'Sol', 'Wren', 'Ari', 'Pip', 'Juno', 'Ezra', 'Lu', 'Femi', 'Yuki', 'Ines', 'Bo', 'Cass', 'Dev', 'Rin', 'Theo'];

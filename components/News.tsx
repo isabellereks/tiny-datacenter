@@ -7,7 +7,7 @@ import { dateLabel, ownerName, siteName, type GameState } from '@/lib/game/state
 export interface Story { tag: string; headline: string; ticker: string[] }
 
 /** What the news says when you lose, or when a complaint makes the paper. */
-export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'carbon'): Story {
+export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'carbon' | 'blackout' | 'jobs'): Story {
   const owner = ownerName(s), site = siteName(s), imp = impact(s);
   const where = LOCS[s.loc].name;
   switch (kind) {
@@ -33,6 +33,18 @@ export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'car
         tag: 'Local news',
         headline: `Protest outside ${site}`,
         ticker: [`Crowd calls on CEO ${owner} to step down`, `Trust in the datacenter is falling`, where],
+      };
+    case 'blackout':
+      return {
+        tag: 'Breaking news',
+        headline: `Blackouts across ${where.split(',')[0]}`,
+        ticker: [`${site} is using more power than the grid can give`, `Families lose power at home`, `CEO ${owner} blamed`],
+      };
+    case 'jobs':
+      return {
+        tag: 'Local news',
+        headline: `${site} hires almost no one`,
+        ticker: [`Town says CEO ${owner} promised jobs`, `${s.workers.length} people work there`, where],
       };
     case 'carbon':
       return {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
 import { Engine } from '@/lib/game/engine';
 import { impact } from '@/lib/game/events';
-import { isBroken, ledger, load, save, type GameState } from '@/lib/game/state';
+import { ledger, load, save, type GameState } from '@/lib/game/state';
 import { EndCard } from './EndCard';
 import { GoalCard } from './GoalCard';
 import { Island, type Tab } from './Island';
@@ -80,7 +80,6 @@ export default function Game() {
       onPickFloor: floor => {
         const s = stateRef.current;
         if (!s || s.phase === 'over') return;
-        if (s.phase === 'play' && isBroken(s, floor)) { dispatch({ type: 'repair', floor }); return; }
         dispatch({ type: 'select', floor });
         if (s.phase === 'play') { setOpen(true); setTab('floor'); }
       },
@@ -120,12 +119,25 @@ export default function Game() {
     const st = stateRef.current;
     if (!st || complaintNow === lastComplaint.current) return;
     lastComplaint.current = complaintNow;
-    if (complaintNow === 'protest' || complaintNow === 'carbon') {
+    if (complaintNow === 'protest' || complaintNow === 'carbon' || complaintNow === 'jobs') {
       setFlash(storyFor(st, complaintNow));
       window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
     }
   }, [complaintNow]);
+
+  // blackouts in town make the news the moment they start
+  const grid = s?.gridLevel ?? 0;
+  const lastGrid = useRef(0);
+  useEffect(() => {
+    const st = stateRef.current;
+    if (st && grid === 3 && lastGrid.current < 3) {
+      setFlash(storyFor(st, 'blackout'));
+      window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+    }
+    lastGrid.current = grid;
+  }, [grid]);
 
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 

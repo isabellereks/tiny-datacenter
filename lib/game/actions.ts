@@ -1,8 +1,8 @@
 import {
-  FOUNDS, HIRE_FEE, MAX_TECHS, NAMES, SETUP, STARTER, TYPES,
+  FOUNDS, HIRE_FEE, MAX_TECHS, NAMES, REPAIR_COST, SUBSTATION_MW, SETUP, STARTER, TYPES,
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
-import { foundationUpgradeCost, REPLANT_COST, resolveComplaint, UPGRADES } from './events';
+import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, type GameState, type Upgrades } from './state';
 
 export type Action =
@@ -22,7 +22,9 @@ export type Action =
   | { type: 'found'; found: FoundKey }
   | { type: 'shape'; shape: ShapeKey }
   | { type: 'upgrade'; key: keyof Upgrades }
-  | { type: 'replant' }
+  | { type: 'gift'; key: GiftKey }
+  | { type: 'fund'; on: boolean }
+  | { type: 'substation' }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
   | { type: 'smoke'; on: boolean }
@@ -78,6 +80,7 @@ export function apply(s: GameState, a: Action): Effects {
       if (c.left < 0) return {};
       settle(s);
       s.phase = 'play';
+      s.startFound = s.found;
       s.cash = c.left;
       s.floors.forEach((f, i) => { f.cost = floorPrice(s.loc, f.type, i); });
       s.inside = true;
@@ -124,14 +127,15 @@ export function apply(s: GameState, a: Action): Effects {
       const w = s.workers.find(x => x.id === a.id);
       if (!w) return {};
       s.workers = s.workers.filter(x => x.id !== a.id);
-      note(s, `${w.name} left`);
+      note(s, `Let ${w.name} go`);
       return { rebuild: true };
     }
     case 'repair': {
-      if (!isBroken(s, a.floor)) return {};
+      if (!isBroken(s, a.floor) || s.cash < REPAIR_COST) return {};
+      s.cash -= REPAIR_COST;
       s.broken = s.broken.filter(b => b.floor !== a.floor);
       s.tally.fixed++;
-      note(s, `Fixed floor ${a.floor}`);
+      note(s, `Repair crew fixed floor ${a.floor + 1}`);
       return { rebuild: true };
     }
     case 'loc':
@@ -154,7 +158,7 @@ export function apply(s: GameState, a: Action): Effects {
       s.cash -= cost;
       s.found = a.found;
       s.stageMonth = s.month;
-      note(s, `New foundation: ${F.max} floors max`);
+      note(s, `New foundation. Up to ${F.max} floors.`);
       return { rebuild: true, refit: true };
     }
     case 'shape':
@@ -163,20 +167,39 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true, refit: true };
     case 'upgrade': {
       const u = UPGRADES.find(x => x.key === a.key);
+      if (a.key === 'fund') return {};
       if (!u || s.up[a.key] || s.cash < u.cost) return {};
       s.cash -= u.cost;
       s.up[a.key] = true;
-      s.trust = Math.min(100, s.trust + 4);
-      note(s, `Bought ${u.name.toLowerCase()}`);
+      s.trust = Math.min(100, s.trust + UPGRADE_TRUST);
+      note(s, `Bought ${u.name.toLowerCase()}. Trust +${UPGRADE_TRUST}`);
       return {};
     }
-    case 'replant':
-      if (s.cash < REPLANT_COST) return {};
-      s.cash -= REPLANT_COST;
-      s.replanted += 6;
-      s.trust = Math.min(100, s.trust + 3);
-      note(s, 'Planted 6 trees');
-      return { rebuild: true };
+    case 'gift': {
+      const g = GIFTS.find(x => x.key === a.key);
+      if (!g || s.phase !== 'play' || s.cash < g.cost || giftWait(s, g.key) > 0) return {};
+      if (g.key === 'trees' && impact(s).cleared === 0) return {};
+      s.cash -= g.cost;
+      if (g.key === 'trees') s.replanted += 6;
+      if (g.wait) s.cooldown[`gift-${g.key}`] = s.month + g.wait;
+      s.trust = Math.min(100, s.trust + g.trust);
+      s.goodwill += g.trust / 2;
+      note(s, `${g.name}. Trust +${g.trust}`);
+      return { rebuild: g.key === 'trees' };
+    }
+    case 'fund':
+      if (s.phase !== 'play') return {};
+      s.up.fund = a.on;
+      note(s, a.on ? 'Paying the town $100k a month' : 'Stopped paying the town');
+      return {};
+    case 'substation': {
+      const cost = substationCost(s);
+      if (s.phase !== 'play' || s.cash < cost) return {};
+      s.cash -= cost;
+      s.substations++;
+      note(s, `Paid for a substation. Grid +${SUBSTATION_MW} MW`);
+      return {};
+    }
     case 'inside':
       s.inside = a.on;
       return { rebuild: true, home: true };
