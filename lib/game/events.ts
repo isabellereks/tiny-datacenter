@@ -1,5 +1,5 @@
 import { FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
-import { gridLevel, hallCount, ledger, money, note, ownerName, techsOn, type GameState, type Ledger } from './state';
+import { gridLevel, hallCount, inflation, isBroken, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -12,10 +12,10 @@ export function impact(s: GameState, l: Ledger = ledger(s)): Impact {
 }
 
 export interface Choice { label: string; cost?: number | ((s: GameState) => number); trust?: number; apply: (s: GameState) => void }
-export const choiceCost = (s: GameState, ch: Choice) => (typeof ch.cost === 'function' ? ch.cost(s) : ch.cost ?? 0);
+export const choiceCost = (s: GameState, ch: Choice) => (typeof ch.cost === 'function' ? ch.cost(s) : today(s, ch.cost ?? 0));
 
 /** Each substation costs more than the last. */
-export const substationCost = (s: GameState) => SUBSTATION_COST * (1 + s.substations);
+export const substationCost = (s: GameState) => today(s, SUBSTATION_COST * (1 + s.substations));
 export interface Complaint {
   id: string;
   from: string;
@@ -127,9 +127,8 @@ export type GiftKey = (typeof GIFTS)[number]['key'];
 /** months until a gift can be given again, 0 when ready */
 export const giftWait = (s: GameState, key: GiftKey) => Math.max(0, Math.ceil((s.cooldown[`gift-${key}`] ?? 0) - s.month));
 
-/** Jobs the town expects from a building this size: about 2 techs per hall plus a few more. */
-export const hopedJobs = (s: GameState) =>
-  Math.round(hallCount(s) * 2 + s.floors.filter(f => f.done).length * 0.3);
+/** Jobs the town expects: 2 techs per server hall. */
+export const hopedJobs = (s: GameState) => hallCount(s) * 2;
 
 export interface MoodPart { label: string; value: number; note: string }
 
@@ -143,7 +142,7 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   const hoped = hopedJobs(s);
   const loud = s.up.soundWalls ? 0 : Math.max(0, floors - 5);
   const parts: MoodPart[] = [
-    { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs} of ${hoped} hoped for` },
+    { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped}` },
     { label: 'Noise', value: -Math.round(clamp(loud * 1.5, 0, 15)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors of fans` },
     { label: 'Trees cut', value: -Math.round(clamp(i.cleared * 0.6, 0, 15)), note: `${i.cleared} trees` },
     { label: 'Water', value: -Math.round(clamp(i.waterML * 2, 0, 15)), note: `${i.waterML.toFixed(1)} ML a month` },
@@ -177,25 +176,25 @@ const has = (s: GameState, type: string) => s.floors.some(f => f.done && f.type 
 /** The first goals double as a tutorial; later ones push you to grow without angering the town. */
 export const GOALS: Goal[] = [
   { text: 'Hire a tech', reward: 500_000, hint: 'Tap the server hall, then tap Hire.', done: s => s.workers.length > 0 },
-  { text: 'Make $250k profit in a month', reward: 2_000_000, hint: 'Each tech brings more customers into the hall.', done: s => (s.books?.net ?? 0) >= 250_000 },
-  { text: 'Build a second server hall', reward: 5_000_000, hint: 'Open the top bar and tap Build. Each hall needs power and cooling.', done: s => hallCount(s) >= 2 },
-  { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Halls need enough power and cooling. Check the meters in Build.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 },
-  { text: 'Fill a hall with 3 techs', reward: 3_000_000, hint: 'A hall with 3 techs is 100% in use.', done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS) },
-  { text: 'Do something for the town', reward: 1_000_000, hint: 'Open Town and pick something under Help the town.', done: s => s.goodwill > 0.5 || s.up.fund },
-  { text: 'Build a network floor', reward: 2_000_000, hint: 'Network floors make every hall earn more.', done: s => has(s, 'net') },
-  { text: 'Fix an outage', reward: 1_500_000, hint: 'When a floor goes down, tap it. Techs fix their own floor.', done: s => s.tally.fixed >= 1 },
-  { text: 'Give the town the jobs it hoped for', reward: 6_000_000, hint: 'The Staff tab shows how many jobs the town expects.', done: s => hallCount(s) >= 2 && s.workers.length >= hopedJobs(s) },
-  { text: 'Finish a project in Town', reward: 4_000_000, hint: 'Projects stop complaints before they start.', done: s => UPGRADES.some(u => s.up[u.key]) },
-  { text: 'Run 4 server halls', reward: 12_000_000, hint: 'Watch the town grid as you grow.', done: s => hallCount(s) >= 4 },
-  { text: 'Make $1M profit in a month', reward: 15_000_000, hint: 'Add more halls, plus network floors to raise prices.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
-  { text: 'Reach year 5 with trust above 50', reward: 10_000_000, hint: 'Answer complaints and keep an eye on What the town thinks.', done: s => s.month >= 48 && s.trust > 50 },
-  { text: 'Pay for a substation', reward: 5_000_000, hint: 'More grid means no brownouts in town.', done: s => s.substations >= 1 },
-  { text: 'Upgrade your foundation', reward: 10_000_000, hint: 'When all floors are used, Build offers a bigger foundation.', done: s => s.found !== s.startFound },
-  { text: 'Build 12 floors', reward: 25_000_000, hint: 'Taller buildings make more noise. A sound wall helps.', done: s => doneFloors(s) >= 12 },
-  { text: 'Make $3M profit in a month', reward: 40_000_000, hint: 'Full halls, lots of network floors, and a happy town.', done: s => (s.books?.net ?? 0) >= 3_000_000 },
-  { text: 'Finish every project in Town', reward: 30_000_000, hint: 'Solar, batteries and heat reuse all help.', done: s => UPGRADES.every(u => s.up[u.key]) },
-  { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Big and loved. That is the whole game.', done: s => s.month >= 108 && s.trust > 70 },
-  { text: 'Build 20 floors', reward: 80_000_000, hint: 'You will need steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
+  { text: 'Make $250k profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
+  { text: 'Build a second server hall', reward: 5_000_000, hint: 'Tap the top bar, then Build.', done: s => hallCount(s) >= 2 },
+  { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Add power and cooling until halls hit 100%.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 },
+  { text: 'Fill a hall with 3 techs', reward: 3_000_000, hint: '3 techs fill a hall.', done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS) },
+  { text: 'Help the community', reward: 1_000_000, hint: 'Town tab, Community.', done: s => s.goodwill > 0.5 || s.up.fund },
+  { text: 'Build a network floor', reward: 2_000_000, hint: 'Every hall earns more.', done: s => has(s, 'net') },
+  { text: 'Fix an outage', reward: 1_500_000, hint: 'Tap a floor that is down.', done: s => s.tally.fixed >= 1 },
+  { text: 'Hire 2 techs per server hall', reward: 6_000_000, hint: 'The town wants local jobs.', done: s => hallCount(s) >= 2 && s.workers.length >= hopedJobs(s) },
+  { text: 'Finish a project in Town', reward: 4_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.some(u => s.up[u.key]) },
+  { text: 'Run 4 server halls', reward: 12_000_000, hint: 'Watch the town grid.', done: s => hallCount(s) >= 4 },
+  { text: 'Make $1M profit in a month', reward: 15_000_000, hint: 'More halls and network floors.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
+  { text: 'Reach year 5 with trust above 50', reward: 10_000_000, hint: 'Check Town opinion.', done: s => s.month >= 48 && s.trust > 50 },
+  { text: 'Build a substation', reward: 5_000_000, hint: 'More grid, no brownouts.', done: s => s.substations >= 1 },
+  { text: 'Upgrade your foundation', reward: 10_000_000, hint: 'Fill every floor, then upgrade in Build.', done: s => s.found !== s.startFound },
+  { text: 'Build 12 floors', reward: 25_000_000, hint: 'Taller is louder. Get a sound wall.', done: s => doneFloors(s) >= 12 },
+  { text: 'Make $3M profit in a month', reward: 40_000_000, hint: 'Full halls and a happy town.', done: s => (s.books?.net ?? 0) >= 3_000_000 },
+  { text: 'Finish every project in Town', reward: 30_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.every(u => s.up[u.key]) },
+  { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 70 },
+  { text: 'Build 20 floors', reward: 80_000_000, hint: 'Needs steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
 ];
 
 /** Checks the current goal and pays out when it's met. */
@@ -216,6 +215,7 @@ export function endOfMonth(s: GameState) {
   const i = impact(s, l);
 
   // trust drifts toward what the town thinks of you; gifts and grudges fade
+  s.tally.best = Math.max(s.tally.best, rating(s, l).total);
   const mood = townMood(s, l, i);
   addTrust(s, (mood.target - s.trust) * 0.2);
   s.goodwill *= 0.95;
@@ -289,17 +289,26 @@ export function endGame(s: GameState, reason: 'town' | 'broke') {
   note(s, reason === 'town' ? 'The town shut you down' : 'You went bankrupt');
 }
 
-/** Score: profit and time survived, plus goals and fixes, minus every complaint you ignored. */
-export function score(s: GameState) {
+/** How well the datacenter is run right now, 0 to 100. It doesn't grow on its own; it moves with your choices. */
+export function rating(s: GameState, l: Ledger = ledger(s)) {
+  const halls = s.floors.map((f, i) => ({ f, i })).filter(o => o.f.done && o.f.type === 'hall');
+  const running = halls.length
+    ? (halls.reduce((t, o) => t + (isBroken(s, o.i) ? 0 : utilization(s, o.i)), 0) / halls.length) * l.eff
+    : 0;
+  const hoped = hopedJobs(s);
   const parts = {
-    profit: Math.round(Math.max(0, s.tally.profit) / 100_000),
-    months: Math.floor(s.month) * 2,
-    goals: s.tally.goals * 100,
-    fixed: s.tally.fixed * 20,
-    ignored: -s.tally.ignored * 150,
+    trust: (s.trust / 100) * 30,
+    profit: Math.max(0, Math.min(1, l.revenue ? l.net / l.revenue / 0.4 : 0)) * 25,
+    running: running * 20,
+    jobs: (hoped ? Math.min(1, s.workers.length / hoped) : 1) * 15,
+    grid: (1 - Math.max(0, Math.min(1, (l.strain - 0.6) / 0.4))) * 10,
   };
-  return { total: Math.max(0, Object.values(parts).reduce((a, b) => a + b, 0)), parts };
+  const total = Math.round(Object.values(parts).reduce((a, b) => a + b, 0));
+  return { total, parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, Math.round(v)])) as Record<keyof typeof parts, number> };
 }
+
+/** Rating as 0 to 5 stars. */
+export const stars = (r: number) => Math.round(r / 20 * 2) / 2;
 
 export function nextFoundation(s: GameState): FoundKey | null {
   const order: FoundKey[] = ['slab', 'raised', 'piles', 'bedrock'];
@@ -308,4 +317,4 @@ export function nextFoundation(s: GameState): FoundKey | null {
 
 /** Moving to a bigger foundation: the new foundation plus the extra land it needs. */
 export const foundationUpgradeCost = (s: GameState, to: FoundKey) =>
-  FOUNDS[to].cost + LOCS[s.loc].land * Math.max(0, FOUNDS[to].acres - FOUNDS[s.found].acres);
+  Math.round(inflation(s) * (FOUNDS[to].cost + LOCS[s.loc].land * Math.max(0, FOUNDS[to].acres - FOUNDS[s.found].acres)));

@@ -28,7 +28,7 @@ export interface Upgrades {
   fund: boolean;
 }
 
-export interface Tally { profit: number; fixed: number; ignored: number; goals: number }
+export interface Tally { profit: number; fixed: number; ignored: number; goals: number; best: number }
 
 export interface GameState {
   phase: 'setup' | 'play' | 'over';
@@ -85,6 +85,8 @@ export interface Ledger {
   power: number;
   water: number;
   staff: number;
+  /** repairs and parts, about 1.5% of what you've built each year */
+  upkeep: number;
   fund: number;
   propertyTax: number;
   incomeTax: number;
@@ -119,7 +121,7 @@ export function fresh(): GameState {
     month: 0, stageMonth: 0, trust: 70, replanted: 0, substations: 0, gridLevel: 0, goodwill: 0, grudge: 0,
     up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, fund: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
-    tally: { profit: 0, fixed: 0, ignored: 0, goals: 0 },
+    tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
     books: null, over: null,
   };
 }
@@ -175,7 +177,16 @@ export function setupCost(s: GameState) {
 export const assets = (s: GameState) =>
   FOUNDS[s.found].cost + SHAPES[s.shape].cost + s.floors.reduce((t, f) => t + (f.done ? f.cost : 0), 0);
 
-export const buildCost = (s: GameState) => floorPrice(s.loc, s.next, s.floors.length);
+/** Costs rise about 3% a year once you open: power, wages, water, parts and construction.
+ *  What customers pay rises more slowly, so margins shrink unless you keep improving. */
+export const COST_GROWTH = 0.03;
+export const PRICE_GROWTH = 0.015;
+export const inflation = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + COST_GROWTH) ** (s.month / 12));
+export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + PRICE_GROWTH) ** (s.month / 12));
+/** A price from the data tables, in today's dollars. */
+export const today = (s: GameState, base: number) => Math.round(base * inflation(s));
+
+export const buildCost = (s: GameState) => today(s, floorPrice(s.loc, s.next, s.floors.length));
 export const baseY = (s: GameState, i: number) => FOUNDS[s.found].h + i * FH;
 export const floorW = (s: GameState, i: number) => (s.shape === 'tower' ? FW * (1 - Math.min(Math.floor(i / 3), 3) * 0.12) : FW);
 export const perRow = (s: GameState, i: number) => Math.max(2, Math.floor((floorW(s, i) - 1.4) / 2));
@@ -216,22 +227,24 @@ export function ledger(s: GameState): Ledger {
   const strain = (gridMW * peak) / gridCap;
   const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue);
   const trustPay = 0.85 + 0.15 * (s.trust / 100);
-  const revenue = itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
+  const infl = inflation(s);
+  const revenue = priceGrowth(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
 
   const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
   const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
-  const power = mwh * L.power * surcharge * (s.up.renewables ? 1.05 : 1);
+  const power = infl * mwh * L.power * surcharge * (s.up.renewables ? 1.05 : 1);
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
-  const water = (litres / 1000) * L.waterPrice;
-  const staff = s.workers.length * TECH_SALARY;
+  const water = infl * (litres / 1000) * L.waterPrice;
+  const staff = infl * s.workers.length * TECH_SALARY;
+  const upkeep = (infl * assets(s) * 0.015) / 12;
   const fund = s.up.fund ? COMMUNITY_FUND : 0;
   const propertyTax = (assets(s) * L.propertyTax) / 12;
-  const pre = revenue - power - water - staff - fund - propertyTax;
+  const pre = revenue - power - water - staff - upkeep - fund - propertyTax;
   const incomeTax = Math.max(0, pre) * L.incomeTax;
 
   return {
-    revenue, power, water, staff, fund, propertyTax, incomeTax, net: pre - incomeTax,
+    revenue, power, water, staff, upkeep, fund, propertyTax, incomeTax, net: pre - incomeTax,
     itMW, hallMW, powerMW, coolMW, pe, ce, eff, pue, gridMW, gridCap, strain,
     waterML: litres / 1e6, carbonT: mwh * L.carbon * (s.up.renewables ? 0.1 : 1),
   };

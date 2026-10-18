@@ -15,6 +15,9 @@ const OUTSIDE_DIR = new THREE.Vector3(0.85, 0.55, 1).normalize();
 // themselves don't show, since a floor seen edge-on is nothing but outline.
 const INSIDE_DIR = new THREE.Vector3(0.16, 0.03, 1).normalize();
 const GROUND_R = 19;
+/** Furthest the camera pulls back: a floor stays about 10 stitches tall so its insides still read.
+ *  Taller buildings scroll instead, like Tiny Tower. */
+const MAX_UPC = FH / 10;
 
 export interface EngineHooks {
   state: () => GameState;
@@ -100,6 +103,7 @@ export class Engine {
   private raf = 0;
   private last = 0;
   private disposed = false;
+  private textHidden = false;
 
   constructor(private host: HTMLElement, private hooks: EngineHooks, private font: string) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -108,12 +112,12 @@ export class Engine {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
-    canvas.setAttribute('aria-label', 'Your stitched datacenter. Drag to turn it.');
+    canvas.setAttribute('aria-label', 'Your stitched datacenter. Drag to turn it, right-drag or two-finger drag to move.');
     host.appendChild(canvas);
 
     this.controls = new OrbitControls(this.camera, canvas);
     Object.assign(this.controls, {
-      enableDamping: true, dampingFactor: 0.08, enablePan: false, enableZoom: true,
+      enableDamping: true, dampingFactor: 0.08, enablePan: true, screenSpacePanning: true, enableZoom: true,
       minZoom: 0.6, maxZoom: 2.5, minPolarAngle: 0.45, maxPolarAngle: 1.56, autoRotateSpeed: 0.8,
     });
     this.controls.addEventListener('start', () => { this.hooks.onFirstInteraction(); });
@@ -225,7 +229,7 @@ export class Engine {
     u.tText.value = this.textTex;
     (u.uGrid.value as THREE.Vector2).set(n, m);
     u.uTextBottom.value = this.grid.textBottom;
-    u.uTextRows.value = this.grid.textRows;
+    u.uTextRows.value = this.textHidden ? 0 : this.grid.textRows;
     u.uCell.value = cell;
     this.applyFrustum();
   };
@@ -367,13 +371,29 @@ export class Engine {
     const b0 = textBottom + textRows + (textRows ? 2 : 0);
     const b1 = vm - (this.insets.top * dpr) / this.grid.cell;
     const band = Math.max(20, b1 - b0);
-    const toU = Math.max(((max.x - min.x) * 1.08) / vn, ((max.y - min.y) * 1.08) / band);
+    const want = Math.max(((max.x - min.x) * 1.08) / vn, ((max.y - min.y) * 1.08) / band);
+    const toU = picking ? want : Math.min(want, MAX_UPC);
+    // too tall to fit: scroll to the selected floor, but never past the ground or the roof
+    let cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2;
+    const scrolled = toU < want - 1e-6;
+    if (scrolled) {
+      const i = Math.max(0, Math.min(s.sel, s.floors.length - 1));
+      const focus = new THREE.Vector3(0, baseY(s, i) + FH / 2, 0).applyMatrix4(view);
+      const halfH = (band * toU) / 2 / 1.04, halfW = (vn * toU) / 2 / 1.04;
+      // keep the view inside the scene; if the scene is narrower than the view, just center it
+      const keep = (lo: number, hi: number, v: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+      cy = keep(min.y + halfH, max.y - halfH, focus.y);
+      cx = keep(min.x + halfW, max.x - halfW, focus.x);
+    }
+    // the name sits under the ground, so hide it while the ground is out of view
+    this.textHidden = scrolled && cy - (band * toU) / 2 > min.y + FH;
+    this.post.uniforms.uTextRows.value = this.textHidden ? 0 : this.grid.textRows;
     const dx = vn / 2 - n / 2, dy = (b0 + b1) / 2 - m / 2;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
     const center = this.controls.target.clone()
-      .addScaledVector(right, (min.x + max.x) / 2 - dx * toU)
-      .addScaledVector(up, (min.y + max.y) / 2 - dy * toU);
+      .addScaledVector(right, cx - dx * toU)
+      .addScaledVector(up, cy - dy * toU);
     if (!animate) {
       this.upc = toU;
       this.camera.position.add(center.clone().sub(this.controls.target));

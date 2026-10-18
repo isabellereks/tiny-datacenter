@@ -275,6 +275,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .flist .ftechs { font-size: 9px; letter-spacing: 1px; color: #FF7A45; }
 .flist .fstat { color: var(--isl-dim); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
 .flist button[aria-pressed="true"] .fno, .flist button[aria-pressed="true"] .fstat { color: #555; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.stats span { background: var(--isl-2); color: var(--isl-text); border-radius: 8px; padding: 4px 8px; }
+.stats .bad { color: #FF8A80; }
+.stats .good { color: var(--ok); }
+.tabhead { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; }
+.tabhead span { color: var(--isl-dim); font-variant-numeric: tabular-nums; }
 .fdetail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--isl-dim); font-size: 12.5px; }
 .log li:first-child { color: var(--isl-text); }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { impact, score } from '@/lib/game/events';
+import { impact } from '@/lib/game/events';
 import { money, type GameState } from '@/lib/game/state';
 
 export function EndCard({ s, onAgain, onHeight }: { s: GameState; onAgain: () => void; onHeight: (h: number) => void }) {
@@ -15,7 +15,6 @@ export function EndCard({ s, onAgain, onHeight }: { s: GameState; onAgain: () =>
   }, [onHeight]);
 
   const town = s.over?.reason === 'town';
-  const sc = score(s);
   const months = Math.floor(s.month);
   return (
     <div className="setup end" ref={ref} role="dialog" aria-labelledby="end-title">
@@ -28,7 +27,7 @@ export function EndCard({ s, onAgain, onHeight }: { s: GameState; onAgain: () =>
         </p>
       </div>
       <div className="facts-grid">
-        <div className="fact"><span>Score</span><b>{sc.total.toLocaleString()}</b></div>
+        <div className="fact"><span>Best rating</span><b>{s.tally.best}/100</b></div>
         <div className="fact"><span>Months</span><b>{months}</b></div>
         <div className="fact"><span>Profit</span><b>{money(s.tally.profit)}</b></div>
         <div className="fact"><span>Trees cut</span><b>{impact(s).cleared}</b></div>

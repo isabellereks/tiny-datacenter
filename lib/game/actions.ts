@@ -3,7 +3,7 @@ import {
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
-import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, type GameState, type Upgrades } from './state';
+import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, today, type GameState, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -113,8 +113,9 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true };
     case 'hire': {
       const f = s.floors[s.sel];
-      if (s.cash < HIRE_FEE || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
-      s.cash -= HIRE_FEE;
+      const fee = today(s, HIRE_FEE);
+      if (s.cash < fee || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
+      s.cash -= fee;
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
@@ -131,8 +132,9 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true };
     }
     case 'repair': {
-      if (!isBroken(s, a.floor) || s.cash < REPAIR_COST) return {};
-      s.cash -= REPAIR_COST;
+      const fee = today(s, REPAIR_COST);
+      if (!isBroken(s, a.floor) || s.cash < fee) return {};
+      s.cash -= fee;
       s.broken = s.broken.filter(b => b.floor !== a.floor);
       s.tally.fixed++;
       note(s, `Repair crew fixed floor ${a.floor + 1}`);
@@ -168,8 +170,8 @@ export function apply(s: GameState, a: Action): Effects {
     case 'upgrade': {
       const u = UPGRADES.find(x => x.key === a.key);
       if (a.key === 'fund') return {};
-      if (!u || s.up[a.key] || s.cash < u.cost) return {};
-      s.cash -= u.cost;
+      if (!u || s.up[a.key] || s.cash < today(s, u.cost)) return {};
+      s.cash -= today(s, u.cost);
       s.up[a.key] = true;
       s.trust = Math.min(100, s.trust + UPGRADE_TRUST);
       note(s, `Bought ${u.name.toLowerCase()}. Trust +${UPGRADE_TRUST}`);
@@ -177,9 +179,9 @@ export function apply(s: GameState, a: Action): Effects {
     }
     case 'gift': {
       const g = GIFTS.find(x => x.key === a.key);
-      if (!g || s.phase !== 'play' || s.cash < g.cost || giftWait(s, g.key) > 0) return {};
+      if (!g || s.phase !== 'play' || s.cash < today(s, g.cost) || giftWait(s, g.key) > 0) return {};
       if (g.key === 'trees' && impact(s).cleared === 0) return {};
-      s.cash -= g.cost;
+      s.cash -= today(s, g.cost);
       if (g.key === 'trees') s.replanted += 6;
       if (g.wait) s.cooldown[`gift-${g.key}`] = s.month + g.wait;
       s.trust = Math.min(100, s.trust + g.trust);
@@ -211,7 +213,8 @@ export function apply(s: GameState, a: Action): Effects {
       return { refit: true };
     case 'select':
       s.sel = a.floor;
-      return {};
+      // a tall building scrolls to the floor you picked
+      return { refit: s.phase === 'play' };
     case 'stitch':
       s.look.stitch = a.size;
       return { layout: true };
