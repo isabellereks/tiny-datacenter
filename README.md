@@ -22,6 +22,27 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
 - If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
 
+## Government
+
+Everything big needs a permit, and permits take months. The Gov tab shows each one, what it allows, what it costs and how long it takes.
+
+- **Zoning approval** from the county for a bigger foundation, decided at a hearing that needs enough trust. In Loudoun County it takes 6 months, after its 2025 special exception rule.
+- **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
+- **Air permits** for the diesel backup generators on power floors. Three generator violations and the regulator stops approving them.
+- **Water allocation** in Phoenix for more server halls, unless you switch to water-saving cooling.
+
+Inspections come once a year, announced two months ahead, with the checklist visible in the Gov tab. Failing costs a fine and makes the news. Iceland alternates with an EU energy report on PUE.
+
+Every four years the county or city holds an election. Your trust sets the polls. A pro-growth board makes permits faster and hearings easier; a slow-growth board does the opposite, and in Loudoun can pause new datacenters.
+
+Laws follow each place's real timeline, simplified:
+
+- **US:** a federal clean energy credit cuts the solar farm price until Congress ends it; an executive order fast-tracks permits for two years; a state large-load law makes you install a remote disconnect or accept less grid; grid emergencies ask you to run diesel generators.
+- **Virginia:** a sales tax break on equipment, then a tax on datacenter power.
+- **Arizona:** a tax break that the legislature freezes for three years, summer heat waves and water hearings.
+- **Oregon:** a strategic investment tax deal that needs 10 local jobs by year 3 and ends after 15 years.
+- **Iceland:** dry winters when the utility cuts big users, unless you pay for a priority contract.
+
 ## Locations
 
 | | Land | Power | Cooling floor | Town grid | Notes |
@@ -46,6 +67,6 @@ Then open http://localhost:3000.
 
 - Next.js (App Router), React and TypeScript
 - three.js renders the scene twice at stitch resolution; `lib/game/stitchPass.ts` turns every cell into an X stitch
-- `lib/game/`: `data.ts` (prices and rates), `state.ts` (monthly books and simulation), `events.ts` (town mood, complaints, outages, goals, rating, endings), `actions.ts` (player actions), `models.ts` (3D pieces), `engine.ts` (render loop, camera, the ending)
+- `lib/game/`: `data.ts` (prices and rates), `state.ts` (monthly books and simulation), `gov.ts` (permits, inspections, elections, laws), `events.ts` (town mood, complaints, outages, goals, rating, endings), `actions.ts` (player actions), `models.ts` (3D pieces), `engine.ts` (render loop, camera, the ending)
 - `components/`: `SetupCard` (setup), `Island` (top bar), `GoalCard`, `EndCard`
 - Progress saves to `localStorage`

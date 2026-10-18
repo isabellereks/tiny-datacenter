@@ -21,6 +21,11 @@ export interface Look {
   owner: string;
 }
 
+export type PermitKey = 'zoning' | 'height' | 'air' | 'water';
+export type Board = 'pro' | 'neutral' | 'anti';
+export interface Law { id: string; until: number }
+export interface Headline { id: number; tag: string; headline: string; ticker: string[] }
+
 export interface Upgrades {
   soundWalls: boolean; closedLoop: boolean; renewables: boolean;
   solar: boolean; batteries: boolean; heat: boolean;
@@ -77,6 +82,22 @@ export interface GameState {
   /** last full month's books */
   books: Ledger | null;
   over: { reason: 'town' | 'broke'; t0: number; done: boolean } | null;
+  /** laws and deals in force, each until a month (1e9 means for good) */
+  laws: Law[];
+  /** how far each permit has been approved */
+  permits: Record<PermitKey, number>;
+  /** applications waiting on a decision */
+  applying: { key: PermitKey; done: number }[];
+  inspectAt: number;
+  electionAt: number;
+  board: Board;
+  /** one-time story beats already played */
+  fired: string[];
+  /** times the air regulator caught you running generators */
+  strikes: number;
+  /** no new alert before this month, so decisions don't pile up */
+  calm: number;
+  news: Headline | null;
 }
 
 /** One month of the datacenter's books, plus the physical numbers behind them. */
@@ -123,6 +144,8 @@ export function fresh(): GameState {
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
     books: null, over: null,
+    laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0 }, applying: [],
+    inspectAt: 10, electionAt: 24, board: 'neutral', fired: [], strikes: 0, calm: 0, news: null,
   };
 }
 
@@ -132,9 +155,20 @@ export function load(): GameState {
     if (raw) {
       const saved = JSON.parse(raw) as Partial<GameState>;
       const base = fresh();
+      // saves from before permits existed keep what they already built
+      if (saved.phase === 'play' && !saved.permits && saved.floors) {
+        const n = saved.floors.length, power = saved.floors.filter(f => f.type === 'power').length;
+        saved.permits = {
+          zoning: (['slab', 'raised', 'piles', 'bedrock'] as FoundKey[]).indexOf(saved.found ?? 'slab'),
+          height: n > 20 ? 2 : n > 12 ? 1 : 0, air: Math.max(0, Math.ceil((power - 2) / 2)), water: 99,
+        };
+        saved.inspectAt = (saved.month ?? 0) + 6;
+        saved.electionAt = (saved.month ?? 0) + 18;
+      }
       return {
         ...base, ...saved,
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
+        permits: { ...base.permits, ...saved.permits },
         build: null,
       };
     }
@@ -145,6 +179,8 @@ export function load(): GameState {
 export function save(s: GameState): void {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
 }
+
+export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
 export const ownerName = (s: GameState) => s.look.owner.trim() || 'The owner';
 export const siteName = (s: GameState) => s.look.name.trim() || 'the datacenter';
@@ -187,7 +223,9 @@ export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + PRI
 /** A price from the data tables, in today's dollars. */
 export const today = (s: GameState, base: number) => Math.round(base * inflation(s));
 
-export const buildCost = (s: GameState) => today(s, floorPrice(s.loc, s.next, s.floors.length));
+/** Sales tax breaks on equipment knock about 5% off new floors. */
+export const taxBreak = (s: GameState) => (hasLaw(s, 'vaExempt') || hasLaw(s, 'azExempt') ? 0.95 : 1);
+export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, s.floors.length)) * taxBreak(s));
 export const baseY = (s: GameState, i: number) => FOUNDS[s.found].h + i * FH;
 export const floorW = (s: GameState, i: number) => (s.shape === 'tower' ? FW * (1 - Math.min(Math.floor(i / 3), 3) * 0.12) : FW);
 export const perRow = (s: GameState, i: number) => Math.max(2, Math.floor((floorW(s, i) - 1.4) / 2));
@@ -213,16 +251,17 @@ export function ledger(s: GameState): Ledger {
   const hallMW = halls.length * K.mw;
   const powerMW = count('power') * POWER_MW;
   // hot climates make chillers work harder
-  const coolMW = count('cool') * COOL_MW * F.cool * Sh.cool * (1.2 / L.pue);
+  const coolMW = count('cool') * COOL_MW * F.cool * Sh.cool * (1.2 / L.pue) * (hasLaw(s, 'heat') ? 0.8 : 1);
   const pe = hallMW ? Math.min(1, powerMW / hallMW) : 1;
   const ce = hallMW ? Math.min(1, coolMW / hallMW) : 1;
   const eff = pe * ce;
 
   const pue = L.pue + (s.up.closedLoop ? 0.05 : 0);
-  const wanted = working.reduce((t, o) => t + K.mw * utilization(s, o.i), 0) * eff;
+  // in a dry winter the utility caps big users
+  const wanted = working.reduce((t, o) => t + K.mw * utilization(s, o.i), 0) * eff * (hasLaw(s, 'dry') ? 0.7 : 1);
   // the town grid can only give so much; past that the utility cuts you back
   // solar covers part of the load; batteries shave the peaks
-  const gridCap = L.grid + s.substations * SUBSTATION_MW;
+  const gridCap = (L.grid + s.substations * SUBSTATION_MW) * (hasLaw(s, 'curtail') ? 0.9 : 1);
   const onsite = s.up.solar ? SOLAR_MW : 0;
   const peak = s.up.batteries ? 0.85 : 1;
   const gridMW = Math.max(0, wanted * pue - onsite);
@@ -235,13 +274,15 @@ export function ledger(s: GameState): Ledger {
   const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
   const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
-  const power = infl * mwh * L.power * surcharge * (s.up.renewables ? 1.05 : 1);
+  const rate = L.power * surcharge * (s.up.renewables ? 1.05 : 1) * (hasLaw(s, 'priority') ? 1.15 : 1) + (hasLaw(s, 'vaKwh') ? 11 : 0);
+  const power = infl * mwh * rate;
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
   const staff = infl * s.workers.length * TECH_SALARY;
   const upkeep = (infl * assets(s) * 0.015) / 12;
   const fund = s.up.fund ? COMMUNITY_FUND : 0;
-  const propertyTax = (assets(s) * L.propertyTax) / 12;
+  // an abatement taxes a fraction of the value, plus a community fee on what it saves
+  const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1);
   const pre = revenue - power - water - staff - upkeep - fund - propertyTax;
   const incomeTax = Math.max(0, pre) * L.incomeTax;
 

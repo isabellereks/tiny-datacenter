@@ -3,7 +3,8 @@ import {
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
-import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, today, type GameState, type Upgrades } from './state';
+import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
+import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -25,6 +26,7 @@ export type Action =
   | { type: 'gift'; key: GiftKey }
   | { type: 'fund'; on: boolean }
   | { type: 'substation' }
+  | { type: 'permit'; key: PermitKey }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
   | { type: 'smoke'; on: boolean }
@@ -81,6 +83,7 @@ export function apply(s: GameState, a: Action): Effects {
       settle(s);
       s.phase = 'play';
       s.startFound = s.found;
+      startLaws(s);
       s.cash = c.left;
       s.floors.forEach((f, i) => { f.cost = floorPrice(s.loc, f.type, i); });
       s.inside = true;
@@ -98,7 +101,7 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'build': {
       const cost = buildCost(s);
-      if (s.cash < cost || s.build || s.floors.length >= FOUNDS[s.found].max) return {};
+      if (s.cash < cost || s.build || s.floors.length >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
       s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost });
@@ -156,7 +159,7 @@ export function apply(s: GameState, a: Action): Effects {
         return { rebuild: true };
       }
       const cost = foundationUpgradeCost(s, a.found);
-      if (s.phase !== 'play' || F.max <= FOUNDS[s.found].max || s.cash < cost || s.build) return {};
+      if (s.phase !== 'play' || F.max <= FOUNDS[s.found].max || s.cash < cost || s.build || !zoningAllows(s, a.found)) return {};
       s.cash -= cost;
       s.found = a.found;
       s.stageMonth = s.month;
@@ -202,6 +205,10 @@ export function apply(s: GameState, a: Action): Effects {
       note(s, `Paid for a substation. Grid +${SUBSTATION_MW} MW`);
       return {};
     }
+    case 'permit':
+      if (s.phase !== 'play') return {};
+      applyPermit(s, a.key);
+      return {};
     case 'inside':
       s.inside = a.on;
       return { rebuild: true, home: true };

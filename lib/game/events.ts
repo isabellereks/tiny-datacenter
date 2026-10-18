@@ -1,4 +1,5 @@
 import { FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
+import { govMonth, resolveDecision } from './gov';
 import { gridLevel, hallCount, inflation, isBroken, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
@@ -74,6 +75,26 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
+    id: 'view', from: 'Neighbors', wait: 3, sting: 8,
+    title: s => `Your ${s.floors.length}-floor tower blocks the view`,
+    body: s => `They want ${ownerName(s)} to give something back to the street.`,
+    active: s => s.floors.length >= 14,
+    choices: [
+      { label: 'Build a park and mural', cost: 1_000_000, trust: 6, apply: s => addTrust(s, 6) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'shadow', from: 'Homeowners', wait: 2, sting: 12,
+    title: () => 'Your tower shades our homes',
+    body: s => `Gardens and solar panels are in shadow all afternoon. They want ${ownerName(s)} to pay.`,
+    active: s => s.floors.length >= 21,
+    choices: [
+      { label: 'Pay homeowners', cost: 3_000_000, trust: 8, apply: s => addTrust(s, 8) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
     id: 'jobs', from: 'Town council', wait: 3, sting: 10,
     title: () => 'Where are the jobs?',
     body: s => `You promised work, but only ${s.workers.length} people work at ${s.look.name.trim() || 'the datacenter'}. They want ${ownerName(s)} to hire locals.`,
@@ -143,6 +164,7 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   const loud = s.up.soundWalls ? 0 : Math.max(0, floors - 5);
   const parts: MoodPart[] = [
     { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped}` },
+    { label: 'Skyline', value: -Math.round(clamp((floors - 12) * 1.5, 0, 15)), note: `${floors} floors tall` },
     { label: 'Noise', value: -Math.round(clamp(loud * 1.5, 0, 15)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors of fans` },
     { label: 'Trees cut', value: -Math.round(clamp(i.cleared * 0.6, 0, 15)), note: `${i.cleared} trees` },
     { label: 'Water', value: -Math.round(clamp(i.waterML * 2, 0, 15)), note: `${i.waterML.toFixed(1)} ML a month` },
@@ -247,7 +269,10 @@ export function endOfMonth(s: GameState) {
   if (s.trust <= 0) { endGame(s, 'town'); return; }
   if (s.debt >= 3) { endGame(s, 'broke'); return; }
 
-  if (s.complaint) return;
+  const decision = govMonth(s, l);
+  if (s.phase !== 'play') return;
+  if (decision) { s.complaint = decision; return; }
+  if (s.complaint || s.month < s.calm) return;
   const atSize = s.month - s.stageMonth;
   for (const c of COMPLAINTS) {
     if ((s.cooldown[c.id] ?? 0) > s.month) continue;
@@ -259,6 +284,7 @@ export function endOfMonth(s: GameState) {
 }
 
 export function resolveComplaint(s: GameState, choice: number) {
+  if (resolveDecision(s, choice)) return;
   const c = COMPLAINTS.find(x => x.id === s.complaint);
   if (!c) return;
   const ch = c.choices[choice];
@@ -277,6 +303,7 @@ export function resolveComplaint(s: GameState, choice: number) {
   }
   s.cooldown[c.id] = s.month + COOLDOWN;
   s.complaint = null;
+  s.calm = s.month + 2;
   if (s.trust <= 0) endGame(s, 'town');
 }
 

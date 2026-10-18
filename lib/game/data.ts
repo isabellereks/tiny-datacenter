@@ -42,6 +42,8 @@ export interface Location {
   carbon: number;
   /** price of cooling equipment here: hot places need big chillers, cold places use outside air */
   coolCost: number;
+  /** who governs the site: the local board, the state (or national) lawmakers, the utility and the air regulator */
+  gov: { local: string; state: string; utility: string; air: string; us: boolean };
   /** MW the local grid can spare for you before the town feels it */
   grid: number;
   trees: number;
@@ -88,6 +90,7 @@ export const LOCS: Record<LocKey, Location> = {
     land: 150_000, power: 60, pue: 1.2, water: 1, waterPrice: 1.5,
     propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, trees: 26,
     taxNote: 'Almost no property tax.',
+    gov: { local: 'Wasco County', state: 'Oregon Legislature', utility: 'Northern Wasco PUD', air: 'Oregon DEQ', us: true },
     cloth: '#F2F5EE', hole: '#E2E7DA', edge: '#A8D5BA', deco: '#2E8B57',
   },
   reykjavik: {
@@ -95,6 +98,7 @@ export const LOCS: Record<LocKey, Location> = {
     land: 120_000, power: 45, pue: 1.12, water: 0.1, waterPrice: 1,
     propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, grid: 24, trees: 10,
     taxNote: 'Lowest profit tax.',
+    gov: { local: 'Reykjavík City Council', state: 'Alþingi', utility: 'Landsvirkjun', air: 'Environment Agency', us: false },
     cloth: '#F1F4F8', hole: '#DFE5EE', edge: '#C9B6F2', deco: '#99BBFF',
   },
   phoenix: {
@@ -102,6 +106,7 @@ export const LOCS: Record<LocKey, Location> = {
     land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
     propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, trees: 14,
     taxNote: 'Normal taxes.',
+    gov: { local: 'Phoenix City Council', state: 'Arizona Legislature', utility: 'APS', air: 'Maricopa County Air Quality', us: true },
     cloth: '#FAF3E7', hole: '#EDE1CC', edge: '#E9D3A6', deco: '#E0A458',
   },
   ashburn: {
@@ -109,6 +114,7 @@ export const LOCS: Record<LocKey, Location> = {
     land: 2_000_000, power: 85, pue: 1.3, water: 1.2, waterPrice: 2,
     propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, grid: 16, trees: 18,
     taxNote: 'High property tax.',
+    gov: { local: 'Loudoun County Board', state: 'Virginia General Assembly', utility: 'Dominion Energy', air: 'Virginia DEQ', us: true },
     cloth: '#F5F4F1', hole: '#E5E3DD', edge: '#B8BCC6', deco: '#7D8597',
   },
 };

@@ -139,6 +139,23 @@ export default function Game() {
     lastGrid.current = grid;
   }, [grid]);
 
+  // laws, hearings and elections make the news
+  // -1 until the save has loaded
+  const newsId = s ? s.news?.id ?? 0 : -1;
+  const lastNews = useRef<number | null>(null);
+  useEffect(() => {
+    const st = stateRef.current;
+    if (!st || newsId < 0) return;
+    // a saved headline doesn't replay when you come back
+    if (lastNews.current === null) { lastNews.current = newsId; return; }
+    if (st.news && newsId !== lastNews.current && st.phase === 'play') {
+      setFlash({ tag: st.news.tag, headline: st.news.headline, ticker: st.news.ticker });
+      window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+    }
+    lastNews.current = newsId;
+  }, [newsId]);
+
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 
   if (!s) return <main className={`app ${ui.variable}`}><div className="stage" ref={hostRef} /></main>;

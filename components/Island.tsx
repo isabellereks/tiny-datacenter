@@ -12,18 +12,23 @@ import {
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallIncome, hireDelta, inflation, isBroken, ledger, money, today,
+  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, inflation, isBroken, ledger, money, today,
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
+import {
+  DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, hearingBar, heightLimit, hallLimit,
+  inspectionTitle, permitBlock, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
+} from '@/lib/game/gov';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'look';
+export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'floor', label: 'Floors' },
   { key: 'crew', label: 'Staff' },
   { key: 'money', label: 'Money' },
   { key: 'town', label: 'Town' },
+  { key: 'gov', label: 'Gov' },
   { key: 'look', label: 'View' },
 ];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
@@ -90,8 +95,9 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   dispatch: (a: Action) => void; onOpen: () => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void;
 }) {
   const complaint = COMPLAINTS.find(c => c.id === s.complaint);
+  const decision = DECISIONS.find(d => d.id === s.complaint);
   const over = s.phase === 'over';
-  const mode = over ? 'activity' : complaint ? 'alert' : open ? 'expanded' : activity ? 'activity' : 'compact';
+  const mode = over ? 'activity' : complaint || decision ? 'alert' : open ? 'expanded' : activity ? 'activity' : 'compact';
   const inner = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 260, h: 44 });
 
@@ -135,6 +141,26 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <span className="pulse" aria-hidden="true" />
         <span className="msg">{activity}</span>
       </button>
+    );
+  } else if (mode === 'alert' && decision) {
+    body = (
+      <div className="alert" role="alertdialog" aria-labelledby="alert-title">
+        <span className="from">{decision.from(s)}</span>
+        <h2 id="alert-title">{decision.title(s)}</h2>
+        <p>{decision.body(s)}</p>
+        <div className="choices">
+          {decision.choices.map((c, k) => {
+            const cost = decisionCost(s, c);
+            return (
+              <button key={c.label} className={k === 0 ? 'pill white' : 'pill'} disabled={cost > 0 && s.cash < cost}
+                onClick={() => dispatch({ type: 'resolve', choice: k })}>
+                {c.label}
+                <span className="cost">{cost > 0 ? `${money(cost)}  ` : cost < 0 ? `+${money(-cost)}  ` : ''}{c.note}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     );
   } else if (mode === 'alert' && complaint) {
     body = (
@@ -221,6 +247,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'crew' && <StaffTab s={s} dispatch={dispatch} onTab={onTab} />}
         {tab === 'money' && <MoneyTab s={s} l={l} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
+        {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
             <div className="seg" role="group" aria-label="Camera">
@@ -267,6 +294,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const deltas = Object.fromEntries(BUILDABLE.map(t => [t, buildDelta(s, t)])) as Record<BuildableType, number>;
   const after = ledger({ ...s, floors: [...s.floors, { type: s.next, fill: s.nextFill, done: true, cost }] });
   const short = cost - s.cash;
+  const block = buildBlock(s);
 
   return (
     <>
@@ -288,13 +316,14 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
       </div>
       {n < max ? (
-        <button className="pill white wide" disabled={!!s.build || short > 0} onClick={() => dispatch({ type: 'build' })}>
-          {s.build ? 'Building…' : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}`}
+        <button className="pill white wide" disabled={!!s.build || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
+          {s.build ? 'Building…' : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}`}
         </button>
       ) : (
         <div className="note">
           <span>Max height. {max}/{max} floors.</span>
-          {up && (
+          {up && !zoningAllows(s, up) && <span>{FOUNDS[up].name} needs zoning approval (Gov tab).</span>}
+          {up && zoningAllows(s, up) && (
             <button className="pill white" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
               {FOUNDS[up].name} ({FOUNDS[up].max} floors)  {money(upCost)}
             </button>
@@ -488,6 +517,60 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
       </div>
       <span className="label">Recent</span>
       <ul className="log">{s.log.slice(0, 5).map((x, k) => <li key={k}>{x}</li>)}</ul>
+    </>
+  );
+}
+
+function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  const L = LOCS[s.loc];
+  const checks = checklist(s, l);
+  const inspectIn = Math.max(0, Math.ceil(s.inspectAt - s.month));
+  const voteIn = Math.max(0, Math.ceil(s.electionAt - s.month));
+  const laws = activeLaws(s);
+  const limits: Record<string, string> = {
+    zoning: `Up to ${FOUNDS[(['slab', 'raised', 'piles', 'bedrock'] as const)[s.permits.zoning]].max} floors of foundation`,
+    height: heightLimit(s) > 100 ? 'No height limit' : `Up to ${heightLimit(s)} floors`,
+    air: `${s.floors.filter(f => f.type === 'power').length}/${powerLimit(s)} power floors`,
+    water: hallLimit(s) > 100 ? 'Not limited' : `${hallCount(s)}/${hallLimit(s)} server halls`,
+  };
+  return (
+    <>
+      <span className="label">Permits</span>
+      <div className="ups">
+        {keys(PERMITS).filter(k => PERMITS[k].here(s)).map(k => {
+          const P = PERMITS[k];
+          const block = permitBlock(s, k);
+          const pending = s.applying.find(a => a.key === k);
+          const fee = permitFee(s, k);
+          return (
+            <button key={k} className="up" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'permit', key: k })}>
+              <b>{P.name}</b>
+              <small>{limits[k]}</small>
+              <small>{P.by(s)}: {P.what(s)}</small>
+              <span>{pending ? `Decision in ${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `Apply ${money(fee)}, ${permitWait(s, k)} mo`}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="muted small">Hearings need trust {hearingBar(s)}+. Air permits stop after 3 generator violations ({s.strikes}/3).</p>
+
+      <span className="label">{inspectionTitle(s)} in {inspectIn} mo</span>
+      <div className="books">
+        {checks.map(c => <Row key={c.label} label={c.label} value={c.ok ? 'Pass' : 'Fail'} neg={!c.ok} />)}
+      </div>
+
+      <span className="label">{L.gov.local} election in {voteIn} mo</span>
+      <Meter label="Pro-growth" value={pollPro(s)} max={1} text={`${Math.round(pollPro(s) * 100)}%`} bad={pollPro(s) < 0.5} marks={[0.5]} />
+
+      <span className="label">Laws and deals</span>
+      {laws.length ? (
+        <div className="books">
+          {laws.map(x => LAWS[x.id] && (
+            <Row key={x.id} label={LAWS[x.id].name} sub={` ${LAWS[x.id].by(s)}`}
+              value={`${LAWS[x.id].effect}${x.until < 1e8 ? `, ${Math.max(1, Math.ceil(x.until - s.month))} mo` : ''}`} />
+          ))}
+        </div>
+      ) : <p className="muted">None right now.</p>}
     </>
   );
 }
