@@ -107,7 +107,9 @@ export interface GameState {
   /** how far each permit has been approved */
   permits: Record<PermitKey, number>;
   /** applications waiting on a decision */
-  applying: { key: PermitKey; done: number }[];
+  applying: { key: PermitKey; done: number; reviews?: number }[];
+  /** the last decision on each permit, in words, for the Gov tab */
+  permitLog: Partial<Record<PermitKey, { ok: boolean | null; text: string }>>;
   inspectAt: number;
   electionAt: number;
   board: Board;
@@ -175,7 +177,7 @@ export function fresh(): GameState {
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
     books: null, over: null,
-    laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0, campus: 0 }, applying: [],
+    laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0, campus: 0 }, applying: [], permitLog: {},
     inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
     staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0, cuts: 0 },
     boosts: [], campus: 1, bld: 0, speed: 1,
@@ -202,7 +204,7 @@ export function load(): GameState {
       return {
         ...base, ...saved,
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
-        permits: { ...base.permits, ...saved.permits }, staff: { ...base.staff, ...saved.staff },
+        permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
         build: null,
       };
     }

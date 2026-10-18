@@ -1,7 +1,7 @@
 import { FOUND_ORDER, FOUNDS, LOCS, type FoundKey } from './data';
 import { STAFF_DECISIONS } from './staff';
 import {
-  hallCount, hasLaw, heightOf, ledger, locals, MAX_BUILDINGS, tallest, money, note, ownerName, siteName, techsOn, today,
+  dateLabel, hallCount, hasLaw, heightOf, ledger, locals, MAX_BUILDINGS, tallest, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
 } from './state';
 
@@ -158,6 +158,7 @@ function decidePermit(s: GameState, key: PermitKey) {
     ok = s.trust >= 35;
     why = `Trust ${Math.round(s.trust)}, needed 35`;
   }
+  s.permitLog[key] = { ok, text: ok ? `Approved ${dateLabel(s.month)}` : `Denied ${dateLabel(s.month)}. ${why}` };
   if (ok) {
     s.permits[key]++;
     note(s, `${by} approved your ${P.name.toLowerCase()}`);
@@ -168,6 +169,27 @@ function decidePermit(s: GameState, key: PermitKey) {
     if (key === 'height' || key === 'zoning') headline(s, 'Local news', `${by} rejects ${siteName(s)} expansion`, [`Residents packed the hearing`, `${ownerName(s)} can reapply in 6 months`]);
   }
 }
+
+const REVIEWS: Record<PermitKey, string[]> = {
+  zoning: ['a traffic study', 'a public comment period', 'a new site plan'],
+  height: ['a shadow study', 'a public hearing', 'a flight path study'],
+  air: ['an emissions model', 'a noise study'],
+  water: ['a drought plan', 'a water audit'],
+  campus: ['an environmental review', 'a traffic study', 'a stormwater plan'],
+};
+
+/** Sometimes a reviewer asks for more before deciding. Likelier with a slow-growth board, rarer when fast-tracked. */
+function extraReview(s: GameState, a: { key: PermitKey; reviews?: number }) {
+  if ((a.reviews ?? 0) >= 2) return null;
+  const p = 0.3 * (hasLaw(s, 'boardAnti') ? 1.6 : hasLaw(s, 'boardPro') ? 0.6 : 1) * (hasLaw(s, 'fasttrack') ? 0.5 : 1);
+  if (Math.random() >= p) return null;
+  const list = REVIEWS[a.key];
+  return { what: list[Math.floor(Math.random() * list.length)], months: 1 + Math.floor(Math.random() * 3) };
+}
+
+/** Trust needed to pass, for permits decided at a hearing or by trust. */
+export const permitNeeds = (s: GameState, key: PermitKey) =>
+  key === 'water' ? 35 : key === 'air' ? null : hearingBar(s);
 
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
@@ -377,6 +399,16 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   }
 
   // permits come back
+  for (const a of s.applying.filter(x => x.done <= s.month)) {
+    // reviewers sometimes ask for more before they decide
+    const review = extraReview(s, a);
+    if (review) {
+      a.reviews = (a.reviews ?? 0) + 1;
+      a.done = s.month + review.months;
+      note(s, `${PERMITS[a.key].by(s)} wants ${review.what} for your ${PERMITS[a.key].name.toLowerCase()}. ${review.months} more mo`);
+      s.permitLog[a.key] = { ok: null, text: `Extra review: ${review.what}` };
+    }
+  }
   const due = s.applying.filter(a => a.done <= s.month);
   s.applying = s.applying.filter(a => a.done > s.month);
   for (const a of due) decidePermit(s, a.key);

@@ -17,7 +17,7 @@ import {
 } from '@/lib/game/state';
 import {
   DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, hearingBar, heightLimit, hallLimit,
-  inspectionTitle, permitBlock, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
+  inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
 import { Threads } from './Threads';
@@ -352,7 +352,13 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         <button className="pill white wide" disabled={!!s.build || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
           {s.build ? 'Building…' : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}`}
         </button>
-      ) : (
+      ) : null}
+      {up && zoningAllows(s, up) && n < max && (
+        <button className="pill" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
+          Zoning approved: {FOUNDS[up].name} ({FOUNDS[up].max} floors)  {money(upCost)}
+        </button>
+      )}
+      {n >= max && (
         <div className="note">
           <span>Max height. {max}/{max} floors.</span>
           {up && !zoningAllows(s, up) && <span>{FOUNDS[up].name} needs zoning approval (Gov tab).</span>}
@@ -628,10 +634,11 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   const voteIn = Math.max(0, Math.ceil(s.electionAt - s.month));
   const laws = activeLaws(s);
   const limits: Record<string, string> = {
-    zoning: `Up to ${FOUNDS[FOUND_ORDER[s.permits.zoning]].max} floors of foundation`,
+    zoning: `${FOUNDS[FOUND_ORDER[s.permits.zoning]].name} (${FOUNDS[FOUND_ORDER[s.permits.zoning]].max} floors)`,
     height: heightLimit(s) > 100 ? 'No height limit' : `Up to ${heightLimit(s)} floors`,
-    air: `${s.floors.filter(f => f.type === 'power').length}/${powerLimit(s)} power floors`,
-    water: hallLimit(s) > 100 ? 'Not limited' : `${hallCount(s)}/${hallLimit(s)} server halls`,
+    air: `${powerLimit(s)} power floors (${s.floors.filter(f => f.type === 'power').length} built)`,
+    water: hallLimit(s) > 100 ? 'Not limited' : `${hallLimit(s)} server halls (${hallCount(s)} built)`,
+    campus: `${s.permits.campus + 1} of ${MAX_BUILDINGS} buildings`,
   };
   return (
     <>
@@ -642,11 +649,15 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
           const block = permitBlock(s, k);
           const pending = s.applying.find(a => a.key === k);
           const fee = permitFee(s, k);
+          const log = s.permitLog[k];
+          const needs = permitNeeds(s, k);
           return (
             <button key={k} className="up" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'permit', key: k })}>
               <b>{P.name}</b>
-              <small>{limits[k]}</small>
-              <small>{P.by(s)}: {P.what(s)}</small>
+              <small>Approved: {limits[k]}</small>
+              {!block && <small>Next: {P.what(s)}, from {P.by(s)}</small>}
+              {log && <small className={log.ok === null ? undefined : log.ok ? 'ok' : 'bad'}>{log.text}</small>}
+              {!pending && !block && needs !== null && <small className={s.trust >= needs ? 'ok' : 'bad'}>Needs trust {needs}, you have {Math.round(s.trust)}</small>}
               <span>{pending ? `Decision in ${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `Apply ${money(fee)}, ${permitWait(s, k)} mo`}</span>
             </button>
           );

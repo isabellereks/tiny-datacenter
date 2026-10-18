@@ -40,6 +40,8 @@ Everything big needs a permit, and permits take months. The Gov tab shows each o
 - **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority, and past 40 a skyscraper review. Deep caissons (50 floors) and a mega-frame core (99) unlock after bedrock. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
 - **Air permits** for the diesel backup generators on power floors. Three generator violations and the regulator stops approving them.
 - **Site plan approval** for each new building on the campus.
+
+Reviewers sometimes ask for more before deciding (a traffic study, a shadow study, a public comment period), adding 1 to 3 months, more often under a slow-growth board. Each permit card shows what you have, what is next, the last decision and why, and the trust a hearing needs.
 - **Water allocation** in Phoenix for more server halls, unless you switch to water-saving cooling.
 
 Inspections come once a year, announced two months ahead, with the checklist visible in the Gov tab. Failing costs a fine, makes the news and brings a stop-work order: no income while staff, taxes, upkeep and standby power keep billing, plus a penalty for every failed monthly reinspection until everything passes. Iceland alternates with an EU energy report on PUE.
