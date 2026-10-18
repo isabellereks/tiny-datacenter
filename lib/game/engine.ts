@@ -104,6 +104,7 @@ export class Engine {
   private last = 0;
   private disposed = false;
   private textHidden = false;
+  private moved = false;
 
   constructor(private host: HTMLElement, private hooks: EngineHooks, private font: string) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -120,7 +121,12 @@ export class Engine {
       enableDamping: true, dampingFactor: 0.08, enablePan: true, screenSpacePanning: true, enableZoom: true,
       minZoom: 0.6, maxZoom: 2.5, minPolarAngle: 0.45, maxPolarAngle: 1.56, autoRotateSpeed: 0.8,
     });
-    this.controls.addEventListener('start', () => { this.hooks.onFirstInteraction(); });
+    this.controls.addEventListener('start', () => {
+      this.hooks.onFirstInteraction();
+      // once you move the camera yourself the name could land on the building, so put it away
+      this.moved = true;
+      this.post.uniforms.uTextRows.value = 0;
+    });
 
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -229,7 +235,7 @@ export class Engine {
     u.tText.value = this.textTex;
     (u.uGrid.value as THREE.Vector2).set(n, m);
     u.uTextBottom.value = this.grid.textBottom;
-    u.uTextRows.value = this.textHidden ? 0 : this.grid.textRows;
+    u.uTextRows.value = this.textHidden || this.moved ? 0 : this.grid.textRows;
     u.uCell.value = cell;
     this.applyFrustum();
   };
@@ -385,8 +391,9 @@ export class Engine {
       cy = keep(min.y + halfH, max.y - halfH, focus.y);
       cx = keep(min.x + halfW, max.x - halfW, focus.x);
     }
-    // the name sits under the ground, so hide it while the ground is out of view
-    this.textHidden = scrolled && cy - (band * toU) / 2 > min.y + FH;
+    this.moved = false;
+    // the name sits under the ground; a scrolled view would put it on the building
+    this.textHidden = scrolled;
     this.post.uniforms.uTextRows.value = this.textHidden ? 0 : this.grid.textRows;
     const dx = vn / 2 - n / 2, dy = (b0 + b1) / 2 - m / 2;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);

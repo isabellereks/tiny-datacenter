@@ -43,8 +43,9 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
   const go = (d: number) => dispatch({ type: 'step', step: SETUP[i + d].key });
   const cost = setupCost(s);
   const over = cost.left < 0;
-  // forecast with every floor finished and no crew yet
-  const l = ledger({ ...s, floors: s.floors.map(f => ({ ...f, done: true })), phase: 'play', books: null });
+  // forecast with every floor finished and one tech per hall, since halls can't run without one
+  const crew = s.floors.flatMap((f, k) => (f.type === 'hall' ? [{ id: -k, name: '', floor: k, x: 0, dir: 1 as const, speed: 0, pause: 0 }] : []));
+  const l = ledger({ ...s, floors: s.floors.map(f => ({ ...f, done: true })), workers: crew, phase: 'play', books: null });
   const imp = impact(s, l);
   const L = LOCS[s.loc];
   const maxStart = Math.min(STARTER.length, FOUNDS[s.found].max);

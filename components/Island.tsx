@@ -107,7 +107,8 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
 
   // the bar warns about the most urgent problem
   const downAlone = s.broken.some(b => techsOn(s, b.floor) === 0);
-  const warn = downAlone ? 'Floor down' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
+  const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
+  const warn = downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
 
   let body: ReactNode;
   if (over) {
@@ -308,7 +309,7 @@ function FloorTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const i = Math.min(s.sel, s.floors.length - 1);
   const f = s.floors[i];
   const status = (k: number, x: Floor) =>
-    !x.done ? 'Building' : isBroken(s, k) ? 'Down' : x.type === 'hall' ? `${Math.round(utilization(s, k) * 100)}%` : '';
+    !x.done ? 'Building' : isBroken(s, k) ? 'Down' : x.type === 'hall' ? (techsOn(s, k) ? `${Math.round(utilization(s, k) * 100)}%` : 'Off') : '';
   return (
     <div className="fgrid">
       <ol className="flist" aria-label="Floors">
@@ -348,6 +349,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
           )}
         </div>
       )}
+      {f.type === 'hall' && f.done && !techs && !broken && <p className="warn">No techs. This hall is off until you hire one.</p>}
       {f.type === 'hall' && f.done && (
         <>
           <div className="books">

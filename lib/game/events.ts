@@ -175,7 +175,7 @@ const has = (s: GameState, type: string) => s.floors.some(f => f.done && f.type 
 
 /** The first goals double as a tutorial; later ones push you to grow without angering the town. */
 export const GOALS: Goal[] = [
-  { text: 'Hire a tech', reward: 500_000, hint: 'Tap the server hall, then tap Hire.', done: s => s.workers.length > 0 },
+  { text: 'Hire a tech', reward: 500_000, hint: 'Halls are off without techs. Tap the server hall, then Hire.', done: s => s.workers.length > 0 },
   { text: 'Make $250k profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
   { text: 'Build a second server hall', reward: 5_000_000, hint: 'Tap the top bar, then Build.', done: s => hallCount(s) >= 2 },
   { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Add power and cooling until halls hit 100%.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 },

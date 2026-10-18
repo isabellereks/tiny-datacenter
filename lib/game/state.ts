@@ -154,6 +154,7 @@ export const note = (s: GameState, line: string) => { s.log = [line, ...s.log].s
 export function money(n: number): string {
   const sign = n < 0 ? '−' : '';
   const a = Math.abs(n);
+  if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(a >= 1e11 ? 0 : a >= 1e10 ? 1 : 2)}B`;
   if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`;
   if (a >= 1e3) return `${sign}$${Math.round(a / 1e3)}k`;
   return `${sign}$${Math.round(a)}`;
@@ -194,9 +195,10 @@ export const techsOn = (s: GameState, i: number) => s.workers.filter(w => w.floo
 export const isBroken = (s: GameState, i: number) => s.broken.some(b => b.floor === i);
 export const hallCount = (s: GameState) => s.floors.filter(f => f.done && f.type === 'hall').length;
 
-/** Share of a hall in use: customers fill it as the crew can keep up. */
+/** Share of a hall in use: customers fill it as the crew can keep up. A hall with no techs can't run. */
 export function utilization(s: GameState, i: number) {
   const K = CUSTS[s.cust], Sh = SHAPES[s.shape];
+  if (!techsOn(s, i)) return 0;
   const breaks = s.floors.filter(f => f.done && f.type === 'break').length;
   return Math.min(1, K.base + K.per * techsOn(s, i) * Sh.crew * (1 + 0.1 * breaks));
 }

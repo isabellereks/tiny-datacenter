@@ -10,7 +10,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 - Server halls earn money. They need enough power and cooling floors to run at full speed.
 - Building costs about what real datacenters do, roughly $10M per MW. Power gear is the biggest cost, then cooling, which is cheapest in Iceland and most expensive in Arizona.
-- Techs fill halls with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
+- A server hall needs at least one tech to run. More techs fill it with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
 - Every month you pay for power, water, staff, property tax and profit tax. Three months in debt and you go bankrupt.
 - Every button shows what it does before you tap: what a floor costs and how it changes your monthly profit, what a hire adds, what the town gains.
 - The town has an opinion of you, built from local jobs, noise, trees cut, water, power bills, pollution and the taxes you pay. Trust moves toward that number every month, so a big datacenter that does nothing for the town slowly loses it. The Town tab shows every reason.
