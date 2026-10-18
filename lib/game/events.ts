@@ -1,14 +1,14 @@
 import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
-import { gridLevel, hallCount, inflation, isBoosted, isBroken, locals, overseas, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
+import { floorLabel, gridLevel, hallCount, inflation, isBoosted, isBroken, locals, overseas, tallest, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
 /** Trees cleared for the site: more land and more floors clear more. */
 export function impact(s: GameState, l: Ledger = ledger(s)): Impact {
   const L = LOCS[s.loc];
-  const raw = Math.round((FOUNDS[s.found].acres * 0.8 + s.floors.length * 0.6) * SHAPES[s.shape].trees);
+  const raw = Math.round((FOUNDS[s.found].acres * s.campus * 0.8 + s.floors.length * 0.6) * SHAPES[s.shape].trees);
   const cleared = Math.max(0, Math.min(L.trees, raw - s.replanted));
   return { trees: L.trees, cleared, waterML: l.waterML, carbonT: l.carbonT };
 }
@@ -50,7 +50,7 @@ export const COMPLAINTS: Complaint[] = [
     id: 'noise', from: 'Neighbors', wait: 3, sting: 10,
     title: () => 'Your fans are too loud',
     body: s => `They want ${ownerName(s)} to build a sound wall.`,
-    active: s => s.floors.length >= 6 && !s.up.soundWalls,
+    active: s => tallest(s) >= 6 && !s.up.soundWalls,
     choices: [
       { label: 'Build a sound wall', cost: 1_500_000, trust: 6, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
       { label: 'Ignore', apply: () => {} },
@@ -138,9 +138,9 @@ export const COMPLAINTS: Complaint[] = [
   },
   {
     id: 'view', from: 'Neighbors', wait: 3, sting: 8,
-    title: s => `Your ${s.floors.length}-floor tower blocks the view`,
+    title: s => `Your ${tallest(s)}-floor tower blocks the view`,
     body: s => `They want ${ownerName(s)} to give something back to the street.`,
-    active: s => s.floors.length >= 14,
+    active: s => tallest(s) >= 14,
     choices: [
       { label: 'Build a park and mural', cost: 1_000_000, trust: 6, apply: s => addTrust(s, 6) },
       { label: 'Ignore', apply: () => {} },
@@ -150,7 +150,7 @@ export const COMPLAINTS: Complaint[] = [
     id: 'shadow', from: 'Homeowners', wait: 2, sting: 12,
     title: () => 'Your tower shades our homes',
     body: s => `Gardens and solar panels are in shadow all afternoon. They want ${ownerName(s)} to pay.`,
-    active: s => s.floors.length >= 21,
+    active: s => tallest(s) >= 21,
     choices: [
       { label: 'Pay homeowners', cost: 3_000_000, trust: 8, apply: s => addTrust(s, 8) },
       { label: 'Ignore', apply: () => {} },
@@ -226,7 +226,7 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   const loud = s.up.soundWalls ? 0 : Math.max(0, floors - 5);
   const parts: MoodPart[] = [
     { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped} from town` },
-    { label: 'Skyline', value: -Math.round(clamp((floors - 12) * 1.5, 0, 15)), note: `${floors} floors tall` },
+    { label: 'Skyline', value: -Math.round(clamp((tallest(s) - 12) * 1.5, 0, 15)), note: `${tallest(s)} floors tall` },
     { label: 'Noise', value: -Math.round(clamp(loud * 1.5, 0, 15)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors of fans` },
     { label: 'Trees cut', value: -Math.round(clamp(i.cleared * 0.6, 0, 15)), note: `${i.cleared} trees` },
     { label: 'Water', value: -Math.round(clamp(i.waterML * 2, 0, 15)), note: `${i.waterML.toFixed(1)} ML a month` },
@@ -274,6 +274,7 @@ export const GOALS: Goal[] = [
   { text: 'Make $1M profit in a month', reward: 15_000_000, hint: 'More halls and network floors.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
   { text: 'Reach year 5 with trust above 50', reward: 10_000_000, hint: 'Check Town opinion.', done: s => s.month >= 48 && s.trust > 50 },
   { text: 'Build a substation', reward: 5_000_000, hint: 'More grid, no brownouts.', done: s => s.substations >= 1 },
+  { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab: site plan approval. Then Build.', done: s => s.campus >= 2 },
   { text: 'Upgrade your foundation', reward: 10_000_000, hint: 'Fill every floor, then upgrade in Build.', done: s => s.found !== s.startFound },
   { text: 'Build 12 floors', reward: 25_000_000, hint: 'Taller is louder. Get a sound wall.', done: s => doneFloors(s) >= 12 },
   { text: 'Make $3M profit in a month', reward: 40_000_000, hint: 'Full halls and a happy town.', done: s => (s.books?.net ?? 0) >= 3_000_000 },
@@ -322,7 +323,7 @@ export function endOfMonth(s: GameState) {
     const p = 0.015 + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
     if (s.broken.length < 2 && Math.random() < p) {
       s.broken.push({ floor: k, t: 0 });
-      note(s, techsOn(s, k) ? `Floor ${k + 1} is down. Your techs are fixing it.` : `Floor ${k + 1} is down`);
+      note(s, techsOn(s, k) ? `${floorLabel(s, k)} is down. Your techs are fixing it.` : `${floorLabel(s, k)} is down`);
     }
   }
 
@@ -408,4 +409,4 @@ export function nextFoundation(s: GameState): FoundKey | null {
 
 /** Moving to a bigger foundation: the new foundation plus the extra land it needs. */
 export const foundationUpgradeCost = (s: GameState, to: FoundKey) =>
-  Math.round(inflation(s) * (FOUNDS[to].cost + LOCS[s.loc].land * Math.max(0, FOUNDS[to].acres - FOUNDS[s.found].acres)));
+  Math.round(inflation(s) * s.campus * (FOUNDS[to].cost + LOCS[s.loc].land * Math.max(0, FOUNDS[to].acres - FOUNDS[s.found].acres)));

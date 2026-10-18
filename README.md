@@ -6,7 +6,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 **Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your floors, a customer and colors, then apply for a building permit with your datacenter's name and yours. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
 
-**Run it.** The bar at the top shows the month, your cash, profit per month and trust. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
+**Run it.** The bar at the top shows the month, your cash, profit per month and trust. The button on its right pauses and fast-forwards (space pauses, 1 to 3 pick a speed); a month takes 8 seconds at normal speed. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
 
 - Server halls earn money. They need enough power and cooling floors to run at full speed.
 - Building costs about what real datacenters do, roughly $10M per MW. Power gear is the biggest cost, then cooling, which is cheapest in Iceland and most expensive in Arizona.
@@ -22,9 +22,13 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
 - If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
 
+## Campus
+
+Big datacenters are campuses of several wide buildings. With site plan approval from the county you can add up to three buildings, side by side, each with its own stack of floors. Pick which building to build on in the Build tab. A foundation upgrade applies to every building.
+
 ## Staff
 
-Hire from town or overseas. Locals count as town jobs, but each one pushes local wages up 3% as the labor pool runs dry. Overseas techs on work visas cost less a month and more to hire, and the town council complains if they outnumber locals. Recruiting gets pricier as you grow. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
+Hire from town or overseas. Locals count as town jobs, but each one pushes local wages up 3% as the labor pool runs dry. Overseas techs earn 30% less but need a work visa when hired and again every year, and the town council complains if they outnumber locals. Recruiting gets pricier as you grow. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Letting people go hurts morale, more with each layoff, and a wave of layoffs makes the news. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
 
 Boosts: run a server hall hot for 3 months (+25% output, more power and outages), turn on overtime (+10% output, +30% wages, lower morale), or hold a team event.
 
@@ -35,11 +39,12 @@ Everything big needs a permit, and permits take months. The Gov tab shows each o
 - **Zoning approval** from the county for a bigger foundation, decided at a hearing that needs enough trust. In Loudoun County it takes 6 months, after its 2025 special exception rule.
 - **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority, and past 40 a skyscraper review. Deep caissons (50 floors) and a mega-frame core (99) unlock after bedrock. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
 - **Air permits** for the diesel backup generators on power floors. Three generator violations and the regulator stops approving them.
+- **Site plan approval** for each new building on the campus.
 - **Water allocation** in Phoenix for more server halls, unless you switch to water-saving cooling.
 
-Inspections come once a year, announced two months ahead, with the checklist visible in the Gov tab. Failing costs a fine and makes the news. Iceland alternates with an EU energy report on PUE.
+Inspections come once a year, announced two months ahead, with the checklist visible in the Gov tab. Failing costs a fine, makes the news and brings a stop-work order: no income while staff, taxes, upkeep and standby power keep billing, plus a penalty for every failed monthly reinspection until everything passes. Iceland alternates with an EU energy report on PUE.
 
-Every four years the county or city holds an election. Your trust sets the polls. A pro-growth board makes permits faster and hearings easier; a slow-growth board does the opposite, and in Loudoun can pause new datacenters.
+Every four years the county or city holds an election, and your town's trust sets the odds for the pro-growth side. US sites also get national elections, a coin flip your town can't sway: a build-fast administration speeds up permits, a clean-energy one brings back the solar credit and tightens generator rules. A pro-growth board makes permits faster and hearings easier; a slow-growth board does the opposite, and in Loudoun can pause new datacenters.
 
 Laws follow each place's real timeline, simplified:
 
@@ -68,6 +73,10 @@ npm run dev
 ```
 
 Then open http://localhost:3000.
+
+## Share
+
+Share on X (View tab, or the end screen) stitches a card from your datacenter with your run's stats. On a phone it goes straight to the share sheet; on a computer the image downloads and X opens with the post text ready.
 
 ## How it's built
 

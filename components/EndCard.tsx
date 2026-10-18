@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { impact } from '@/lib/game/events';
 import { money, type GameState } from '@/lib/game/state';
 
-export function EndCard({ s, onAgain, onHeight }: { s: GameState; onAgain: () => void; onHeight: (h: number) => void }) {
+export function EndCard({ s, onAgain, onHeight, onShare }: { s: GameState; onAgain: () => void; onHeight: (h: number) => void; onShare: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -35,7 +35,7 @@ export function EndCard({ s, onAgain, onHeight }: { s: GameState; onAgain: () =>
         <div className="fact"><span>Goals</span><b>{s.tally.goals}</b></div>
       </div>
       <div className="setup-foot">
-        <span />
+        <button className="back" onClick={onShare}>Share on X</button>
         <button className="go" onClick={onAgain}>Play again</button>
       </div>
     </div>

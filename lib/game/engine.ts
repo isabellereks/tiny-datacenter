@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, STITCH, type FoundKey, type LocKey } from './data';
+import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
-import { baseY, ledger, simulate, type GameState } from './state';
+import { baseY, bOf, buildingX, heightOf, ledger, levelY, simulate, tallest, type GameState } from './state';
 import { createStitchMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
@@ -85,7 +85,7 @@ export class Engine {
   private thread = '';
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
-  private roof: THREE.Group | null = null;
+  private roofs: THREE.Group[] = [];
   private spots: TreeSpot[] = [];
   private lastCleared = -1;
   private lastLoc: LocKey | null = null;
@@ -253,7 +253,11 @@ export class Engine {
     this.workers.clear();
     this.buildFloor = null;
     this.floorGroups = [];
-    this.building.add(makeFoundation(s.found));
+    for (let b = 0; b < s.campus; b++) {
+      const fg = makeFoundation(s.found);
+      fg.position.x = buildingX(b);
+      this.building.add(fg);
+    }
     // once the town has torn it down, only the foundation is left
     const razed = s.over?.reason === 'town' && s.over.done;
     if (!razed) {
@@ -263,9 +267,16 @@ export class Engine {
         this.floorGroups.push(g);
         if (s.build?.idx === i) this.buildFloor = g;
       });
-      this.roof = makeRoof(s, this.anim);
-      this.building.add(this.roof);
-    } else this.roof = null;
+      // building 0 last, so the steam comes off the main roof
+      this.roofs = [];
+      for (let b = s.campus - 1; b >= 0; b--) {
+        if (!heightOf(s, b)) continue;
+        const r = makeRoof(s, this.anim, b);
+        r.userData.b = b;
+        this.building.add(r);
+        this.roofs.push(r);
+      }
+    } else this.roofs = [];
     this.makeCrowd();
     for (const w of s.workers) {
       const m = makeWorker();
@@ -319,7 +330,7 @@ export class Engine {
     document.documentElement.style.setProperty('--cloth', L.cloth);
     document.documentElement.style.setProperty('--hole', L.hole);
 
-    const h = baseY(s, s.floors.length);
+    const h = levelY(s, tallest(s));
     this.sun.target.position.set(0, 0, 0);
     this.sun.position.set(14, 40 + h * 0.6, -6);
     const sc = this.sun.shadow.camera;
@@ -384,7 +395,7 @@ export class Engine {
     const scrolled = toU < want - 1e-6;
     if (scrolled) {
       const i = Math.max(0, Math.min(s.sel, s.floors.length - 1));
-      const focus = new THREE.Vector3(0, baseY(s, i) + FH / 2, 0).applyMatrix4(view);
+      const focus = new THREE.Vector3(buildingX(bOf(s, i)), baseY(s, i) + FH / 2, 0).applyMatrix4(view);
       const halfH = (band * toU) / 2 / 1.04, halfW = (vn * toU) / 2 / 1.04;
       // keep the view inside the scene; if the scene is narrower than the view, just center it
       const keep = (lo: number, hi: number, v: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
@@ -450,7 +461,7 @@ export class Engine {
     this.last = now;
     const s = this.s;
     const wasOver = s.phase === 'over';
-    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS);
+    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, SPEEDS[s.speed] ?? 1);
     if (newMonth) endOfMonth(s);
     let changed = built || newMonth || fixed;
     this.goalClock += dt;
@@ -520,7 +531,7 @@ export class Engine {
     const k = Math.max(0, Math.min(1, (el - RIOT.walk) / RIOT.collapse));
     const n = this.floorGroups.length;
     const gone = k * (n + 1);
-    if (this.roof) this.roof.visible = gone < 1;
+    for (const r of this.roofs) r.visible = gone < 1;
     this.floorGroups.forEach((g, i) => {
       const from = n - i; // the top floor goes first, right after the roof
       const f = Math.max(0, Math.min(1, gone - from));
@@ -537,6 +548,16 @@ export class Engine {
       return true;
     }
     return false;
+  }
+
+  /** A copy of the current frame, for the share card. */
+  capture(): HTMLCanvasElement {
+    this.render();
+    const src = this.renderer.domElement;
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    c.getContext('2d')!.drawImage(src, 0, 0);
+    return c;
   }
 
   private render() {
@@ -563,7 +584,7 @@ export class Engine {
       const m = this.workers.get(w.id);
       if (!m) continue;
       m.group.visible = !!s.floors[w.floor]?.done && s.inside;
-      m.group.position.set(w.x, baseY(s, w.floor) + 0.2, FD / 2 - 1.5);
+      m.group.position.set(buildingX(bOf(s, w.floor)) + w.x, baseY(s, w.floor) + 0.2, FD / 2 - 1.5);
       m.group.rotation.y = w.pause > 0 ? 0 : w.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       const swing = w.pause > 0 ? 0 : Math.sin(t * 9 + w.id) * 0.6;
       m.legs[0].rotation.x = swing;
@@ -607,7 +628,9 @@ export class Engine {
     if (s.build) {
       const k = Math.min(1, (Date.now() - s.build.t0) / s.build.dur), e = 1 - Math.pow(1 - k, 3);
       if (this.buildFloor) this.buildFloor.scale.y = Math.max(0.02, e);
-      if (this.roof) this.roof.position.y = -(1 - e) * FH;
+      const idx = s.build.idx;
+      const r = this.roofs.find(x => x.userData.b === bOf(s, idx));
+      if (r) r.position.y = -(1 - e) * FH;
     }
     for (const g of this.options.children) {
       const want = this.hover === g.userData.found ? 0.6 : 0;

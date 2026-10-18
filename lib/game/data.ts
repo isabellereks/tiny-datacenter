@@ -66,7 +66,9 @@ export interface Customer {
 
 /** Money for land and the first build. Whatever is left is your starting cash. */
 export const BUDGET = 100_000_000;
-export const MONTH_SECONDS = 3;
+export const MONTH_SECONDS = 8;
+/** Game speeds, like a sim game's pause and fast-forward buttons. */
+export const SPEEDS = [0, 1, 2, 4];
 export const HOURS_PER_MONTH = 730;
 export const TECH_SALARY = 8_000;
 export const HIRE_FEE = 15_000;

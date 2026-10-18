@@ -1,5 +1,5 @@
 import type { Decision } from './gov';
-import { note, ownerName, siteName, today, type GameState } from './state';
+import { hallCount, money, note, ownerName, siteName, today, VISA_FEE, type GameState } from './state';
 
 /*
  * How your techs feel. Morale drifts toward what their pay, benefits and break rooms deserve.
@@ -19,19 +19,22 @@ export function moraleMood(s: GameState): MoraleParts {
   const S = s.staff;
   const need = breaksNeeded(s), have = breakRooms(s);
   const parts = [
-    { label: 'Pay', value: [0, 8, 15][S.pay], note: ['Standard', '+10%', '+20%'][S.pay] },
-    { label: 'Health insurance', value: S.health ? 10 : -8, note: S.health ? 'Covered' : 'None' },
+    { label: 'Pay', value: [-5, 3, 10][S.pay], note: ['Below market', '+10%', '+20%'][S.pay] },
+    { label: 'Health insurance', value: S.health ? 10 : -12, note: S.health ? 'Covered' : 'None' },
     { label: 'Retirement plan', value: S.retire ? 5 : 0, note: S.retire ? 'Yes' : 'None' },
     {
       label: 'Break rooms', note: `${have}/${need} needed`,
       value: !s.workers.length ? 0 : have === 0 ? -15 : have < need ? -8 : 5,
     },
     { label: 'Overtime', value: S.overtime ? -12 : 0, note: 'Long shifts' },
+    // fewer than 2 techs per hall means everyone covers too much
+    { label: 'Workload', value: s.workers.length && s.workers.length < hallCount(s) * 2 ? -8 : 0, note: `${s.workers.length} techs for ${hallCount(s)} halls` },
+    { label: 'Big company feel', value: -Math.round(Math.max(0, s.workers.length - 20) * 0.3), note: `${s.workers.length} techs` },
     { label: 'Outages', value: -4 * s.broken.length, note: `${s.broken.length} floors down` },
     { label: 'Union contract', value: S.union ? 8 : 0, note: 'Protected' },
-    { label: 'Team events', value: Math.round(S.cheer), note: 'Fades over time' },
+    { label: 'Team events and layoffs', value: Math.round(S.cheer), note: 'Fades over time' },
   ].filter(p => p.value !== 0);
-  const BASE = 55;
+  const BASE = 45;
   return { base: BASE, parts, target: clamp(BASE + parts.reduce((t, p) => t + p.value, 0), 0, 100) };
 }
 
@@ -94,8 +97,18 @@ export function staffMonth(s: GameState): string | null {
   const mood = moraleMood(s);
   S.morale = clamp(S.morale + (mood.target - S.morale) * 0.25, 0, 100);
   S.cheer *= 0.9;
+  S.cuts *= 0.6;
   S.low = S.morale < 45 ? S.low + 1 : 0;
   s.boosts = s.boosts.filter(b => b.until > s.month);
+
+  // overseas techs' visas renew every year
+  const due = s.workers.filter(w => w.overseas && (w.visaAt ?? 0) <= s.month);
+  if (due.length) {
+    const fee = today(s, VISA_FEE) * due.length;
+    s.cash -= fee;
+    for (const w of due) w.visaAt = s.month + 12;
+    note(s, `Visa renewals for ${due.length} ${due.length === 1 ? 'tech' : 'techs'}: −${money(fee)}`);
+  }
 
   // unhappy techs leave
   if (S.morale < 30 && !S.strike) {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
-import { baseY, floorW, isBroken, perRow, type Floor, type GameState } from './state';
+import { baseY, bOf, buildingX, floorW, heightOf, isBroken, levelW, levelY, perRow, type Floor, type GameState } from './state';
 
 /**
  * Meshes are flat-coloured with a code the stitch pass decodes:
@@ -271,7 +271,7 @@ function side(g: THREE.Group, type: FloorType, w: number, i: number, shape: Game
 
 export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
   const g = new THREE.Group(), w = floorW(s, i), m = f.fill;
-  g.position.y = baseY(s, i);
+  g.position.set(buildingX(bOf(s, i)), baseY(s, i), 0);
   box(g, w, 0.2, FD, m, 0, 0.1, 0);
   box(g, w, FH, 0.2, m, 0, FH / 2, -FD / 2 + 0.1);
   box(g, 0.2, FH, FD, m, -w / 2 + 0.1, FH / 2, 0);
@@ -318,9 +318,11 @@ function rooftop(g: THREE.Group, s: GameState, w: number, t: number, anim: Anima
   if (s.shape === 'tower') cyl(g, 0.06, 3, 'dark', -w / 2 + 0.8, t + 1.5, -FD / 2 + 1, 6);
 }
 
-export function makeRoof(s: GameState, anim: Animated) {
-  const n = s.floors.length;
-  const g = new THREE.Group(), w = floorW(s, n - 1), top = baseY(s, n), fill = s.floors[n - 1].fill;
+export function makeRoof(s: GameState, anim: Animated, b = 0) {
+  const n = heightOf(s, b);
+  const last = s.floors.filter(f => (f.b ?? 0) === b)[n - 1];
+  const g = new THREE.Group(), w = levelW(s, n - 1), top = levelY(s, n), fill = last?.fill ?? 'cloth';
+  g.position.x = buildingX(b);
   box(g, w + 0.2, 0.25, FD + 0.2, fill, 0, top + 0.125, 0);
   const t = top + 0.25;
   anim.vent.set(0, t + 1.5, 0);
@@ -421,7 +423,8 @@ function treeSpots(loc: LocKey, count: number) {
   while (spots.length < count && guard++ < 6000) {
     const a = rnd() * Math.PI * 2, r = 8.5 + rnd() * 8.5;
     const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.85;
-    if (x > -8 && x < 19 && z > -6.5 && z < 6.5) continue;
+    // the building, and room for more buildings on either side
+    if (x > -19.5 && x < 19.5 && z > -6.5 && z < 6.5) continue;
     if (keep.some(k => inRect(x, z, k))) continue;
     if (spots.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.2)) continue;
     spots.push([x, z]);
@@ -521,7 +524,7 @@ function site(s: GameState, g: THREE.Group) {
   box(g, 0.9, 0.2, 0.2, 'dark', tx, 2.6, tz);
   box(g, 2.2, 0.22, 0.22, 'dark', tx, th, tz);
   const pi = s.floors.findIndex(f => f.type === 'power');
-  const wy = baseY(s, pi) + FH * 0.75, wx = floorW(s, pi) / 2;
+  const wy = baseY(s, pi) + FH * 0.75, wx = buildingX(bOf(s, pi)) + floorW(s, pi) / 2;
   for (const dz of [-0.9, 0.9]) {
     rod(g, new THREE.Vector3(tx + dz, th, tz), new THREE.Vector3(wx, wy, -FD / 2 + 1.2 + dz * 0.5), 0.07, 'dark');
   }
@@ -540,7 +543,7 @@ function landmark(loc: LocKey, g: THREE.Group) {
     const pipe = cyl(g, 0.3, 22, 'surf', -5.5, 0.75, -9.2, 10);
     pipe.rotation.z = Math.PI / 2;
     for (let x = -16; x <= 5; x += 3) box(g, 0.15, 0.6, 0.5, 'dark', x, 0.3, -9.2);
-    for (const [x, z, k] of [[9, 9, 0.5], [-12, 6, 0.4], [14, -2, 0.55], [-3, 12, 0.35]]) rock(g, x, z, k, '#1F2A44');
+    for (const [x, z, k] of [[9, 9, 0.5], [-12, 7.5, 0.4], [16, -7.5, 0.55], [-3, 12, 0.35]]) rock(g, x, z, k, '#1F2A44');
   } else if (loc === 'phoenix') {
     box(g, 9, 3.4, 5, SCENERY_THREADS.sand, -12, 1.7, -16);
     box(g, 6, 2.4, 4, SCENERY_THREADS.sand, 16, 1.2, -15);
@@ -551,7 +554,7 @@ function landmark(loc: LocKey, g: THREE.Group) {
       panel.rotation.x = -0.45;
       box(g, 0.1, 0.6, 0.1, 'dark', x, 0.3, z);
     }
-    for (const [x, z, k] of [[10, 9, 0.45], [-14, 5, 0.35], [12, -3, 0.5]]) rock(g, x, z, k, SCENERY_THREADS.sand);
+    for (const [x, z, k] of [[10, 9, 0.45], [-14, 7, 0.35], [16, -7, 0.5]]) rock(g, x, z, k, SCENERY_THREADS.sand);
   } else {
     // other datacenters down the road
     box(g, 7, 2.6, 5, 'surf', -15, 1.3, -14);

@@ -1,7 +1,7 @@
 import { FOUND_ORDER, FOUNDS, LOCS, type FoundKey } from './data';
 import { STAFF_DECISIONS } from './staff';
 import {
-  hallCount, hasLaw, ledger, locals, money, note, ownerName, siteName, techsOn, today,
+  hallCount, hasLaw, heightOf, ledger, locals, MAX_BUILDINGS, tallest, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
 } from './state';
 
@@ -22,6 +22,8 @@ export interface LawInfo { name: string; by: (s: GameState) => string; effect: s
 export const LAWS: Record<string, LawInfo> = {
   itc: { name: 'Clean energy tax credit', by: () => 'Congress', effect: 'Solar farm 30% off' },
   fasttrack: { name: 'Fast-track permitting order', by: () => 'The White House', effect: 'Permits take half as long' },
+  stopWork: { name: 'Stop-work order', by: s => LOCS[s.loc].gov.local, effect: 'No income until you pass reinspection' },
+  cleanAir: { name: 'Stricter generator rules', by: () => 'EPA', effect: 'Air permits take 3 mo longer' },
   vaExempt: { name: 'Equipment sales tax break', by: s => LOCS[s.loc].gov.state, effect: 'New floors 5% off' },
   vaKwh: { name: 'Datacenter power tax', by: s => LOCS[s.loc].gov.state, effect: 'Power +$11/MWh' },
   azExempt: { name: 'Equipment sales tax break', by: s => LOCS[s.loc].gov.state, effect: 'New floors 5% off' },
@@ -59,7 +61,7 @@ export function startLaws(s: GameState) {
   if (s.loc === 'phoenix') enact(s, 'azExempt');
   if (s.loc === 'dalles') enact(s, 'orAbate', 180);
   // you got zoning and height for what you built at setup
-  s.permits = { zoning: FOUND_ORDER.indexOf(s.found), height: 0, air: 0, water: 0 };
+  s.permits = { zoning: FOUND_ORDER.indexOf(s.found), height: 0, air: 0, water: 0, campus: 0 };
   s.inspectAt = 10;
   s.electionAt = 24;
 }
@@ -93,6 +95,10 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
     name: 'Air permit', by: s => LOCS[s.loc].gov.air, fee: 150_000, wait: 3, here: () => true, max: () => 20,
     what: () => '+2 power floors of backup generators',
   },
+  campus: {
+    name: 'Site plan approval', by: s => LOCS[s.loc].gov.local, fee: 1_000_000, wait: 5, here: () => true, max: () => MAX_BUILDINGS - 1,
+    what: s => (s.permits.campus >= MAX_BUILDINGS - 1 ? 'Full campus approved' : 'Allows one more building'),
+  },
   water: {
     name: 'Water allocation', by: s => LOCS[s.loc].gov.local, fee: 300_000, wait: 4, max: () => 20,
     here: s => s.loc === 'phoenix', what: () => '+2 server halls of water',
@@ -108,7 +114,7 @@ export const hallLimit = (s: GameState) => (s.loc === 'phoenix' && !s.up.closedL
 export const zoningAllows = (s: GameState, f: FoundKey) => FOUND_ORDER.indexOf(f) <= s.permits.zoning;
 
 export function permitWait(s: GameState, key: PermitKey) {
-  const base = key === 'zoning' && hasLaw(s, 'specialException') ? 6 : PERMITS[key].wait;
+  const base = (key === 'zoning' && hasLaw(s, 'specialException') ? 6 : PERMITS[key].wait) + (key === 'air' && hasLaw(s, 'cleanAir') ? 3 : 0);
   const k = (hasLaw(s, 'fasttrack') ? 0.5 : 1) * (hasLaw(s, 'boardPro') ? 0.75 : hasLaw(s, 'boardAnti') ? 1.5 : 1);
   return Math.max(1, Math.round(base * k));
 }
@@ -122,7 +128,7 @@ export function permitBlock(s: GameState, key: PermitKey): string | null {
   if (!P.here(s)) return 'Not needed here';
   if (s.permits[key] >= P.max(s)) return 'Fully approved';
   if (s.applying.some(a => a.key === key)) return 'Under review';
-  if ((key === 'zoning' || key === 'height') && hasLaw(s, 'pause')) return 'Paused by the county';
+  if ((key === 'zoning' || key === 'height' || key === 'campus') && hasLaw(s, 'pause')) return 'Paused by the county';
   const retry = Math.ceil((s.cooldown[`permit-${key}`] ?? 0) - s.month);
   if (retry > 0) return `Denied. Reapply in ${retry} mo`;
   return null;
@@ -142,7 +148,7 @@ function decidePermit(s: GameState, key: PermitKey) {
   const P = PERMITS[key];
   const by = P.by(s);
   let ok = true, why = '';
-  if (key === 'zoning' || key === 'height') {
+  if (key === 'zoning' || key === 'height' || key === 'campus') {
     ok = s.trust >= hearingBar(s);
     why = `Trust ${Math.round(s.trust)}, needed ${hearingBar(s)}`;
   } else if (key === 'air') {
@@ -165,7 +171,7 @@ function decidePermit(s: GameState, key: PermitKey) {
 
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
-  const n = s.floors.length;
+  const n = heightOf(s, s.bld);
   if (n >= heightLimit(s)) return ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
   if (s.next === 'power' && s.floors.filter(f => f.type === 'power').length >= powerLimit(s)) return 'Needs an air permit';
   if (s.next === 'hall' && s.floors.filter(f => f.type === 'hall').length >= hallLimit(s)) return 'Needs more water';
@@ -191,7 +197,7 @@ export function checklist(s: GameState, l: Ledger = ledger(s)): Check[] {
     { label: 'Enough power and cooling', ok: l.eff >= 0.999 },
   ];
   if (s.loc === 'reykjavik') list.push({ label: 'PUE 1.2 or better', ok: l.pue <= 1.2 });
-  if (s.loc === 'ashburn') list.push({ label: 'Under 55 dB at homes', ok: s.up.soundWalls || s.floors.length <= 5 });
+  if (s.loc === 'ashburn') list.push({ label: 'Under 55 dB at homes', ok: s.up.soundWalls || tallest(s) <= 5 });
   if (s.loc === 'phoenix') list.push({ label: 'Water within allocation', ok: hallCount(s) <= hallLimit(s) });
   if (s.loc === 'dalles' && hasLaw(s, 'orAbate')) list.push({ label: '10 local jobs for the tax deal', ok: locals(s) >= 10 || s.month < 36 });
   return list;
@@ -207,7 +213,8 @@ function inspect(s: GameState, l: Ledger) {
     const fine = today(s, 250_000 * fails.length);
     s.cash -= fine;
     addTrust(s, -2 * fails.length);
-    headline(s, 'Local news', `${siteName(s)} fails ${name}`, [`${fails.map(f => f.label).join(', ')}`, `Fined ${money(fine)}`, `${ownerName(s)} promises fixes`]);
+    enact(s, 'stopWork');
+    headline(s, 'Local news', `${siteName(s)} fails ${name}`, [`${fails.map(f => f.label).join(', ')}`, `Fined ${money(fine)}. Stop-work order until it passes`, `${ownerName(s)} promises fixes`]);
   }
   s.inspectAt = s.month + 12;
 }
@@ -227,6 +234,23 @@ function election(s: GameState) {
   headline(s, 'Election night', pro ? `Pro-growth slate wins ${local}` : `Datacenter critics sweep ${local}`,
     pro ? ['Permits expected to move faster', `${ownerName(s)} welcomes the result`] : ['New board promises tougher hearings', `A win against ${ownerName(s)}, say voters`]);
   s.electionAt = s.month + 48;
+}
+
+/** National elections don't care about your town: it's a coin flip, and each side changes federal rules. */
+function nationalElection(s: GameState) {
+  const build = Math.random() < 0.5;
+  s.admin = build ? 'build' : 'green';
+  repeal(s, 'cleanAir');
+  if (build) {
+    enact(s, 'fasttrack', 48);
+    headline(s, 'Election night', 'Build-fast candidate wins the White House', ['Federal permits to speed up', 'Clean energy credits in doubt']);
+  } else {
+    enact(s, 'itc', 48);
+    enact(s, 'cleanAir', 48);
+    repeal(s, 'fasttrack');
+    headline(s, 'Election night', 'Clean-energy candidate wins the White House', ['Solar tax credit is back', 'Tougher rules for diesel generators']);
+  }
+  s.nationalAt = s.month + 48;
 }
 
 // ---------- decisions ----------
@@ -360,10 +384,22 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   // inspections, announced two months ahead
   if (m === Math.floor(s.inspectAt) - 2) note(s, `${inspectionTitle(s)} in 2 months. Check the Gov tab.`);
   if (s.month >= s.inspectAt) inspect(s, l);
+  // the inspector comes back every month until everything passes
+  else if (hasLaw(s, 'stopWork')) {
+    const fails = checklist(s, l).filter(c => !c.ok);
+    if (!fails.length) { repeal(s, 'stopWork'); note(s, 'Passed reinspection. Back to work.'); }
+    else {
+      const fee = today(s, 100_000 * fails.length);
+      s.cash -= fee;
+      note(s, `Failed reinspection, penalty −${money(fee)}: ${fails.map(f => f.label.toLowerCase()).join(', ')}`);
+    }
+  }
 
   // elections, announced six months ahead
   if (m === Math.floor(s.electionAt) - 6) note(s, `${G.local} election in 6 months. Pro-growth side polls at ${Math.round(pollPro(s) * 100)}%`);
   if (s.month >= s.electionAt) election(s);
+  if (G.us && m === Math.floor(s.nationalAt) - 6) note(s, 'National election in 6 months. Your town has no say.');
+  if (G.us && s.month >= s.nationalAt) nationalElection(s);
 
   // weather that just happens
   const mo = m % 12;

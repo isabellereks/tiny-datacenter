@@ -11,6 +11,7 @@ import { GoalCard } from './GoalCard';
 import { Island, type Tab } from './Island';
 import { News, storyFor, type Story } from './News';
 import { SetupCard } from './SetupCard';
+import { Share } from './Share';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 /** UI text: a pixel face that stays readable at small sizes. */
@@ -31,6 +32,7 @@ export default function Game() {
   const [cardH, setCardH] = useState(260);
   const [goalH, setGoalH] = useState(0);
   const [flash, setFlash] = useState<Story | null>(null);
+  const [sharing, setSharing] = useState(false);
   const lastComplaint = useRef<string | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const redraw = useCallback(() => setTick(t => t + 1), []);
@@ -93,7 +95,13 @@ export default function Game() {
     engineRef.current = engine;
     redraw();
     const id = window.setInterval(redraw, 250);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || stateRef.current?.phase !== 'play') return;
+      // space pauses, 1 to 3 pick a speed, like other sim games
+      if (e.key === ' ') { e.preventDefault(); dispatch({ type: 'speed', speed: stateRef.current.speed ? 0 : 1 }); }
+      if (e.key === '1' || e.key === '2' || e.key === '3') dispatch({ type: 'speed', speed: Number(e.key) });
+    };
     window.addEventListener('keydown', onKey);
     return () => {
       window.clearInterval(id);
@@ -171,11 +179,15 @@ export default function Game() {
         <Island
           s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
           dispatch={dispatch} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} onTab={setTab}
-          onResetView={() => engineRef.current?.resetView()}
+          onResetView={() => engineRef.current?.resetView()} onShare={() => setSharing(true)}
         />
       )}
       {phase === 'play' && !open && !flash && <GoalCard s={s} onHeight={setGoalH} />}
-      {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} />}
+      {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
+      {sharing && (
+        <Share s={s} capture={() => engineRef.current?.capture() ?? null} font={pixel.style.fontFamily} ui={ui.style.fontFamily}
+          onClose={() => setSharing(false)} />
+      )}
     </main>
   );
 }

@@ -12,7 +12,7 @@ import {
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, wageFor, ledger, money, today,
+  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, floorLabel, heightOf, level, MAX_BUILDINGS, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money, today,
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
@@ -85,15 +85,35 @@ function Chip({ on, onClick, children, disabled }: { on?: boolean; onClick: () =
   return <button className="chip" aria-pressed={!!on} onClick={onClick} disabled={disabled}>{children}</button>;
 }
 
+/** Pause bars, or one to three play triangles, drawn in pixels since the font has no such glyphs. */
+function SpeedIcon({ speed }: { speed: number }) {
+  if (speed === 0) return <svg width="10" height="10" viewBox="0 0 5 5" shapeRendering="crispEdges" aria-hidden="true"><path d="M0 0h2v5H0zM3 0h2v5H3z" fill="currentColor" /></svg>;
+  return (
+    <svg width={8 * speed + 2} height="10" viewBox={`0 0 ${4 * speed + 1} 5`} shapeRendering="crispEdges" aria-hidden="true">
+      {Array.from({ length: speed }, (_, k) => <path key={k} d={`M${k * 4} 0h1v1h1v1h1v1h-1v1h-1v1h-1z`} fill="currentColor" />)}
+    </svg>
+  );
+}
+const SPEED_NAME = ['Paused', 'Normal speed', 'Fast', 'Fastest'];
+/** Pause and fast-forward. Tapping cycles through the speeds. */
+function SpeedButton({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
+  return (
+    <button className={`speed${s.speed === 0 ? ' paused' : ''}`} onClick={() => dispatch({ type: 'speed', speed: (s.speed + 1) % 4 })}
+      aria-label={`${SPEED_NAME[s.speed]}. Tap to change speed`} title={SPEED_NAME[s.speed]}>
+      <SpeedIcon speed={[0, 1, 2, 3][s.speed]} />
+    </button>
+  );
+}
+
 const perMonth = (n: number) => `${n >= 0 ? '+' : ''}${money(n)}/mo`;
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}`;
 function Delta({ n }: { n: number }) {
   return <span className={`delta${n > 500 ? ' pos' : n < -500 ? ' neg' : ''}`}>{Math.abs(n) < 500 ? '$0/mo' : perMonth(n)}</span>;
 }
 
-export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen, onClose, onTab, onResetView }: {
+export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen, onClose, onTab, onResetView, onShare }: {
   s: GameState; l: Ledger; imp: Impact; open: boolean; tab: Tab; activity: string | null; armed: boolean;
-  dispatch: (a: Action) => void; onOpen: () => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void;
+  dispatch: (a: Action) => void; onOpen: () => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void; onShare: () => void;
 }) {
   const complaint = COMPLAINTS.find(c => c.id === s.complaint);
   const decision = DECISIONS.find(d => d.id === s.complaint);
@@ -115,7 +135,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   // the bar warns about the most urgent problem
   const downAlone = s.broken.some(b => techsOn(s, b.floor) === 0);
   const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
-  const warn = s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
+  const warn = hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
 
   let body: ReactNode;
   if (over) {
@@ -127,6 +147,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
     );
   } else if (mode === 'compact') {
     body = (
+      <div className="compact-row">
       <button className="compact" onClick={onOpen} aria-label="Open controls">
         <MonthRing month={s.month} />
         <span className="day">{dateLabel(s.month)}</span>
@@ -135,6 +156,8 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <Hearts trust={s.trust} />
         {warn && <span className="flag">{warn}</span>}
       </button>
+      <SpeedButton s={s} dispatch={dispatch} />
+      </div>
     );
   } else if (mode === 'activity') {
     body = (
@@ -184,7 +207,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
       </div>
     );
   } else {
-    body = <Expanded {...{ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView }} />;
+    body = <Expanded {...{ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView, onShare }} />;
   }
 
   return (
@@ -217,9 +240,9 @@ function floorEffect(s: GameState, type: Floor['type']) {
   }
 }
 
-function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView }: {
+function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView, onShare }: {
   s: GameState; l: Ledger; imp: Impact; tab: Tab; armed: boolean;
-  dispatch: (a: Action) => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void;
+  dispatch: (a: Action) => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void; onShare: () => void;
 }) {
   const r = rating(s, l);
   return (
@@ -230,6 +253,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
           <div className="money"><b>{money(s.cash)}</b><span className={l.net >= 0 ? undefined : 'neg'}>{perMonth(l.net)}</span></div>
         </div>
         <div className="ex-side">
+          <SpeedButton s={s} dispatch={dispatch} />
           <span className="score">Rating {r.total}</span>
           <button className="close" onClick={onClose} aria-label="Close">
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -268,6 +292,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
             <Threads label="Outline thread" cloth={false} colors={OUTLINES} value={s.look.outline} onPick={hex => dispatch({ type: 'outline', hex })} />
             <span className="label">Datacenter name</span>
             <input className="field" value={s.look.name} maxLength={24} placeholder="Name" onChange={e => dispatch({ type: 'name', text: e.target.value })} />
+            <button className="pill white wide" onClick={onShare}>Share on X</button>
             <button className={`pill wide${armed ? ' danger' : ''}`} onClick={() => dispatch({ type: 'reset' })}>
               {armed ? 'Tap again to confirm' : 'Start over'}
             </button>
@@ -289,7 +314,7 @@ function SupplyMeters({ l }: { l: Ledger }) {
 }
 
 function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
-  const n = s.floors.length, max = FOUNDS[s.found].max, cost = buildCost(s);
+  const n = heightOf(s, s.bld), max = FOUNDS[s.found].max, cost = buildCost(s);
   const up = nextFoundation(s);
   const upCost = up ? foundationUpgradeCost(s, up) : 0;
   const deltas = Object.fromEntries(BUILDABLE.map(t => [t, buildDelta(s, t)])) as Record<BuildableType, number>;
@@ -299,7 +324,14 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
 
   return (
     <>
-      <div className="tabhead"><b>New floor</b><span>Floors {n}/{max}</span></div>
+      {s.campus > 1 && (
+        <div className="seg three" role="group" aria-label="Building">
+          {Array.from({ length: s.campus }, (_, b) => (
+            <button key={b} aria-pressed={s.bld === b} onClick={() => dispatch({ type: 'bld', b })}>Building {b + 1} ({heightOf(s, b)})</button>
+          ))}
+        </div>
+      )}
+      <div className="tabhead"><b>New floor{s.campus > 1 ? ` on building ${s.bld + 1}` : ''}</b><span>Floors {n}/{max}</span></div>
       <SupplyMeters l={l} />
       <div className="chips">
         {BUILDABLE.map(t => (
@@ -331,7 +363,22 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
           )}
         </div>
       )}
+      <AddBuilding s={s} dispatch={dispatch} />
     </>
+  );
+}
+
+function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
+  if (s.campus >= MAX_BUILDINGS) return null;
+  const cost = buildingCost(s);
+  const allowed = s.campus <= s.permits.campus;
+  return (
+    <div className="note">
+      <span>Real datacenters are campuses of several buildings. {s.campus}/{MAX_BUILDINGS} built.</span>
+      <button className="pill" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
+        {allowed ? `New building  ${money(cost)}` : 'Needs site plan approval (Gov tab)'}
+      </button>
+    </div>
   );
 }
 
@@ -346,7 +393,7 @@ function FloorTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {s.floors.map((x, k) => ({ x, k })).reverse().map(({ x, k }) => (
           <li key={k}>
             <button aria-pressed={k === i} onClick={() => dispatch({ type: 'select', floor: k })} className={isBroken(s, k) ? 'down' : undefined}>
-              <span className="fno">{k + 1}</span>
+              <span className="fno">{s.campus > 1 ? `${bOf(s, k) + 1}·${level(s, k) + 1}` : k + 1}</span>
               <span className="fname">{TYPES[x.type].name}</span>
               {x.type === 'hall' && <span className="ftechs">{'●'.repeat(techsOn(s, k))}{'○'.repeat(MAX_TECHS - techsOn(s, k))}</span>}
               <span className="fstat">{status(k, x)}</span>
@@ -366,7 +413,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
   return (
     <div className="fdetail">
       <div className="floorhead">
-        <b>Floor {i + 1}: {TYPES[f.type].name}</b>
+        <b>{floorLabel(s, i)}: {TYPES[f.type].name}</b>
         <span>{floorEffect(s, f.type)}</span>
       </div>
       {broken && (
@@ -402,7 +449,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               </span>
             ) : <span className="muted">Full crew</span>}
           </div>
-          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs cost less a month but need a visa and the town notices.</p>
+          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs earn 30% less but need a {money(today(s, VISA_FEE))} visa every year, and the town notices.</p>
           <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
@@ -460,7 +507,7 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
       <div className="books">
         <Row label="Payroll" value={`${money(l.staff)}/mo`} />
         <Row label="Local wage" value={`${money(today(s, wageFor(s)))}/mo`} sub=" rises 3% per local" />
-        <Row label="Overseas wage" value={`${money(today(s, overseasWage(s)))}/mo`} sub=" plus visa fees" />
+        <Row label="Overseas wage" value={`${money(today(s, overseasWage(s)))}/mo`} sub={` plus ${money(today(s, VISA_FEE))} visa a year`} />
         <Row label="Next hire" value={hireFee(s) ? money(hireFee(s)) : '$0'} />
         <Row label="Local jobs" value={`${locals(s)}/${hoped}`} neg={locals(s) < hoped * 0.5} sub={` ${overseas(s)} overseas`} />
         <Row label="Break rooms" value={`${breakRooms(s)}/${breaksNeeded(s)}`} neg={breakRooms(s) < breaksNeeded(s)} sub=" 1 per 8 techs" />
@@ -470,7 +517,7 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
           {[...s.workers].sort((a, b) => b.floor - a.floor).map(w => (
             <li key={w.id}>
               <button onClick={() => { dispatch({ type: 'select', floor: w.floor }); onTab('floor'); }}>
-                <i className="dude" /><b>{w.name}</b><span>{w.overseas ? 'Overseas, ' : ''}Floor {w.floor + 1}</span>
+                <i className="dude" /><b>{w.name}</b><span>{w.overseas ? 'Overseas, ' : ''}{floorLabel(s, w.floor)}</span>
               </button>
               <button className="let-go" onClick={() => dispatch({ type: 'fire', id: w.id })} aria-label={`Let ${w.name} go`}>Let go</button>
             </li>
@@ -607,13 +654,27 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
       </div>
       <p className="muted small">Hearings need trust {hearingBar(s)}+. Air permits stop after 3 generator violations ({s.strikes}/3).</p>
 
-      <span className="label">{inspectionTitle(s)} in {inspectIn} mo</span>
+      {hasLaw(s, 'stopWork') && <p className="warn">Stop-work order. No income, bills still due, and a penalty each failed reinspection. Fix every item below; the inspector checks monthly.</p>}
+      <span className="label">{hasLaw(s, 'stopWork') ? 'Reinspection next month' : `${inspectionTitle(s)} in ${inspectIn} mo`}</span>
       <div className="books">
         {checks.map(c => <Row key={c.label} label={c.label} value={c.ok ? 'Pass' : 'Fail'} neg={!c.ok} />)}
       </div>
 
       <span className="label">{L.gov.local} election in {voteIn} mo</span>
       <Meter label="Pro-growth" value={pollPro(s)} max={1} text={`${Math.round(pollPro(s) * 100)}%`} bad={pollPro(s) < 0.5} marks={[0.5]} />
+      <p className="muted small">
+        Your town&apos;s trust sets the odds. A pro-growth board makes permits 25% faster and hearings need trust 40.
+        A slow-growth board makes them 50% slower and hearings need 60.
+      </p>
+      {L.gov.us && (
+        <>
+          <span className="label">National election in {Math.max(0, Math.ceil(s.nationalAt - s.month))} mo</span>
+          <p className="muted small">
+            {s.admin === 'build' ? 'Now: build-fast administration. ' : s.admin === 'green' ? 'Now: clean-energy administration. ' : ''}
+            A 50/50 race your town can&apos;t sway. Build-fast means faster permits. Clean-energy means a solar credit and tougher generator rules.
+          </p>
+        </>
+      )}
 
       <span className="label">Laws and deals</span>
       {laws.length ? (

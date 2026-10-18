@@ -4,13 +4,16 @@ import {
   type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
 
-export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number }
+/** `b` is which building on the campus the floor is in (older saves: 0). */
+export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number; b?: number }
 
 export interface Worker {
   id: number; name: string; floor: number;
   x: number; dir: 1 | -1; speed: number; pause: number;
   /** hired from the town, or brought in from overseas on a work visa (older saves: local) */
   overseas?: boolean;
+  /** month their work visa next renews */
+  visaAt?: number;
 }
 
 export interface Look {
@@ -23,7 +26,7 @@ export interface Look {
   owner: string;
 }
 
-export type PermitKey = 'zoning' | 'height' | 'air' | 'water';
+export type PermitKey = 'zoning' | 'height' | 'air' | 'water' | 'campus';
 export type Board = 'pro' | 'neutral' | 'anti';
 export interface Law { id: string; until: number }
 export interface Headline { id: number; tag: string; headline: string; ticker: string[] }
@@ -39,6 +42,8 @@ export interface Staff {
   cheer: number;
   /** months in a row morale has been low */
   low: number;
+  /** recent layoffs; fades each month */
+  cuts: number;
 }
 
 export interface Upgrades {
@@ -106,6 +111,9 @@ export interface GameState {
   inspectAt: number;
   electionAt: number;
   board: Board;
+  /** national election (US sites), and who won the last one */
+  nationalAt: number;
+  admin: 'none' | 'build' | 'green';
   /** one-time story beats already played */
   fired: string[];
   /** times the air regulator caught you running generators */
@@ -114,6 +122,11 @@ export interface GameState {
   calm: number;
   news: Headline | null;
   staff: Staff;
+  /** buildings on the campus, and the one new floors go on */
+  campus: number;
+  bld: number;
+  /** index into SPEEDS: 0 paused, 1 normal, 2 fast, 3 fastest */
+  speed: number;
   /** halls running hot for a while */
   boosts: { floor: number; until: number }[];
 }
@@ -162,10 +175,10 @@ export function fresh(): GameState {
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
     books: null, over: null,
-    laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0 }, applying: [],
-    inspectAt: 10, electionAt: 24, board: 'neutral', fired: [], strikes: 0, calm: 0, news: null,
-    staff: { morale: 65, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0 },
-    boosts: [],
+    laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0, campus: 0 }, applying: [],
+    inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
+    staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0, cuts: 0 },
+    boosts: [], campus: 1, bld: 0, speed: 1,
   };
 }
 
@@ -180,10 +193,11 @@ export function load(): GameState {
         const n = saved.floors.length, power = saved.floors.filter(f => f.type === 'power').length;
         saved.permits = {
           zoning: FOUND_ORDER.indexOf(saved.found ?? 'slab'),
-          height: n > 20 ? 2 : n > 12 ? 1 : 0, air: Math.max(0, Math.ceil((power - 2) / 2)), water: 99,
+          height: n > 20 ? 2 : n > 12 ? 1 : 0, air: Math.max(0, Math.ceil((power - 2) / 2)), water: 99, campus: 0,
         };
         saved.inspectAt = (saved.month ?? 0) + 6;
         saved.electionAt = (saved.month ?? 0) + 18;
+        saved.nationalAt = (saved.month ?? 0) + 30;
       }
       return {
         ...base, ...saved,
@@ -217,8 +231,10 @@ export const overseasWage = (s: GameState) => TECH_SALARY * OVERSEAS_WAGE * wage
 /** Monthly staff cost before inflation. */
 export const payroll = (s: GameState) =>
   locals(s) * wageFor(s) + overseas(s) * overseasWage(s) + s.workers.length * benefitsPer(s);
-/** Recruiting gets harder as you hire more; a visa adds legal fees. */
-export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) + (abroad ? 12_000 : 0));
+/** A work visa: filing and legal fees when you hire, then again every year. */
+export const VISA_FEE = 10_000;
+/** Recruiting gets harder as you hire more; overseas hires also pay the first year's visa. */
+export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) + (abroad ? VISA_FEE : 0));
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -252,7 +268,7 @@ export function setupCost(s: GameState) {
 
 /** What you've built, for property tax. */
 export const assets = (s: GameState) =>
-  FOUNDS[s.found].cost + SHAPES[s.shape].cost + s.floors.reduce((t, f) => t + (f.done ? f.cost : 0), 0);
+  (FOUNDS[s.found].cost + SHAPES[s.shape].cost) * s.campus + s.floors.reduce((t, f) => t + (f.done ? f.cost : 0), 0);
 
 /** Costs rise about 3% a year once you open: power, wages, water, parts and construction.
  *  What customers pay rises more slowly, so margins shrink unless you keep improving. */
@@ -265,9 +281,33 @@ export const today = (s: GameState, base: number) => Math.round(base * inflation
 
 /** Sales tax breaks on equipment knock about 5% off new floors. */
 export const taxBreak = (s: GameState) => (hasLaw(s, 'vaExempt') || hasLaw(s, 'azExempt') ? 0.95 : 1);
-export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, s.floors.length)) * taxBreak(s));
-export const baseY = (s: GameState, i: number) => FOUNDS[s.found].h + i * FH;
-export const floorW = (s: GameState, i: number) => (s.shape === 'tower' ? FW * (1 - Math.min(Math.floor(i / 3), 3) * 0.12) : FW);
+export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld))) * taxBreak(s));
+// ---------- the campus: several buildings side by side, each with its own stack of floors ----------
+
+export const MAX_BUILDINGS = 3;
+/** Buildings sit left and right of the first one. */
+const BUILDING_X = [0, -12.5, 12.5];
+export const bOf = (s: GameState, i: number) => s.floors[i]?.b ?? 0;
+export const buildingX = (b: number) => BUILDING_X[b] ?? 0;
+/** How far up its own building a floor is: 0 is the ground floor. */
+export const level = (s: GameState, i: number) => {
+  const b = bOf(s, i);
+  let n = 0;
+  for (let j = 0; j < i; j++) if ((s.floors[j].b ?? 0) === b) n++;
+  return n;
+};
+export const heightOf = (s: GameState, b: number) => s.floors.filter(f => (f.b ?? 0) === b).length;
+export const tallest = (s: GameState) => Math.max(...Array.from({ length: s.campus }, (_, b) => heightOf(s, b)));
+/** Where a building's floor of this level sits. */
+export const levelY = (s: GameState, lv: number) => FOUNDS[s.found].h + lv * FH;
+export const baseY = (s: GameState, i: number) => levelY(s, level(s, i));
+export const levelW = (s: GameState, lv: number) => (s.shape === 'tower' ? FW * (1 - Math.min(Math.floor(lv / 3), 3) * 0.12) : FW);
+export const floorW = (s: GameState, i: number) => levelW(s, level(s, i));
+/** "Floor 4", or "B2 floor 4" on a campus. */
+export const floorLabel = (s: GameState, i: number) =>
+  s.campus > 1 ? `B${bOf(s, i) + 1} floor ${level(s, i) + 1}` : `Floor ${i + 1}`;
+/** A new building: land plus a foundation like the others. */
+export const buildingCost = (s: GameState) => today(s, landCost(s.loc, s.found) + FOUNDS[s.found].cost);
 export const perRow = (s: GameState, i: number) => Math.max(2, Math.floor((floorW(s, i) - 1.4) / 2));
 export const techsOn = (s: GameState, i: number) => s.workers.filter(w => w.floor === i).length;
 export const isBroken = (s: GameState, i: number) => s.broken.some(b => b.floor === i);
@@ -308,10 +348,12 @@ export function ledger(s: GameState): Ledger {
   const peak = s.up.batteries ? 0.85 : 1;
   const gridMW = Math.max(0, wanted * pue - onsite);
   const strain = (gridMW * peak) / gridCap;
-  const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue);
+  // a stop-work order after a failed inspection: servers idle, no income, the bills keep coming
+  const stopped = hasLaw(s, 'stopWork');
+  const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue) * (stopped ? 0.3 : 1);
   const trustPay = 0.85 + 0.15 * (s.trust / 100);
   const infl = inflation(s);
-  const revenue = priceGrowth(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
+  const revenue = (stopped ? 0 : 1) * priceGrowth(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
 
   const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
@@ -341,7 +383,7 @@ export const GRID_LABEL = ['Fine', 'Tight', 'Brownouts', 'Blackouts'];
 
 /** Monthly profit change from adding a finished floor of this type on top. */
 export function buildDelta(s: GameState, type: FloorType) {
-  const extra: Floor = { type, fill: 'cloth', done: true, cost: floorPrice(s.loc, type, s.floors.length) };
+  const extra: Floor = { type, fill: 'cloth', done: true, cost: floorPrice(s.loc, type, heightOf(s, s.bld)), b: s.bld };
   return ledger({ ...s, floors: [...s.floors, extra] }).net - ledger(s).net;
 }
 
@@ -359,8 +401,10 @@ export function hallIncome(s: GameState, l: Ledger, i: number) {
 }
 
 /** Advances money, the calendar, workers, repairs and construction. */
-export function simulate(s: GameState, dt: number, monthSeconds: number): { built: boolean; newMonth: boolean; fixed: boolean } {
+export function simulate(s: GameState, realDt: number, monthSeconds: number, speed = 1): { built: boolean; newMonth: boolean; fixed: boolean } {
   let newMonth = false, fixed = false;
+  // game time runs at the chosen speed; people still walk at their own pace
+  const dt = realDt * speed;
   if (s.phase === 'play') {
     const l = ledger(s);
     s.cash += (l.net * dt) / monthSeconds;
@@ -374,7 +418,7 @@ export function simulate(s: GameState, dt: number, monthSeconds: number): { buil
       const crew = s.workers.filter(w => w.floor === b.floor);
       if (crew.length) b.t += dt * crew.length;
       if (b.t >= 4) {
-        note(s, `${crew[0].name} fixed floor ${b.floor + 1}`);
+        note(s, `${crew[0].name} fixed ${floorLabel(s, b.floor).toLowerCase()}`);
         s.tally.fixed++;
         fixed = true;
       }
@@ -383,11 +427,11 @@ export function simulate(s: GameState, dt: number, monthSeconds: number): { buil
   }
   for (const w of s.workers) {
     const hw = floorW(s, w.floor) / 2 - 0.9;
-    if (w.pause > 0) { w.pause -= dt; continue; }
-    w.x += w.dir * w.speed * dt;
+    if (w.pause > 0) { w.pause -= realDt; continue; }
+    w.x += w.dir * w.speed * realDt;
     if (w.x < -hw) { w.x = -hw; w.dir = 1; }
     if (w.x > hw) { w.x = hw; w.dir = -1; }
-    if (Math.random() < dt * 0.35) {
+    if (Math.random() < realDt * 0.35) {
       w.pause = 0.8 + Math.random() * 2.2;
       if (Math.random() < 0.5) w.dir = w.dir === 1 ? -1 : 1;
     }

@@ -5,7 +5,7 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, floorPrice, fresh, hireFee, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { buildCost, buildingCost, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, MAX_BUILDINGS, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -32,6 +32,9 @@ export type Action =
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
   | { type: 'teamEvent' }
   | { type: 'boost'; floor: number }
+  | { type: 'addBuilding' }
+  | { type: 'speed'; speed: number }
+  | { type: 'bld'; b: number }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
   | { type: 'smoke'; on: boolean }
@@ -106,10 +109,10 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'build': {
       const cost = buildCost(s);
-      if (s.cash < cost || s.build || s.floors.length >= FOUNDS[s.found].max || buildBlock(s)) return {};
+      if (s.cash < cost || s.build || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
-      s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost });
+      s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld });
       startBuild(s, 1800);
       s.sel = i;
       s.stageMonth = s.month;
@@ -127,7 +130,7 @@ export function apply(s: GameState, a: Action): Effects {
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
-      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0, overseas: !!a.overseas });
+      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0, overseas: !!a.overseas, visaAt: a.overseas ? s.month + 12 : undefined });
       s.inside = true;
       note(s, a.overseas ? `Hired ${name} from overseas` : `Hired ${name} from town`);
       return { rebuild: true };
@@ -136,7 +139,17 @@ export function apply(s: GameState, a: Action): Effects {
       const w = s.workers.find(x => x.id === a.id);
       if (!w) return {};
       s.workers = s.workers.filter(x => x.id !== a.id);
-      note(s, `Let ${w.name} go`);
+      // everyone left wonders if they're next; a wave of layoffs makes the news
+      const before = s.staff.cuts;
+      s.staff.cuts++;
+      const hit = 4 + 3 * Math.min(4, s.staff.cuts);
+      s.staff.morale = Math.max(0, s.staff.morale - hit);
+      s.staff.cheer -= hit / 2;
+      note(s, `Let ${w.name} go. Morale −${hit}`);
+      if (before < 3 && s.staff.cuts >= 3) {
+        s.trust = Math.max(0, s.trust - 4);
+        s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Local news', headline: `Layoffs at ${s.look.name.trim() || 'the datacenter'}`, ticker: [`${ownerName(s)} cuts jobs`, 'Remaining techs fear they are next'] };
+      }
       return { rebuild: true };
     }
     case 'repair': {
@@ -145,7 +158,7 @@ export function apply(s: GameState, a: Action): Effects {
       s.cash -= fee;
       s.broken = s.broken.filter(b => b.floor !== a.floor);
       s.tally.fixed++;
-      note(s, `Repair crew fixed floor ${a.floor + 1}`);
+      note(s, `Repair crew fixed ${floorLabel(s, a.floor).toLowerCase()}`);
       return { rebuild: true };
     }
     case 'loc':
@@ -241,9 +254,30 @@ export function apply(s: GameState, a: Action): Effects {
       s.cash -= cost;
       s.boosts.push({ floor: a.floor, until: s.month + BOOST_MONTHS });
       s.cooldown[`boost-${a.floor}`] = s.month + BOOST_WAIT;
-      note(s, `Floor ${a.floor + 1} boosted for ${BOOST_MONTHS} months`);
+      note(s, `${floorLabel(s, a.floor)} boosted for ${BOOST_MONTHS} months`);
       return {};
     }
+    case 'addBuilding': {
+      const cost = buildingCost(s);
+      if (s.phase !== 'play' || s.build || s.campus >= MAX_BUILDINGS || s.campus > s.permits.campus || s.cash < cost) return {};
+      s.cash -= cost;
+      // every building opens with a ground floor; here it's a server hall
+      s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus });
+      s.bld = s.campus;
+      s.campus++;
+      startBuild(s, 1800);
+      s.sel = s.floors.length - 1;
+      s.stageMonth = s.month;
+      note(s, `Building ${s.campus} started`);
+      return { rebuild: true, refit: true };
+    }
+    case 'speed':
+      s.speed = Math.max(0, Math.min(3, a.speed));
+      return {};
+    case 'bld':
+      if (a.b < 0 || a.b >= s.campus) return {};
+      s.bld = a.b;
+      return {};
     case 'inside':
       s.inside = a.on;
       return { rebuild: true, home: true };

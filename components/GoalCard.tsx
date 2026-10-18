@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { GOALS } from '@/lib/game/events';
-import { money, type GameState } from '@/lib/game/state';
+import { floorLabel, money, type GameState } from '@/lib/game/state';
 
 /** The current goal, or an outage that needs a tap. Doubles as the tutorial. */
 export function GoalCard({ s, onHeight }: { s: GameState; onHeight: (h: number) => void }) {
@@ -25,7 +25,7 @@ export function GoalCard({ s, onHeight }: { s: GameState; onHeight: (h: number) 
       {down ? (
         <>
           <span className="goal-no">Outage</span>
-          <b>Floor {down.floor + 1} is down</b>
+          <b>{floorLabel(s, down.floor)} is down</b>
           <p>Tap it to call a repair crew, or hire a tech there.</p>
         </>
       ) : g && (
