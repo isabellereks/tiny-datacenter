@@ -12,7 +12,7 @@ import {
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, wageFor, ledger, money, today,
+  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, wageFor, ledger, money, today,
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
@@ -392,12 +392,17 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               <span>Techs {techs}/{MAX_TECHS}</span>
             </div>
             {techs < MAX_TECHS ? (
-              <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })}>
-                Hire {money(hireFee(s))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
-              </button>
+              <span className="hires">
+                <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })}>
+                  Local {money(hireFee(s))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
+                </button>
+                <button className="pill" disabled={s.cash < hireFee(s, true)} onClick={() => dispatch({ type: 'hire', overseas: true })}>
+                  Overseas {money(hireFee(s, true))} <span className="cost">{perMonth(hireDelta(s, i, true))}</span>
+                </button>
+              </span>
             ) : <span className="muted">Full crew</span>}
           </div>
-          <p className="muted small">Wage {money(today(s, wageFor(s, s.workers.length + 1)))}/mo each after this hire. Techs fix outages for free.</p>
+          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs cost less a month but need a visa and the town notices.</p>
           <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
@@ -454,9 +459,10 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
       <span className="label">Techs {n}</span>
       <div className="books">
         <Row label="Payroll" value={`${money(l.staff)}/mo`} />
-        <Row label="Wage" value={`${money(today(s, wageFor(s)))}/mo`} sub=" rises 3% per tech" />
+        <Row label="Local wage" value={`${money(today(s, wageFor(s)))}/mo`} sub=" rises 3% per local" />
+        <Row label="Overseas wage" value={`${money(today(s, overseasWage(s)))}/mo`} sub=" plus visa fees" />
         <Row label="Next hire" value={hireFee(s) ? money(hireFee(s)) : '$0'} />
-        <Row label="Jobs the town wants" value={`${n}/${hoped}`} neg={n < hoped * 0.5} />
+        <Row label="Local jobs" value={`${locals(s)}/${hoped}`} neg={locals(s) < hoped * 0.5} sub={` ${overseas(s)} overseas`} />
         <Row label="Break rooms" value={`${breakRooms(s)}/${breaksNeeded(s)}`} neg={breakRooms(s) < breaksNeeded(s)} sub=" 1 per 8 techs" />
       </div>
       {n ? (
@@ -464,7 +470,7 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
           {[...s.workers].sort((a, b) => b.floor - a.floor).map(w => (
             <li key={w.id}>
               <button onClick={() => { dispatch({ type: 'select', floor: w.floor }); onTab('floor'); }}>
-                <i className="dude" /><b>{w.name}</b><span>Floor {w.floor + 1}</span>
+                <i className="dude" /><b>{w.name}</b><span>{w.overseas ? 'Overseas, ' : ''}Floor {w.floor + 1}</span>
               </button>
               <button className="let-go" onClick={() => dispatch({ type: 'fire', id: w.id })} aria-label={`Let ${w.name} go`}>Let go</button>
             </li>

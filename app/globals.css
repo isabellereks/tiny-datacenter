@@ -264,6 +264,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--isl-2); border-radius: 12px; padding: 3px; }
 .seg button { border: 0; background: none; color: var(--isl-dim); border-radius: 9px; padding: 8px; font-size: 13px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--isl-3); color: var(--isl-text); }
+.hires { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .seg.three { grid-template-columns: repeat(3, 1fr); }
 .seg button:disabled { opacity: .35; cursor: not-allowed; }
 .up[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ok); }

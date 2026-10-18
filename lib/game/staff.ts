@@ -109,6 +109,7 @@ export function staffMonth(s: GameState): string | null {
   // walkouts
   if (!S.strike && S.morale < 20 && s.workers.length >= 3) {
     S.strike = true;
+    if (!s.fired.includes('strike')) s.fired.push('strike');
     s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `Techs walk out at ${siteName(s)}`, ticker: [`Workers say ${ownerName(s)} ignored them`, 'Halls slow to a crawl'] };
     note(s, 'Your techs are on strike');
   } else if (S.strike && S.morale >= 45) {

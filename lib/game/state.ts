@@ -9,6 +9,8 @@ export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: numbe
 export interface Worker {
   id: number; name: string; floor: number;
   x: number; dir: 1 | -1; speed: number; pause: number;
+  /** hired from the town, or brought in from overseas on a work visa (older saves: local) */
+  overseas?: boolean;
 }
 
 export interface Look {
@@ -205,12 +207,18 @@ export const wageMult = (s: GameState) =>
   [1, 1.1, 1.2][s.staff.pay] * (s.staff.union ? 1.15 : 1) * (s.staff.overtime ? 1.3 : 1);
 /** Monthly benefits per tech. */
 export const benefitsPer = (s: GameState) => (s.staff.health ? 1_500 : 0) + (s.staff.retire ? 600 : 0);
-/** One tech's wage: each tech you add pushes everyone's wage up 3%, as the local labor pool runs dry. */
-export const wageFor = (s: GameState, n = s.workers.length) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1)) * wageMult(s);
+export const locals = (s: GameState) => s.workers.filter(w => !w.overseas).length;
+export const overseas = (s: GameState) => s.workers.filter(w => w.overseas).length;
+/** A local tech's wage: each local you add pushes local wages up 3%, as the town's labor pool runs dry. */
+export const wageFor = (s: GameState, n = locals(s)) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1)) * wageMult(s);
+/** Overseas techs on work visas earn less and don't touch the local wage. */
+export const OVERSEAS_WAGE = 0.7;
+export const overseasWage = (s: GameState) => TECH_SALARY * OVERSEAS_WAGE * wageMult(s);
 /** Monthly staff cost before inflation. */
-export const payroll = (s: GameState, n = s.workers.length) => n * (wageFor(s, n) + benefitsPer(s));
-/** Recruiting gets harder as you hire more. */
-export const hireFee = (s: GameState) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length));
+export const payroll = (s: GameState) =>
+  locals(s) * wageFor(s) + overseas(s) * overseasWage(s) + s.workers.length * benefitsPer(s);
+/** Recruiting gets harder as you hire more; a visa adds legal fees. */
+export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) + (abroad ? 12_000 : 0));
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -338,8 +346,8 @@ export function buildDelta(s: GameState, type: FloorType) {
 }
 
 /** Monthly profit change from hiring one more tech on a floor, salary included. */
-export function hireDelta(s: GameState, floor: number) {
-  const w: Worker = { id: -1, name: '', floor, x: 0, dir: 1, speed: 0, pause: 0 };
+export function hireDelta(s: GameState, floor: number, abroad = false) {
+  const w: Worker = { id: -1, name: '', floor, x: 0, dir: 1, speed: 0, pause: 0, overseas: abroad };
   return ledger({ ...s, workers: [...s.workers, w] }).net - ledger(s).net;
 }
 

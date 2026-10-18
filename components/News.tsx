@@ -2,7 +2,7 @@
 
 import { LOCS } from '@/lib/game/data';
 import { impact } from '@/lib/game/events';
-import { dateLabel, ownerName, siteName, type GameState } from '@/lib/game/state';
+import { dateLabel, locals, ownerName, siteName, type GameState } from '@/lib/game/state';
 
 export interface Story { tag: string; headline: string; ticker: string[] }
 
@@ -44,7 +44,7 @@ export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'car
       return {
         tag: 'Local news',
         headline: `${site} hires almost no one`,
-        ticker: [`Town says CEO ${owner} promised jobs`, `${s.workers.length} people work there`, where],
+        ticker: [`Town says CEO ${owner} promised jobs`, `${locals(s)} locals work there`, where],
       };
     case 'carbon':
       return {

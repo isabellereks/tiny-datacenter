@@ -16,7 +16,7 @@ export type Action =
   | { type: 'nextFill'; fill: Fill }
   | { type: 'build' }
   | { type: 'fill'; fill: Fill }
-  | { type: 'hire' }
+  | { type: 'hire'; overseas?: boolean }
   | { type: 'fire'; id: number }
   | { type: 'repair'; floor: number }
   | { type: 'loc'; loc: LocKey }
@@ -121,15 +121,15 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true };
     case 'hire': {
       const f = s.floors[s.sel];
-      const fee = hireFee(s);
+      const fee = hireFee(s, !!a.overseas);
       if (s.cash < fee || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
       s.cash -= fee;
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
-      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0 });
+      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0, overseas: !!a.overseas });
       s.inside = true;
-      note(s, `Hired ${name}`);
+      note(s, a.overseas ? `Hired ${name} from overseas` : `Hired ${name} from town`);
       return { rebuild: true };
     }
     case 'fire': {

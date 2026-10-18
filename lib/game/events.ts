@@ -1,7 +1,7 @@
 import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
-import { gridLevel, hallCount, inflation, isBoosted, isBroken, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
+import { gridLevel, hallCount, inflation, isBoosted, isBroken, locals, overseas, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -32,11 +32,12 @@ export interface Complaint {
   sting: number;
 }
 
+const siteNameOf = (s: GameState) => s.look.name.trim() || 'the datacenter';
 const addTrust = (s: GameState, d: number) => { s.trust = Math.max(0, Math.min(100, s.trust + d)); };
 
 export const COMPLAINTS: Complaint[] = [
   {
-    id: 'trees', from: 'Neighbors', wait: 4, sting: 12,
+    id: 'trees', from: 'Neighbors', wait: 2, sting: 12,
     title: (_, i) => `You cut down ${i.cleared} trees`,
     body: s => `They want ${ownerName(s)} to replant them.`,
     active: (_, i) => i.cleared >= 8,
@@ -46,7 +47,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'noise', from: 'Neighbors', wait: 6, sting: 10,
+    id: 'noise', from: 'Neighbors', wait: 3, sting: 10,
     title: () => 'Your fans are too loud',
     body: s => `They want ${ownerName(s)} to build a sound wall.`,
     active: s => s.floors.length >= 6 && !s.up.soundWalls,
@@ -56,7 +57,7 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'water', from: 'Water board', wait: 4, sting: 12,
+    id: 'water', from: 'Water board', wait: 2, sting: 12,
     title: () => 'You use too much water',
     body: s => `They want ${ownerName(s)} to switch to water-saving cooling.`,
     active: (s, i) => i.waterML >= 4 && !s.up.closedLoop,
@@ -72,6 +73,66 @@ export const COMPLAINTS: Complaint[] = [
     active: (_, __, l) => l.strain >= 0.85,
     choices: [
       { label: 'Pay for a substation', cost: substationCost, trust: 6, apply: s => { s.substations++; addTrust(s, 6); } },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'traffic', from: 'Neighbors', wait: 0, sting: 6,
+    title: () => 'Construction trucks block our road',
+    body: s => `They want ${ownerName(s)} to fix the potholes the trucks left.`,
+    active: s => !!s.build || s.month - s.stageMonth < 1.5,
+    choices: [
+      { label: 'Pay for road repairs', cost: 300_000, trust: 5, apply: s => addTrust(s, 5) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'glow', from: 'Neighbors', wait: 4, sting: 6,
+    title: () => 'Your lights keep us up at night',
+    body: s => `${siteNameOf(s)} glows all night. They want shades and dimmer lights.`,
+    active: s => s.floors.length >= 8,
+    choices: [
+      { label: 'Install shades', cost: 400_000, trust: 5, apply: s => addTrust(s, 5) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'smoke', from: 'Neighbors', wait: 5, sting: 8,
+    title: () => 'Generator tests smell like diesel',
+    body: s => `Every month ${ownerName(s)}'s backup generators run their tests and the street smells like exhaust.`,
+    active: s => s.floors.filter(f => f.done && f.type === 'power').length >= 3,
+    choices: [
+      { label: 'Switch to renewable diesel', cost: 800_000, trust: 6, apply: s => addTrust(s, 6) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'hum', from: 'Neighbors', wait: 3, sting: 10,
+    title: () => 'A low hum day and night',
+    body: s => `People can feel ${ownerName(s)}'s server fans in their walls. Some can't sleep.`,
+    active: s => hallCount(s) >= 4 && !s.up.soundWalls,
+    choices: [
+      { label: 'Build a sound wall', cost: 1_500_000, trust: 6, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'bills', from: 'Residents', wait: 2, sting: 10,
+    title: () => 'Our power bills went up',
+    body: s => `The utility blames new demand from ${siteNameOf(s)}. Families want ${ownerName(s)} to help pay.`,
+    active: (_, __, l) => l.strain >= 0.6,
+    choices: [
+      { label: 'Fund bill relief', cost: 1_000_000, trust: 7, apply: s => addTrust(s, 7) },
+      { label: 'Ignore', apply: () => {} },
+    ],
+  },
+  {
+    id: 'overseas', from: 'Town council', wait: 2, sting: 10,
+    title: s => `${overseas(s)} of your techs were hired overseas`,
+    body: s => `They want ${ownerName(s)} to train and hire people from town.`,
+    active: s => overseas(s) >= 3 && overseas(s) > locals(s),
+    choices: [
+      { label: 'Fund a training program', cost: 600_000, trust: 6, apply: s => addTrust(s, 6) },
       { label: 'Ignore', apply: () => {} },
     ],
   },
@@ -96,17 +157,17 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'jobs', from: 'Town council', wait: 3, sting: 10,
+    id: 'jobs', from: 'Town council', wait: 2, sting: 10,
     title: () => 'Where are the jobs?',
-    body: s => `You promised work, but only ${s.workers.length} people work at ${s.look.name.trim() || 'the datacenter'}. They want ${ownerName(s)} to hire locals.`,
-    active: s => hallCount(s) >= 2 && s.workers.length < hopedJobs(s) * 0.5,
+    body: s => `You promised work, but only ${locals(s)} locals work at ${s.look.name.trim() || 'the datacenter'}. They want ${ownerName(s)} to hire from town.`,
+    active: s => hallCount(s) >= 2 && locals(s) < hopedJobs(s) * 0.5,
     choices: [
       { label: 'Hold a job fair', cost: 300_000, trust: 6, apply: s => addTrust(s, 6) },
       { label: 'Ignore', apply: () => {} },
     ],
   },
   {
-    id: 'carbon', from: 'Newspaper', wait: 8, sting: 8,
+    id: 'carbon', from: 'Newspaper', wait: 4, sting: 8,
     title: s => `${ownerName(s)} named a top polluter`,
     body: () => 'The paper is running a story about your CO₂.',
     active: (s, i) => i.carbonT >= 1000 && !s.up.renewables,
@@ -159,12 +220,12 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 /** What the town thinks of you and why. Trust moves toward `target` a little every month. */
 export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact(s, l)) {
   const floors = s.floors.filter(f => f.done).length;
-  const techs = s.workers.length;
+  const techs = locals(s);
   // big buildings promise jobs; the town expects about 2 techs per hall plus a few more
   const hoped = hopedJobs(s);
   const loud = s.up.soundWalls ? 0 : Math.max(0, floors - 5);
   const parts: MoodPart[] = [
-    { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped}` },
+    { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped} from town` },
     { label: 'Skyline', value: -Math.round(clamp((floors - 12) * 1.5, 0, 15)), note: `${floors} floors tall` },
     { label: 'Noise', value: -Math.round(clamp(loud * 1.5, 0, 15)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors of fans` },
     { label: 'Trees cut', value: -Math.round(clamp(i.cleared * 0.6, 0, 15)), note: `${i.cleared} trees` },
@@ -182,7 +243,7 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   return { base: BASE, parts: parts.filter(p => p.value !== 0), target };
 }
 
-const COOLDOWN = 10;
+const COOLDOWN = 6;
 
 const GRID_NEWS: ((s: GameState) => string)[] = [
   () => '',
@@ -207,7 +268,7 @@ export const GOALS: Goal[] = [
   { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab: pay, benefits, break rooms.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
   { text: 'Build a network floor', reward: 2_000_000, hint: 'Every hall earns more.', done: s => has(s, 'net') },
   { text: 'Fix an outage', reward: 1_500_000, hint: 'Tap a floor that is down.', done: s => s.tally.fixed >= 1 },
-  { text: 'Hire 2 techs per server hall', reward: 6_000_000, hint: 'The town wants local jobs.', done: s => hallCount(s) >= 2 && s.workers.length >= hopedJobs(s) },
+  { text: 'Hire 2 locals per server hall', reward: 6_000_000, hint: 'The town wants local jobs.', done: s => hallCount(s) >= 2 && locals(s) >= hopedJobs(s) },
   { text: 'Finish a project in Town', reward: 4_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.some(u => s.up[u.key]) },
   { text: 'Run 4 server halls', reward: 12_000_000, hint: 'Watch the town grid.', done: s => hallCount(s) >= 4 },
   { text: 'Make $1M profit in a month', reward: 15_000_000, hint: 'More halls and network floors.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
@@ -219,7 +280,7 @@ export const GOALS: Goal[] = [
   { text: 'Finish every project in Town', reward: 30_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.every(u => s.up[u.key]) },
   { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 70 },
   { text: 'Build 20 floors', reward: 80_000_000, hint: 'Needs steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
-  { text: 'Avoid a strike for 10 years', reward: 60_000_000, hint: 'Keep morale up as you grow.', done: s => s.month >= 120 && !s.staff.union || s.month >= 120 && s.staff.morale >= 50 },
+  { text: 'Avoid a strike for 10 years', reward: 60_000_000, hint: 'Keep morale up as you grow.', done: s => s.month >= 120 && !s.fired.includes('strike') },
   { text: 'Build 40 floors', reward: 150_000_000, hint: 'Needs deep caissons and a skyscraper review.', done: s => doneFloors(s) >= 40 },
 ];
 
@@ -307,7 +368,7 @@ export function resolveComplaint(s: GameState, choice: number) {
   }
   s.cooldown[c.id] = s.month + COOLDOWN;
   s.complaint = null;
-  s.calm = s.month + 2;
+  s.calm = s.month + 1;
   if (s.trust <= 0) endGame(s, 'town');
 }
 
@@ -331,7 +392,7 @@ export function rating(s: GameState, l: Ledger = ledger(s)) {
     trust: (s.trust / 100) * 30,
     profit: Math.max(0, Math.min(1, l.revenue ? l.net / l.revenue / 0.4 : 0)) * 25,
     running: running * 20,
-    jobs: (hoped ? Math.min(1, s.workers.length / hoped) : 1) * 15,
+    jobs: (hoped ? Math.min(1, locals(s) / hoped) : 1) * 15,
     grid: (1 - Math.max(0, Math.min(1, (l.strain - 0.6) / 0.4))) * 10,
   };
   const total = Math.round(Object.values(parts).reduce((a, b) => a + b, 0));

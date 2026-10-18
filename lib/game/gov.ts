@@ -1,7 +1,7 @@
 import { FOUND_ORDER, FOUNDS, LOCS, type FoundKey } from './data';
 import { STAFF_DECISIONS } from './staff';
 import {
-  hallCount, hasLaw, ledger, money, note, ownerName, siteName, techsOn, today,
+  hallCount, hasLaw, ledger, locals, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
 } from './state';
 
@@ -193,7 +193,7 @@ export function checklist(s: GameState, l: Ledger = ledger(s)): Check[] {
   if (s.loc === 'reykjavik') list.push({ label: 'PUE 1.2 or better', ok: l.pue <= 1.2 });
   if (s.loc === 'ashburn') list.push({ label: 'Under 55 dB at homes', ok: s.up.soundWalls || s.floors.length <= 5 });
   if (s.loc === 'phoenix') list.push({ label: 'Water within allocation', ok: hallCount(s) <= hallLimit(s) });
-  if (s.loc === 'dalles' && hasLaw(s, 'orAbate')) list.push({ label: '10 local jobs for the tax deal', ok: s.workers.length >= 10 || s.month < 36 });
+  if (s.loc === 'dalles' && hasLaw(s, 'orAbate')) list.push({ label: '10 local jobs for the tax deal', ok: locals(s) >= 10 || s.month < 36 });
   return list;
 }
 
@@ -345,10 +345,10 @@ export function govMonth(s: GameState, l: Ledger): string | null {
     headline(s, 'Breaking news', `${G.state} freezes datacenter tax breaks`, ['No equipment tax break for 3 years', 'Water fees under discussion']);
   }
   if (s.loc === 'dalles' && m >= 36 && hasLaw(s, 'orAbate') && once('ezCheck')) {
-    if (s.workers.length >= 10) note(s, `${G.local} renewed your tax deal. You have the jobs.`);
+    if (locals(s) >= 10) note(s, `${G.local} renewed your tax deal. You have the jobs.`);
     else {
       repeal(s, 'orAbate');
-      headline(s, 'Local news', `${siteName(s)} loses tax deal`, [`Deal needed 10 local jobs, ${s.workers.length} were hired`, 'Property tax goes to the full rate']);
+      headline(s, 'Local news', `${siteName(s)} loses tax deal`, [`Deal needed 10 local jobs, ${locals(s)} were hired`, 'Property tax goes to the full rate']);
     }
   }
 

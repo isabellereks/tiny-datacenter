@@ -24,7 +24,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## Staff
 
-Each tech you add pushes everyone's wage up 3% as the local labor pool runs dry, and recruiting gets pricier too. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
+Hire from town or overseas. Locals count as town jobs, but each one pushes local wages up 3% as the labor pool runs dry. Overseas techs on work visas cost less a month and more to hire, and the town council complains if they outnumber locals. Recruiting gets pricier as you grow. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
 
 Boosts: run a server hall hot for 3 months (+25% output, more power and outages), turn on overtime (+10% output, +30% wages, lower morale), or hold a team event.
 
