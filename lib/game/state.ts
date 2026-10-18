@@ -286,7 +286,8 @@ export const taxBreak = (s: GameState) => (hasLaw(s, 'vaExempt') || hasLaw(s, 'a
 export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld))) * taxBreak(s));
 // ---------- the campus: several buildings side by side, each with its own stack of floors ----------
 
-export const MAX_BUILDINGS = 3;
+/** Buildings that fit on this location's lot (never more than 3). */
+export const maxBuildings = (s: GameState) => Math.min(3, LOCS[s.loc].space.buildings);
 /** Buildings sit left and right of the first one. */
 const BUILDING_X = [0, -12.5, 12.5];
 export const bOf = (s: GameState, i: number) => s.floors[i]?.b ?? 0;
@@ -360,7 +361,8 @@ export function ledger(s: GameState): Ledger {
   const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
   const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
-  const rate = L.power * surcharge * (s.up.renewables ? 1.05 : 1) * (hasLaw(s, 'priority') ? 1.15 : 1) + (hasLaw(s, 'vaKwh') ? 11 : 0);
+  const rate = L.power * surcharge * (s.up.renewables ? 1.05 : 1) * (hasLaw(s, 'priority') ? 1.15 : 1) * (hasLaw(s, 'aepTariff') ? 1.1 : 1)
+    + (hasLaw(s, 'vaKwh') ? 11 : 0) + (hasLaw(s, 'seTax') ? 35 : 0);
   const power = infl * mwh * rate;
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
@@ -368,9 +370,9 @@ export function ledger(s: GameState): Ledger {
   const upkeep = (infl * assets(s) * 0.015) / 12;
   const fund = s.up.fund ? COMMUNITY_FUND : 0;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves
-  const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1);
+  const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1) * (hasLaw(s, 'txAbate') || hasLaw(s, 'ohAbate') ? 0.4 : 1);
   const pre = revenue - power - water - staff - upkeep - fund - propertyTax;
-  const incomeTax = Math.max(0, pre) * L.incomeTax;
+  const incomeTax = Math.max(0, pre) * (hasLaw(s, 'pillar2') ? 0.15 : L.incomeTax);
 
   return {
     revenue, power, water, staff, upkeep, fund, propertyTax, incomeTax, net: pre - incomeTax,

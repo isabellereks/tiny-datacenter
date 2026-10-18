@@ -48,6 +48,10 @@ function groundTexture(loc: LocKey) {
     else if (loc === 'reykjavik' && r < 0.02) mark(x, y);
     else if (loc === 'phoenix' && r < 0.035) mark(x, y);
     else if (loc === 'ashburn' && y % 9 === 0 && (x + y) % 4 < 2) mark(x, y);
+    else if (loc === 'abilene' && r < 0.03) mark(x, y);
+    else if (loc === 'newalbany' && y % 6 === 0 && r < 0.6) mark(x, y);
+    else if (loc === 'dublin' && r < 0.05) { mark(x, y); if (r < 0.02) mark(x + 1, y); }
+    else if (loc === 'lulea' && r < 0.015) mark(x, y);
   }
   const tex = new THREE.DataTexture(data, N, N);
   tex.magFilter = tex.minFilter = THREE.NearestFilter;

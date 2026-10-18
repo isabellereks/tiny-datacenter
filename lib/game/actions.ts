@@ -5,7 +5,7 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, MAX_BUILDINGS, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { buildCost, buildingCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -217,7 +217,7 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'substation': {
       const cost = substationCost(s);
-      if (s.phase !== 'play' || s.cash < cost) return {};
+      if (s.phase !== 'play' || s.cash < cost || hasLaw(s, 'eirgrid')) return {};
       s.cash -= cost;
       s.substations++;
       note(s, `Paid for a substation. Grid +${SUBSTATION_MW} MW`);
@@ -259,7 +259,7 @@ export function apply(s: GameState, a: Action): Effects {
     }
     case 'addBuilding': {
       const cost = buildingCost(s);
-      if (s.phase !== 'play' || s.build || s.campus >= MAX_BUILDINGS || s.campus > s.permits.campus || s.cash < cost) return {};
+      if (s.phase !== 'play' || s.build || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
       s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus });

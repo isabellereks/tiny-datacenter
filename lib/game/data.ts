@@ -2,7 +2,7 @@ export const FW = 10;
 export const FD = 7;
 export const FH = 1.8;
 
-export type LocKey = 'dalles' | 'reykjavik' | 'phoenix' | 'ashburn';
+export type LocKey = 'dalles' | 'reykjavik' | 'phoenix' | 'ashburn' | 'abilene' | 'newalbany' | 'dublin' | 'lulea';
 export type FoundKey = 'slab' | 'raised' | 'piles' | 'bedrock' | 'caisson' | 'megaframe';
 export type ShapeKey = 'box' | 'saw' | 'shed' | 'tower' | 'hangar';
 export type CustKey = 'ai' | 'stream' | 'bank' | 'games';
@@ -44,6 +44,9 @@ export interface Location {
   coolCost: number;
   /** who governs the site: the local board, the state (or national) lawmakers, the utility and the air regulator */
   gov: { local: string; state: string; utility: string; air: string; us: boolean };
+  /** how much fits and how hard it is to get approved: buildings on the lot, floors allowed at each
+   *  height permit, how long permits take compared to normal, and how much trust hearings need on top */
+  space: { buildings: number; heights: number[]; permitSpeed: number; hearing: number };
   /** MW the local grid can spare for you before the town feels it */
   grid: number;
   trees: number;
@@ -93,6 +96,7 @@ export const LOCS: Record<LocKey, Location> = {
     propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, trees: 26,
     taxNote: 'Almost no property tax.',
     gov: { local: 'Wasco County', state: 'Oregon Legislature', utility: 'Northern Wasco PUD', air: 'Oregon DEQ', us: true },
+    space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 0.9, hearing: 0 },
     cloth: '#F2F5EE', hole: '#E2E7DA', edge: '#A8D5BA', deco: '#2E8B57',
   },
   reykjavik: {
@@ -101,6 +105,7 @@ export const LOCS: Record<LocKey, Location> = {
     propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, grid: 24, trees: 10,
     taxNote: 'Lowest profit tax.',
     gov: { local: 'Reykjavík City Council', state: 'Alþingi', utility: 'Landsvirkjun', air: 'Environment Agency', us: false },
+    space: { buildings: 2, heights: [8, 15, 30, 99], permitSpeed: 1, hearing: 0 },
     cloth: '#F1F4F8', hole: '#DFE5EE', edge: '#C9B6F2', deco: '#99BBFF',
   },
   phoenix: {
@@ -109,6 +114,7 @@ export const LOCS: Record<LocKey, Location> = {
     propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, trees: 14,
     taxNote: 'Normal taxes.',
     gov: { local: 'Phoenix City Council', state: 'Arizona Legislature', utility: 'APS', air: 'Maricopa County Air Quality', us: true },
+    space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 1, hearing: 0 },
     cloth: '#FAF3E7', hole: '#EDE1CC', edge: '#E9D3A6', deco: '#E0A458',
   },
   ashburn: {
@@ -117,9 +123,48 @@ export const LOCS: Record<LocKey, Location> = {
     propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, grid: 16, trees: 18,
     taxNote: 'High property tax.',
     gov: { local: 'Loudoun County Board', state: 'Virginia General Assembly', utility: 'Dominion Energy', air: 'Virginia DEQ', us: true },
+    space: { buildings: 2, heights: [12, 20, 40, 99], permitSpeed: 1.2, hearing: 5 },
     cloth: '#F5F4F1', hole: '#E5E3DD', edge: '#B8BCC6', deco: '#7D8597',
   },
+  abilene: {
+    name: 'Abilene, Texas', short: 'Texas', note: 'Cheap land and wind power. Shaky grid.',
+    land: 30_000, power: 55, pue: 1.35, water: 1.8, waterPrice: 2,
+    propertyTax: 0.018, incomeTax: 0.21, demand: 1.05, carbon: 0.37, coolCost: 1.2, grid: 40, trees: 8,
+    taxNote: 'No state income tax. High property tax.',
+    gov: { local: 'Taylor County', state: 'Texas Legislature', utility: 'ERCOT', air: 'TCEQ', us: true },
+    space: { buildings: 3, heights: [20, 40, 99], permitSpeed: 0.6, hearing: -10 },
+    cloth: '#FAF1E4', hole: '#EDDFC6', edge: '#E9C38A', deco: '#C9733A',
+  },
+  newalbany: {
+    name: 'New Albany, Ohio', short: 'Ohio', note: 'Central. Coal-heavy grid.',
+    land: 250_000, power: 70, pue: 1.3, water: 1, waterPrice: 2,
+    propertyTax: 0.015, incomeTax: 0.21, demand: 1.1, carbon: 0.5, coolCost: 0.95, grid: 22, trees: 20,
+    taxNote: 'No corporate income tax.',
+    gov: { local: 'Licking County', state: 'Ohio General Assembly', utility: 'AEP Ohio', air: 'Ohio EPA', us: true },
+    space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 0.8, hearing: -5 },
+    cloth: '#F3F5EC', hole: '#E2E7D6', edge: '#C8D99A', deco: '#6E8B3D',
+  },
+  dublin: {
+    name: 'Dublin, Ireland', short: 'Ireland', note: 'Low profit tax. Almost no grid left.',
+    land: 1_500_000, power: 150, pue: 1.25, water: 0.5, waterPrice: 3,
+    propertyTax: 0.01, incomeTax: 0.125, demand: 1.3, carbon: 0.3, coolCost: 0.7, grid: 10, trees: 12,
+    taxNote: '12.5% profit tax.',
+    gov: { local: 'Fingal County Council', state: 'Oireachtas', utility: 'EirGrid', air: 'EPA Ireland', us: false },
+    space: { buildings: 1, heights: [8, 12, 16], permitSpeed: 1.6, hearing: 10 },
+    cloth: '#EEF5EE', hole: '#DCE8DC', edge: '#8FCB9B', deco: '#2E8B57',
+  },
+  lulea: {
+    name: 'Luleå, Sweden', short: 'Sweden', note: 'Cold and cheap. Far from customers.',
+    land: 50_000, power: 40, pue: 1.1, water: 0.1, waterPrice: 1.5,
+    propertyTax: 0.005, incomeTax: 0.206, demand: 0.85, carbon: 0.02, coolCost: 0.5, grid: 35, trees: 30,
+    taxNote: 'Low taxes. Cheap hydro.',
+    gov: { local: 'Luleå Municipality', state: 'Riksdag', utility: 'Vattenfall', air: 'Swedish EPA', us: false },
+    space: { buildings: 3, heights: [10, 20, 40, 99], permitSpeed: 0.9, hearing: -5 },
+    cloth: '#F2F5F9', hole: '#E0E6EF', edge: '#B9D3EE', deco: '#5B7FA6',
+  },
 };
+/** Places in the EU or EEA, which file an EU energy report. */
+export const EU: LocKey[] = ['reykjavik', 'dublin', 'lulea'];
 
 export const FOUNDS: Record<FoundKey, Foundation> = {
   slab: { name: 'Concrete slab', max: 8, cost: 1_000_000, acres: 6, cool: 1, h: 0.45, note: '8 floors max. 6 acres.' },
@@ -178,7 +223,7 @@ export const THREADS: { name: string; hex: string }[] = [
   { name: 'Ink', hex: '#1F2A44' },
 ];
 /** Extra threads used only by scenery. The stitch shader's palette is THREADS followed by these. */
-export const SCENERY_THREADS = { bark: '#8B5E3C', sand: '#E9D3A6', snow: '#FFFFFF', moss: '#71935C' };
+export const SCENERY_THREADS = { bark: '#8B5E3C', sand: '#E9D3A6', snow: '#FFFFFF', moss: '#71935C', barn: '#B5372B', corn: '#E8C547' };
 export const PALETTE: string[] = [...THREADS.map(t => t.hex), ...Object.values(SCENERY_THREADS)];
 export const OUTLINES = ['#0045D1', '#1F2A44', '#D7263D', '#2E8B57', '#6A4BB5'];
 /** Shirt colours for the townspeople. */

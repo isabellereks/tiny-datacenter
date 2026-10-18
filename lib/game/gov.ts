@@ -1,7 +1,7 @@
-import { FOUND_ORDER, FOUNDS, LOCS, type FoundKey } from './data';
+import { EU, FOUND_ORDER, FOUNDS, LOCS, type FoundKey, type LocKey } from './data';
 import { STAFF_DECISIONS } from './staff';
 import {
-  dateLabel, hallCount, hasLaw, heightOf, ledger, locals, MAX_BUILDINGS, tallest, money, note, ownerName, siteName, techsOn, today,
+  dateLabel, hallCount, hasLaw, heightOf, ledger, locals, maxBuildings, tallest, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
 } from './state';
 
@@ -37,6 +37,13 @@ export const LAWS: Record<string, LawInfo> = {
   dry: { name: 'Power curtailment', by: s => LOCS[s.loc].gov.utility, effect: 'Servers capped at 70%' },
   priority: { name: 'Priority power contract', by: s => LOCS[s.loc].gov.utility, effect: 'Power +15%, never cut' },
   curtail: { name: 'Curtailable large load', by: s => LOCS[s.loc].gov.state, effect: 'Grid −10%' },
+  txAbate: { name: 'Property tax abatement', by: s => LOCS[s.loc].gov.local, effect: 'Property tax −60%' },
+  ohAbate: { name: 'Community reinvestment abatement', by: s => LOCS[s.loc].gov.local, effect: 'Property tax −60%' },
+  aepTariff: { name: 'Datacenter power tariff', by: s => LOCS[s.loc].gov.utility, effect: 'Pay for 85% of reserved power: +10%' },
+  eirgrid: { name: 'Dublin grid moratorium', by: s => LOCS[s.loc].gov.utility, effect: 'No new substations' },
+  pillar2: { name: 'Global minimum tax', by: () => 'OECD and the Oireachtas', effect: 'Profit tax 15%' },
+  seTaxCut: { name: 'Datacenter power tax cut', by: s => LOCS[s.loc].gov.state, effect: 'Low power tax' },
+  seTax: { name: 'Full power tax', by: s => LOCS[s.loc].gov.state, effect: 'Power +$35/MWh' },
 };
 
 export const activeLaws = (s: GameState) => s.laws.filter(x => x.until > s.month);
@@ -60,6 +67,10 @@ export function startLaws(s: GameState) {
   if (s.loc === 'ashburn') { enact(s, 'vaExempt'); enact(s, 'specialException'); }
   if (s.loc === 'phoenix') enact(s, 'azExempt');
   if (s.loc === 'dalles') enact(s, 'orAbate', 180);
+  if (s.loc === 'abilene') enact(s, 'txAbate', 120);
+  if (s.loc === 'newalbany') enact(s, 'ohAbate', 180);
+  if (s.loc === 'dublin') enact(s, 'eirgrid', 60);
+  if (s.loc === 'lulea') enact(s, 'seTaxCut', 30);
   // you got zoning and height for what you built at setup
   s.permits = { zoning: FOUND_ORDER.indexOf(s.found), height: 0, air: 0, water: 0, campus: 0 };
   s.inspectAt = 10;
@@ -87,17 +98,17 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
     max: () => FOUND_ORDER.length - 1,
   },
   height: {
-    name: 'Height permit', fee: 750_000, wait: 4, here: () => true, max: () => 3,
-    by: s => (s.permits.height === 1 ? (LOCS[s.loc].gov.us ? 'FAA' : 'Icelandic Transport Authority') : LOCS[s.loc].gov.local),
-    what: s => ['Up to 20 floors', 'Up to 40 floors, flight safety review', 'Skyscraper review, no limit', 'No height limit'][s.permits.height],
+    name: 'Height permit', fee: 750_000, wait: 4, here: () => true, max: s => LOCS[s.loc].space.heights.length - 1,
+    by: s => (s.permits.height === 1 ? AVIATION[s.loc] ?? 'FAA' : LOCS[s.loc].gov.local),
+    what: s => { const n = LOCS[s.loc].space.heights[s.permits.height + 1]; return n === undefined ? 'Height cap reached here' : n >= 99 ? 'Skyscraper review, no limit' : `Up to ${n} floors`; },
   },
   air: {
     name: 'Air permit', by: s => LOCS[s.loc].gov.air, fee: 150_000, wait: 3, here: () => true, max: () => 20,
     what: () => '+2 power floors of backup generators',
   },
   campus: {
-    name: 'Site plan approval', by: s => LOCS[s.loc].gov.local, fee: 1_000_000, wait: 5, here: () => true, max: () => MAX_BUILDINGS - 1,
-    what: s => (s.permits.campus >= MAX_BUILDINGS - 1 ? 'Full campus approved' : 'Allows one more building'),
+    name: 'Site plan approval', by: s => LOCS[s.loc].gov.local, fee: 1_000_000, wait: 5, here: s => maxBuildings(s) > 1, max: s => maxBuildings(s) - 1,
+    what: s => (s.permits.campus >= maxBuildings(s) - 1 ? 'Full campus approved' : 'Allows one more building'),
   },
   water: {
     name: 'Water allocation', by: s => LOCS[s.loc].gov.local, fee: 300_000, wait: 4, max: () => 20,
@@ -105,8 +116,16 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
   },
 };
 
+const AVIATION: Partial<Record<LocKey, string>> = {
+  reykjavik: 'Icelandic Transport Authority', dublin: 'Irish Aviation Authority', lulea: 'Swedish Transport Agency',
+};
+
 /** Floors allowed by your height permit. */
-export const heightLimit = (s: GameState) => [12, 20, 40, 999][Math.min(3, s.permits.height)];
+export const heightLimit = (s: GameState) => {
+  const h = LOCS[s.loc].space.heights;
+  const lim = h[Math.min(h.length - 1, s.permits.height)];
+  return lim >= 99 ? 999 : lim;
+};
 /** Power floors your air permit covers; each has diesel backup generators. */
 export const powerLimit = (s: GameState) => 2 + 2 * s.permits.air;
 /** Server halls your water allocation covers (only in Arizona, and not once you use water-saving cooling). */
@@ -116,11 +135,11 @@ export const zoningAllows = (s: GameState, f: FoundKey) => FOUND_ORDER.indexOf(f
 export function permitWait(s: GameState, key: PermitKey) {
   const base = (key === 'zoning' && hasLaw(s, 'specialException') ? 6 : PERMITS[key].wait) + (key === 'air' && hasLaw(s, 'cleanAir') ? 3 : 0);
   const k = (hasLaw(s, 'fasttrack') ? 0.5 : 1) * (hasLaw(s, 'boardPro') ? 0.75 : hasLaw(s, 'boardAnti') ? 1.5 : 1);
-  return Math.max(1, Math.round(base * k));
+  return Math.max(1, Math.round(base * k * LOCS[s.loc].space.permitSpeed));
 }
 export const permitFee = (s: GameState, key: PermitKey) => today(s, PERMITS[key].fee * (1 + s.permits[key] * 0.5));
 /** Trust a hearing needs to pass. */
-export const hearingBar = (s: GameState) => (hasLaw(s, 'boardPro') ? 40 : hasLaw(s, 'boardAnti') ? 60 : 50);
+export const hearingBar = (s: GameState) => (hasLaw(s, 'boardPro') ? 40 : hasLaw(s, 'boardAnti') ? 60 : 50) + LOCS[s.loc].space.hearing;
 
 /** Why you can't apply right now, or null. */
 export function permitBlock(s: GameState, key: PermitKey): string | null {
@@ -194,7 +213,7 @@ export const permitNeeds = (s: GameState, key: PermitKey) =>
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
   const n = heightOf(s, s.bld);
-  if (n >= heightLimit(s)) return ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
+  if (n >= heightLimit(s)) return s.permits.height >= LOCS[s.loc].space.heights.length - 1 ? 'Height cap for this location' : ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
   if (s.next === 'power' && s.floors.filter(f => f.type === 'power').length >= powerLimit(s)) return 'Needs an air permit';
   if (s.next === 'hall' && s.floors.filter(f => f.type === 'hall').length >= hallLimit(s)) return 'Needs more water';
   return null;
@@ -205,7 +224,7 @@ export function buildBlock(s: GameState): string | null {
 export interface Check { label: string; ok: boolean }
 
 export const inspectionName = (s: GameState) =>
-  s.loc === 'reykjavik' && Math.round(s.inspectAt / 12) % 2 === 0 ? 'EU energy report'
+  EU.includes(s.loc) && Math.round(s.inspectAt / 12) % 2 === 0 ? 'EU energy report'
     : Math.round(s.inspectAt / 12) % 2 === 0 ? 'electrical inspection' : 'fire marshal inspection';
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 export const inspectionTitle = (s: GameState) => cap(inspectionName(s));
@@ -218,7 +237,7 @@ export function checklist(s: GameState, l: Ledger = ledger(s)): Check[] {
     { label: 'A tech on every hall', ok: halls.every(o => techsOn(s, o.i) > 0) },
     { label: 'Enough power and cooling', ok: l.eff >= 0.999 },
   ];
-  if (s.loc === 'reykjavik') list.push({ label: 'PUE 1.2 or better', ok: l.pue <= 1.2 });
+  if (EU.includes(s.loc)) list.push({ label: 'PUE 1.3 or better', ok: l.pue <= 1.3 });
   if (s.loc === 'ashburn') list.push({ label: 'Under 55 dB at homes', ok: s.up.soundWalls || tallest(s) <= 5 });
   if (s.loc === 'phoenix') list.push({ label: 'Water within allocation', ok: hallCount(s) <= hallLimit(s) });
   if (s.loc === 'dalles' && hasLaw(s, 'orAbate')) list.push({ label: '10 local jobs for the tax deal', ok: locals(s) >= 10 || s.month < 36 });
@@ -321,6 +340,16 @@ export const DECISIONS: Decision[] = [
     ],
   },
   {
+    id: 'winterStorm', from: s => LOCS[s.loc].gov.utility,
+    title: () => 'Winter storm',
+    body: () => 'Freezing weather is knocking out power plants. The grid operator asks big users to get off the grid so homes stay warm.',
+    choices: [
+      { label: 'Curtail and get paid', note: 'Lose 40% of a month, paid back, trust +5', cost: s => Math.round(ledger(s).revenue * 0.4) - today(s, 300_000), apply: s => addTrust(s, 5) },
+      { label: 'Run backup generators', note: 'Fuel, air strike, trust +2', cost: s => today(s, 400_000), apply: s => { s.strikes++; addTrust(s, 2); } },
+      { label: 'Stay on the grid', note: 'Trust −10', apply: s => addTrust(s, -10) },
+    ],
+  },
+  {
     id: 'waterHearing', from: s => LOCS[s.loc].gov.local,
     title: () => 'Water hearing',
     body: s => `The city wants ${ownerName(s)} to explain how ${siteName(s)} will cut water use in a drought.`,
@@ -363,6 +392,8 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   for (const law of s.laws) {
     if (law.until <= s.month && law.until > s.month - 1) {
       if (law.id === 'azFreeze') { enact(s, 'azExempt'); note(s, 'The tax break freeze ended'); }
+      else if (law.id === 'eirgrid') headline(s, 'Breaking news', 'EirGrid lifts Dublin moratorium', ['New grid connections allowed again', 'Datacenters must bring their own backup power']);
+      else if (law.id === 'seTaxCut') { enact(s, 'seTax'); headline(s, 'Breaking news', `${G.state} ends datacenter power tax cut`, ['Datacenters pay full energy tax', 'Power costs rise about $35/MWh']); }
       else if (law.id === 'orAbate') headline(s, 'Local news', `${siteName(s)} tax deal ends`, ['Property tax goes to the full rate', `${G.local} expects a windfall`]);
       else if (LAWS[law.id] && !law.id.startsWith('board')) note(s, `${LAWS[law.id].name} ended`);
     }
@@ -384,6 +415,14 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   if (s.loc === 'ashburn' && m >= 54 && hasLaw(s, 'boardAnti') && once('pause')) {
     enact(s, 'pause', 24);
     headline(s, 'Breaking news', `${G.local} pauses new datacenters`, ['No new zoning or height approvals for 2 years', `${ownerName(s)} calls it a setback`]);
+  }
+  if (s.loc === 'newalbany' && m >= 18 && once('aepTariff')) {
+    enact(s, 'aepTariff');
+    headline(s, 'Breaking news', `${G.utility} wins datacenter tariff`, ['Big users must pay for 85% of the power they reserve', 'For 12 years, even if they use less']);
+  }
+  if (s.loc === 'dublin' && m >= 36 && once('pillar2')) {
+    enact(s, 'pillar2');
+    headline(s, 'Breaking news', 'Ireland raises tax for big companies to 15%', ['Global minimum tax takes effect', '12.5% rate ends for large groups']);
   }
   if (s.loc === 'phoenix' && m >= 24 && once('azFreeze')) {
     repeal(s, 'azExempt');
@@ -443,7 +482,8 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   // decisions, if nothing else is on the table
   if (s.complaint || s.month < s.calm) return null;
   const ready = (id: string) => (s.cooldown[id] ?? 0) <= s.month;
-  if (G.us && m >= 40 && l.gridMW >= 10 && once('largeLoad')) return 'largeLoad';
+  if (G.us && (s.loc === 'abilene' ? m >= 8 : m >= 40 && l.gridMW >= 10) && once('largeLoad')) return 'largeLoad';
+  if (s.loc === 'abilene' && mo <= 1 && ready('winterStorm') && Math.random() < 0.3) return 'winterStorm';
   if (G.us && l.strain >= 0.6 && ready('gridAlert') && Math.random() < 0.12) return 'gridAlert';
   if (s.loc === 'reykjavik' && (mo === 11 || mo <= 1) && !hasLaw(s, 'priority') && ready('dryWinter') && Math.random() < 0.3) return 'dryWinter';
   if (s.loc === 'phoenix' && mo >= 5 && mo <= 8 && !s.up.closedLoop && hallCount(s) >= 2 && ready('waterHearing') && Math.random() < 0.15) return 'waterHearing';

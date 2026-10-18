@@ -12,7 +12,7 @@ import {
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, floorLabel, heightOf, level, MAX_BUILDINGS, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money, today,
+  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, floorLabel, heightOf, level, maxBuildings, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money, today,
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
@@ -375,12 +375,12 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
 }
 
 function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
-  if (s.campus >= MAX_BUILDINGS) return null;
+  if (s.campus >= maxBuildings(s)) return null;
   const cost = buildingCost(s);
   const allowed = s.campus <= s.permits.campus;
   return (
     <div className="note">
-      <span>Real datacenters are campuses of several buildings. {s.campus}/{MAX_BUILDINGS} built.</span>
+      <span>Real datacenters are campuses of several buildings. {s.campus}/{maxBuildings(s)} fit on this lot.</span>
       <button className="pill" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
         {allowed ? `New building  ${money(cost)}` : 'Needs site plan approval (Gov tab)'}
       </button>
@@ -604,8 +604,8 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
             </button>
           );
         })}
-        <button className="up" disabled={s.cash < sub} onClick={() => dispatch({ type: 'substation' })}>
-          <b>Substation</b><small>Grid +{SUBSTATION_MW} MW. Owned: {s.substations}</small><span>{money(sub)}</span>
+        <button className="up" disabled={s.cash < sub || hasLaw(s, 'eirgrid')} onClick={() => dispatch({ type: 'substation' })}>
+          <b>Substation</b><small>Grid +{SUBSTATION_MW} MW. Owned: {s.substations}</small><span>{hasLaw(s, 'eirgrid') ? 'Blocked by grid moratorium' : money(sub)}</span>
         </button>
         <button className="up" aria-pressed={s.up.fund} onClick={() => dispatch({ type: 'fund', on: !s.up.fund })}>
           <b>Community fund</b><small>{money(COMMUNITY_FUND)}/mo to the town. Trust +8</small>
@@ -638,7 +638,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
     height: heightLimit(s) > 100 ? 'No height limit' : `Up to ${heightLimit(s)} floors`,
     air: `${powerLimit(s)} power floors (${s.floors.filter(f => f.type === 'power').length} built)`,
     water: hallLimit(s) > 100 ? 'Not limited' : `${hallLimit(s)} server halls (${hallCount(s)} built)`,
-    campus: `${s.permits.campus + 1} of ${MAX_BUILDINGS} buildings`,
+    campus: `${s.permits.campus + 1} of ${maxBuildings(s)} buildings`,
   };
   return (
     <>

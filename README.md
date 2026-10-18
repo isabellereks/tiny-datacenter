@@ -58,12 +58,16 @@ Laws follow each place's real timeline, simplified:
 
 ## Locations
 
-| | Land | Power | Cooling floor | Town grid | Notes |
-|---|---|---|---|---|---|
-| Oregon | $150k/acre | $60/MWh | $10M | 30 MW | Hydro power, lots of trees, almost no property tax |
-| Iceland | $120k/acre | $45/MWh | $7M | 24 MW | Free cooling, little water, customers pay less |
-| Arizona | $600k/acre | $75/MWh | $17M | 20 MW | Hot, uses lots of water |
-| Virginia | $2M/acre | $85/MWh | $12M | 16 MW | Customers pay the most, high property tax |
+| | Land | Power | Town grid | Room | Permits | Notes |
+|---|---|---|---|---|---|---|
+| Oregon | $150k/acre | $60/MWh | 30 MW | 3 buildings | Normal | Hydro power, lots of trees, a 15-year tax deal that needs local jobs |
+| Iceland | $120k/acre | $45/MWh | 24 MW | 2 buildings, low height near the airport | Normal | Free cooling, dry-winter power cuts, EU energy reports |
+| Arizona | $600k/acre | $75/MWh | 20 MW | 3 buildings | Normal | Hot, water permits, heat waves, a tax break the legislature freezes |
+| Virginia | $2M/acre | $85/MWh | 16 MW | 2 buildings | Slow | Customers pay the most, special exception hearings, a datacenter power tax |
+| Texas | $30k/acre | $55/MWh | 40 MW | 3 buildings, 20 floors to start | Fast | Cheap land and wind, property tax abatement, winter storms, the large-load law early |
+| Ohio | $250k/acre | $70/MWh | 22 MW | 3 buildings | Fast | Coal-heavy grid, tax abatement, a utility tariff that bills 85% of reserved power |
+| Ireland | $1.5M/acre | $150/MWh | 10 MW | 1 building, 16 floors at most | Slow | 12.5% profit tax until the global minimum tax, a grid moratorium that blocks substations |
+| Sweden | $50k/acre | $40/MWh | 35 MW | 3 buildings | Normal | Cold and cheap, a power tax cut that ends, EU energy reports |
 
 Prices, taxes, PUE and water use are rough estimates based on public figures.
 

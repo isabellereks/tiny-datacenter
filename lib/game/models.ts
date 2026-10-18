@@ -410,6 +410,10 @@ const EXTRA: Record<LocKey, Rect[]> = {
   reykjavik: [[-17, 6, -10.5, -8]],
   phoenix: [[-12.5, -2, -13, -8.5]],
   ashburn: [[-30, 30, 11, 15.5]],
+  abilene: [[-30, 30, -19, -12], [-30, 30, 11, 15.5]],
+  newalbany: [[-19, -3, -15, -7], [11, 18, -16, -9]],
+  dublin: [[-30, 30, -17, -10], [-30, 30, 11, 15.5]],
+  lulea: [[-30, 30, 11, 15.5], [11, 18, -15, -9]],
 };
 const inRect = (x: number, z: number, [x0, x1, z0, z1]: Rect, pad = 1) => x > x0 - pad && x < x1 + pad && z > z0 - pad && z < z1 + pad;
 
@@ -437,8 +441,8 @@ const GREEN = '#2E8B57';
 export function makeTree(loc: LocKey, k: number) {
   const g = new THREE.Group();
   const h = 2.4 + (k % 3) * 0.5;
-  if (loc === 'dalles') {
-    // a Douglas fir in two tiers
+  if (loc === 'dalles' || loc === 'lulea') {
+    // a fir in two tiers
     cyl(g, 0.18, 0.6, SCENERY_THREADS.bark, 0, 0.3, 0, 6);
     cone(g, 1.05, h * 0.62, GREEN, 0, 0.6 + h * 0.31, 0, 8);
     cone(g, 0.75, h * 0.55, GREEN, 0, 0.6 + h * 0.68, 0, 8);
@@ -455,6 +459,11 @@ export function makeTree(loc: LocKey, k: number) {
       cyl(g, 0.2, 0.8, GREEN, 0.6, h * 0.5, 0, 10);
       box(g, 0.6, 0.24, 0.24, GREEN, 0.3, h * 0.37, 0);
     }
+  } else if (loc === 'abilene') {
+    // mesquite: a short twisted trunk and a flat, wide crown
+    cyl(g, 0.16, 0.9, SCENERY_THREADS.bark, 0, 0.45, 0, 6);
+    box(g, 2, 0.5, 1.6, GREEN, 0, 1.1, 0);
+    if (k % 2) box(g, 1.2, 0.4, 1, GREEN, 0.4, 1.45, 0.2);
   } else {
     cyl(g, 0.2, 1, SCENERY_THREADS.bark, 0, 0.5, 0, 8);
     add(g, shared('ico1.1', () => new THREE.IcosahedronGeometry(1.1, 1)), GREEN, 0, 1.6 + (k % 2) * 0.3, 0);
@@ -555,6 +564,42 @@ function landmark(loc: LocKey, g: THREE.Group) {
       box(g, 0.1, 0.6, 0.1, 'dark', x, 0.3, z);
     }
     for (const [x, z, k] of [[10, 9, 0.45], [-14, 7, 0.35], [16, -7, 0.5]]) rock(g, x, z, k, SCENERY_THREADS.sand);
+  } else if (loc === 'abilene') {
+    // wind turbines on the horizon and a straight county road
+    for (const x of [-16, -6, 5, 15]) {
+      cyl(g, 0.18, 9, 'surf', x, 4.5, -15, 8);
+      box(g, 0.6, 0.5, 0.9, 'surf', x, 9, -15);
+      // blades get their own geometry, pivoted at the hub
+      for (const a of [0, 2.1, 4.2]) {
+        const blade = add(g, shared('blade', () => new THREE.BoxGeometry(0.3, 3.4, 0.12).translate(0, 1.7, 0)), 'surf', x, 9, -14.4);
+        blade.rotation.z = a + x * 0.3;
+      }
+    }
+    box(g, 60, 0.04, 3, '#7D8597', 0, 0.02, 13).castShadow = false;
+    for (const [x, z, k] of [[9, 9, 0.4], [-13, 8, 0.35]]) rock(g, x, z, k, SCENERY_THREADS.sand);
+  } else if (loc === 'newalbany') {
+    // corn rows and a red barn with a silo
+    for (let r = 0; r < 5; r++) box(g, 14, 0.35, 0.6, SCENERY_THREADS.corn, -11, 0.18, -13.5 + r * 1.4);
+    box(g, 4, 2.6, 3.4, SCENERY_THREADS.barn, 14, 1.3, -12.5);
+    prism(g, [[-2.2, 0], [2.2, 0], [0, 1.6]], 3.4, SCENERY_THREADS.barn, 14, 2.6, -14.2);
+    cyl(g, 0.9, 4.6, 'surf', 16.8, 2.3, -11, 12);
+  } else if (loc === 'dublin') {
+    // a row of painted terraced houses and a road
+    const doors = ['#D7263D', '#F2B43C', '#2E8B57', '#6A4BB5', '#0045D1', '#FF7A45'];
+    for (let k = 0; k < 7; k++) {
+      const x = -15 + k * 5;
+      box(g, 4.2, 2.4, 2.6, 'surf', x, 1.2, -15.5);
+      prism(g, [[-2.2, 0], [2.2, 0], [0, 1]], 2.6, 'light', x, 2.4, -16.8);
+      box(g, 0.7, 1.2, 0.1, doors[k % doors.length], x, 0.6, -14.15);
+    }
+    box(g, 60, 0.04, 3, '#7D8597', 0, 0.02, 13).castShadow = false;
+  } else if (loc === 'lulea') {
+    // a frozen river and a Falu red cottage
+    box(g, 60, 0.04, 3.2, '#E0E6EF', 0, 0.02, 13).castShadow = false;
+    box(g, 4, 2.2, 3.2, SCENERY_THREADS.barn, 14.5, 1.1, -12);
+    prism(g, [[-2.2, 0], [2.2, 0], [0, 1.3]], 3.2, 'surf', 14.5, 2.2, -13.6);
+    box(g, 0.8, 1.2, 0.1, 'surf', 14.5, 0.6, -10.35);
+    for (const [x, z, k] of [[-8, 10.6, 0.4], [6, 10.8, 0.35]]) rock(g, x, z, k, '#FFFFFF');
   } else {
     // other datacenters down the road
     box(g, 7, 2.6, 5, 'surf', -15, 1.3, -14);

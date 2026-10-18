@@ -79,6 +79,10 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
               <Fact label="Water use">{rate(L.water, 0.5, 2)}</Fact>
               <Fact label="Taxes">{rate(L.propertyTax, 0.004, 0.011)}</Fact>
               <Fact label="Pollution">{rate(L.carbon, 0.1, 0.35)}</Fact>
+              <Fact label="Room for">{L.space.buildings} {L.space.buildings === 1 ? 'building' : 'buildings'}</Fact>
+              <Fact label="Height limit">{L.space.heights[0]} floors</Fact>
+              <Fact label="Permits">{L.space.permitSpeed <= 0.7 ? 'Fast' : L.space.permitSpeed >= 1.3 ? 'Slow' : 'Normal'}</Fact>
+              <Fact label="Grid">{L.grid} MW</Fact>
             </div>
           </>
         )}
