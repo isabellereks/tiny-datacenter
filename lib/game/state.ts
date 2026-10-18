@@ -115,7 +115,7 @@ export function fresh(): GameState {
     floors,
     workers: [],
     log: [],
-    look: { stitch: 'M', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
+    look: { stitch: 'S', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
     month: 0, stageMonth: 0, trust: 70, replanted: 0, substations: 0, gridLevel: 0, goodwill: 0, grudge: 0,
     up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, fund: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,

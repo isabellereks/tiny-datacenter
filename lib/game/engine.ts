@@ -11,8 +11,9 @@ THREE.ColorManagement.enabled = false;
 
 const OPTION_X: Record<FoundKey, number> = { slab: -21, raised: -7, piles: 7, bedrock: 21 };
 const OUTSIDE_DIR = new THREE.Vector3(0.85, 0.55, 1).normalize();
-// looking almost straight into the open floors, like Tiny Tower
-const INSIDE_DIR = new THREE.Vector3(0.16, 0.08, 1).normalize();
+// looking straight into the open floors, like Tiny Tower. Level enough that the floors
+// themselves don't show, since a floor seen edge-on is nothing but outline.
+const INSIDE_DIR = new THREE.Vector3(0.16, 0.03, 1).normalize();
 const GROUND_R = 19;
 
 export interface EngineHooks {
@@ -72,7 +73,7 @@ export class Engine {
   private textTex: THREE.CanvasTexture | null = null;
   private grid = { n: 200, m: 150, cell: 5, vn: 200, vm: 150, textBottom: 0, textRows: 0 };
   private insets = { top: 80, bottom: 40 };
-  private anim: Animated = { leds: [], fans: [], alarms: [], vent: new THREE.Vector3() };
+  private anim: Animated = { leds: [], fans: [], rotors: [], alarms: [], vent: new THREE.Vector3() };
   private floorGroups: THREE.Group[] = [];
   private crowd = new THREE.Group();
   private marchers: Marcher[] = [];
@@ -113,7 +114,7 @@ export class Engine {
     this.controls = new OrbitControls(this.camera, canvas);
     Object.assign(this.controls, {
       enableDamping: true, dampingFactor: 0.08, enablePan: false, enableZoom: true,
-      minZoom: 0.6, maxZoom: 2.5, minPolarAngle: 0.45, maxPolarAngle: 1.52, autoRotateSpeed: 0.8,
+      minZoom: 0.6, maxZoom: 2.5, minPolarAngle: 0.45, maxPolarAngle: 1.56, autoRotateSpeed: 0.8,
     });
     this.controls.addEventListener('start', () => { this.hooks.onFirstInteraction(); });
 
@@ -238,7 +239,7 @@ export class Engine {
   rebuild() {
     const s = this.s;
     clear(this.building);
-    this.anim = { leds: [], fans: [], alarms: [], vent: new THREE.Vector3() };
+    this.anim = { leds: [], fans: [], rotors: [], alarms: [], vent: new THREE.Vector3() };
     this.workers.clear();
     this.buildFloor = null;
     this.floorGroups = [];
@@ -542,6 +543,7 @@ export class Engine {
       m.legs[1].rotation.x = -swing;
     }
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
+    for (const f of this.anim.rotors) f.rotation.z -= dt * 4;
     const blink = Math.floor(t * 3) % 2 === 0;
     for (const a of this.anim.alarms) a.visible = blink;
     this.ledClock -= dt;

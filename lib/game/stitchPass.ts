@@ -94,7 +94,11 @@ export function createStitchMaterial() {
         float lapX = abs(dr + dl - 2.0 * d), lapY = abs(du + dd - 2.0 * d);
         if ((lapX > uDepthEdge && max(dr, dl) - d > uDepthEdge) || (lapY > uDepthEdge && max(du, dd) - d > uDepthEdge)) return vec4(uOutline, 1.0);
         if (dot(n, nrm(uv + r)) < 0.8 || dot(n, nrm(uv + u)) < 0.8) return vec4(uOutline, 1.0);
-        if (distance(rr.rg, texture2D(tRole, uv + r).rg) > 0.03 || distance(rr.rg, texture2D(tRole, uv + u).rg) > 0.03) return vec4(uOutline, 1.0);
+        // A colour change only gets a line where something stands proud of its neighbour.
+        // Flush parts like status lights, signs and windows read as plain patches of thread.
+        bool proudX = abs(dr + dl - 2.0 * d) > 0.15 || abs(dr - d) > 0.6;
+        bool proudY = abs(du + dd - 2.0 * d) > 0.15 || abs(du - d) > 0.6;
+        if ((proudX && distance(rr.rg, texture2D(tRole, uv + r).rg) > 0.03) || (proudY && distance(rr.rg, texture2D(tRole, uv + u).rg) > 0.03)) return vec4(uOutline, 1.0);
 
         int role = int(floor(rr.r * 8.0 + 0.5));
         float s = dot(n, uLightDir);
