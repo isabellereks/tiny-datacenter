@@ -80,6 +80,10 @@ npm run dev
 
 Then open http://localhost:3000.
 
+## Calls
+
+People from town phone you about what you are actually doing to them: cut trees, the hum, power bills, water, jobs, the skyline, a strike. Angrier towns call more. Answering helps a little; declining or letting it ring costs trust. Now and then someone calls to say thanks.
+
 ## Share
 
 Share on X (View tab, or the end screen) stitches a card from your datacenter with your run's stats. On a phone it goes straight to the share sheet; on a computer the image downloads and X opens with the post text ready.

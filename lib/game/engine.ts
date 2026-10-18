@@ -26,6 +26,8 @@ export interface EngineHooks {
   onPickFoundation: (key: FoundKey) => void;
   onFirstInteraction: () => void;
   onSave: () => void;
+  /** what the pointer is over, for a label at the bottom of the screen */
+  onHover: (what: { found?: FoundKey; floor?: number } | null) => void;
 }
 
 interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number }
@@ -100,6 +102,7 @@ export class Engine {
   private ledClock = 0;
   private saveClock = 0;
   private hover: FoundKey | null = null;
+  private hoverKey = '';
   private upc = 0.2; // world units per stitch
   private fitTween: { t0: number; fromU: number; toU: number; fromT: THREE.Vector3; toT: THREE.Vector3 } | null = null;
   private raycaster = new THREE.Raycaster();
@@ -457,6 +460,9 @@ export class Engine {
     const d = this.pick(e);
     this.hover = this.picking && d?.found ? d.found : null;
     this.renderer.domElement.style.cursor = d && (d.found || d.floor != null) ? 'pointer' : 'grab';
+    const what = this.picking ? (d?.found ? { found: d.found } : null) : d?.floor != null ? { floor: d.floor } : null;
+    const key = what ? `${what.found ?? ''}${what.floor ?? ''}` : '';
+    if (key !== this.hoverKey) { this.hoverKey = key; this.hooks.onHover(what); }
   };
 
   private loop = (now: number) => {

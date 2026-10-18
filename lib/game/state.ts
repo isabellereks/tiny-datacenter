@@ -5,6 +5,8 @@ import {
 } from './data';
 
 /** `b` is which building on the campus the floor is in (older saves: 0). */
+import type { Call } from './calls';
+
 export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number; b?: number }
 
 export interface Worker {
@@ -129,6 +131,8 @@ export interface GameState {
   bld: number;
   /** index into SPEEDS: 0 paused, 1 normal, 2 fast, 3 fastest */
   speed: number;
+  /** someone from town on the phone */
+  call: Call | null;
   /** halls running hot for a while */
   boosts: { floor: number; until: number }[];
 }
@@ -180,7 +184,7 @@ export function fresh(): GameState {
     laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0, campus: 0 }, applying: [], permitLog: {},
     inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
     staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0, cuts: 0 },
-    boosts: [], campus: 1, bld: 0, speed: 1,
+    boosts: [], campus: 1, bld: 0, speed: 1, call: null,
   };
 }
 
@@ -250,7 +254,7 @@ export function money(n: number): string {
   const a = Math.abs(n);
   if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(a >= 1e11 ? 0 : a >= 1e10 ? 1 : 2)}B`;
   if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e8 ? 0 : 1)}M`;
-  if (a >= 1e3) return `${sign}$${Math.round(a / 1e3)}k`;
+  if (a >= 1e3) return `${sign}$${Math.round(a / 1e3)}K`;
   return `${sign}$${Math.round(a)}`;
 }
 

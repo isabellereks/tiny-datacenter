@@ -38,7 +38,15 @@ body { background: var(--cloth); color: var(--ink); font-family: var(--font); fo
 button, input { font: inherit; color: inherit; }
 button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; }
 
-.app { position: fixed; inset: 0; font-family: var(--pixel), var(--font); }
+.app { position: fixed; inset: 0; font-family: var(--body), var(--font); }
+/* the pixel face for things big enough to read in it: titles, names, money and buttons */
+.app h1, .app h2, .app b, .app button, .money, .compact .day, .compact .cash, .compact .rate, .stepno, .goal-no, .reward,
+.tabs, .label, .from, .floorhead b, .tabhead b, .fact b, .budget, .opt-top, .chip-price, .delta, .num, .score, .speed,
+.row.strong, .stats, .flist .fno, .flist .fname, .flist .fstat, .permit-head, .permit-rows b, .share-text {
+  font-family: var(--pixel), var(--font);
+}
+/* small print inside buttons stays in the readable face */
+.app button small, .app .chip small:not(.chip-price), .app .up small { font-family: var(--body), var(--font); }
 /* pixel faces look wrong with tight tracking */
 .app h1, .app h2, .money b, .count b { letter-spacing: 0 !important; }
 .stage { position: absolute; inset: 0; overflow: hidden; }
@@ -292,6 +300,28 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .fdetail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--isl-dim); font-size: 12.5px; }
 .log li:first-child { color: var(--isl-text); }
+
+/* ---------- hover label ---------- */
+.hover-label { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 15; pointer-events: none; background: #050505; color: #fff; border-radius: 999px; padding: 7px 14px; font-size: 13px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 20px rgba(0, 0, 0, .15); animation: fade .15s ease both; }
+.hover-label.top { bottom: auto; top: 24px; }
+@media (hover: none) { .hover-label { display: none; } }
+
+/* ---------- phone calls ---------- */
+.call { position: fixed; right: 16px; bottom: 16px; z-index: 30; width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: 24px; background: #050505; color: #fff; box-shadow: 0 10px 40px rgba(0, 0, 0, .25); animation: rise-r .35s var(--ease) both; }
+.call.ringing { animation: rise-r .35s var(--ease) both, buzz 1.2s .4s infinite; }
+.call-top { display: flex; align-items: center; gap: 12px; }
+.call-top b { display: block; font-size: 15px; }
+.call-state { font-size: 12px; color: rgba(255, 255, 255, .6); }
+/* a little pixel person: hair, face, shirt */
+.caller { width: 40px; height: 40px; border-radius: 12px; flex: none; image-rendering: pixelated;
+  background: linear-gradient(#1F2A44 0 22%, #F2C9A0 22% 58%, var(--shirt, #D7263D) 58%); }
+.caller.glad { --shirt: #2E8B57; }
+.call-line { margin: 0; font-size: 14px; line-height: 1.45; background: #fff; color: #050505; border-radius: 16px 16px 16px 4px; padding: 10px 12px; }
+.call-foot { display: flex; gap: 8px; justify-content: flex-end; }
+.call .pill.answer { background: #30D158; color: #04260F; }
+.call .pill.decline { background: #FF453A; color: #fff; }
+@keyframes rise-r { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes buzz { 0%, 60%, 100% { transform: none; } 65% { transform: rotate(-1.5deg); } 70% { transform: rotate(1.5deg); } 75% { transform: rotate(-1.5deg); } 80% { transform: rotate(1deg); } }
 
 /* ---------- share ---------- */
 .share-back { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgba(31, 42, 68, .35); animation: fade .25s ease both; }

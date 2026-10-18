@@ -1,6 +1,6 @@
 'use client';
 
-import { Pixelify_Sans, Silkscreen } from 'next/font/google';
+import { Nunito, Pixelify_Sans, Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
 import { Engine } from '@/lib/game/engine';
@@ -12,10 +12,15 @@ import { Island, type Tab } from './Island';
 import { News, storyFor, type Story } from './News';
 import { SetupCard } from './SetupCard';
 import { Share } from './Share';
+import { HoverLabel } from './HoverLabel';
+import { Call } from './Call';
+import type { FoundKey } from '@/lib/game/data';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 /** UI text: a pixel face that stays readable at small sizes. */
 const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
+/** Small text: a rounded sans that stays readable where the pixel face blurs. */
+const body = Nunito({ subsets: ['latin'], variable: '--body', weight: ['400', '600', '700'] });
 const ISLAND_SPACE = 76;
 
 export default function Game() {
@@ -33,6 +38,7 @@ export default function Game() {
   const [goalH, setGoalH] = useState(0);
   const [flash, setFlash] = useState<Story | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [hovered, setHovered] = useState<{ found?: FoundKey; floor?: number } | null>(null);
   const lastComplaint = useRef<string | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const redraw = useCallback(() => setTick(t => t + 1), []);
@@ -91,6 +97,7 @@ export default function Game() {
         if (s?.phase === 'play' && s.spin) { s.spin = false; redraw(); }
       },
       onSave: () => save(stateRef.current!),
+      onHover: setHovered,
     }, pixel.style.fontFamily);
     engineRef.current = engine;
     redraw();
@@ -166,11 +173,11 @@ export default function Game() {
 
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 
-  if (!s) return <main className={`app ${ui.variable}`}><div className="stage" ref={hostRef} /></main>;
+  if (!s) return <main className={`app ${ui.variable} ${body.variable}`}><div className="stage" ref={hostRef} /></main>;
   const l = ledger(s);
   const imp = impact(s, l);
   return (
-    <main className={`app ${ui.variable}`}>
+    <main className={`app ${ui.variable} ${body.variable}`}>
       <div className="stage" ref={hostRef} />
       {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
       {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
@@ -184,6 +191,8 @@ export default function Game() {
       )}
       {phase === 'play' && !open && !flash && <GoalCard s={s} onHeight={setGoalH} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
+      {hovered && <HoverLabel s={s} what={hovered} />}
+      {phase === 'play' && s.call && <Call key={s.call.id} call={s.call} dispatch={dispatch} font={pixel.className} />}
       {sharing && (
         <Share s={s} capture={() => engineRef.current?.capture() ?? null} font={pixel.style.fontFamily} ui={ui.style.fontFamily}
           onClose={() => setSharing(false)} />

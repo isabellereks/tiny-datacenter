@@ -20,6 +20,7 @@ import {
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
+import { Cash, Count } from './Num';
 import { Threads } from './Threads';
 
 export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'look';
@@ -151,8 +152,8 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
       <button className="compact" onClick={onOpen} aria-label="Open controls">
         <MonthRing month={s.month} />
         <span className="day">{dateLabel(s.month)}</span>
-        <span className="cash">{money(s.cash)}</span>
-        <span className={l.net >= 0 ? 'rate' : 'rate neg'}>{perMonth(l.net)}</span>
+        <Cash className="cash" value={s.cash} />
+        <Cash className={l.net >= 0 ? 'rate' : 'rate neg'} value={l.net} perMonth signed />
         <Hearts trust={s.trust} />
         {warn && <span className="flag">{warn}</span>}
       </button>
@@ -250,11 +251,11 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
       <div className="ex-head">
         <div>
           <span className="day">{dateLabel(s.month)}{s.look.name.trim() ? `, ${s.look.name.trim()}` : ''}</span>
-          <div className="money"><b>{money(s.cash)}</b><span className={l.net >= 0 ? undefined : 'neg'}>{perMonth(l.net)}</span></div>
+          <div className="money"><b><Cash value={s.cash} /></b><Cash className={l.net >= 0 ? undefined : 'neg'} value={l.net} perMonth signed /></div>
         </div>
         <div className="ex-side">
           <SpeedButton s={s} dispatch={dispatch} />
-          <span className="score">Rating {r.total}</span>
+          <span className="score">Rating <Count value={r.total} /></span>
           <button className="close" onClick={onClose} aria-label="Close">
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>

@@ -1,6 +1,7 @@
 import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
+import { callMonth } from './calls';
 import { floorLabel, gridLevel, hallCount, inflation, isBoosted, isBroken, locals, overseas, tallest, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
@@ -336,6 +337,7 @@ export function endOfMonth(s: GameState) {
   if (s.debt >= 3) { endGame(s, 'broke'); return; }
 
   const decision = govMonth(s, l) ?? staffMonth(s);
+  callMonth(s);
   if (s.phase !== 'play') return;
   if (decision) { s.complaint = decision; return; }
   if (s.complaint || s.month < s.calm) return;

@@ -8,6 +8,7 @@ import {
 } from '@/lib/game/data';
 import { impact } from '@/lib/game/events';
 import { floorPrice, landCost, ledger, money, setupCost, type GameState } from '@/lib/game/state';
+import { Cash } from './Num';
 import { Threads } from './Threads';
 
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
@@ -56,7 +57,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
       <div className="setup-top">
         <span className="stepno">Step {i + 1} of {SETUP.length}</span>
         <div className="budget">
-          <span>{over ? <b className="neg">{money(-cost.left)} over budget</b> : <>Budget <b>{money(cost.left)}</b> / {money(BUDGET)}</>}</span>
+          <span>{over ? <b className="neg">{money(-cost.left)} over budget</b> : <>Budget <b><Cash value={cost.left} /></b> / {money(BUDGET)}</>}</span>
           <div className="bbar"><i style={{ transform: `scaleX(${Math.min(1, cost.total / BUDGET)})` }} className={over ? 'neg' : undefined} /></div>
         </div>
       </div>
@@ -164,7 +165,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
       </div>
 
       {s.step !== 'name' && <div className="forecast" aria-label="Forecast">
-        <Fact label="Profit/mo">{hasHall && l.eff > 0 ? <span className={l.net < 0 ? 'neg' : undefined}>{money(l.net)}</span> : <span className="neg">$0</span>}</Fact>
+        <Fact label="Profit/mo">{hasHall && l.eff > 0 ? <Cash className={l.net < 0 ? 'neg' : undefined} value={l.net} /> : <span className="neg">$0</span>}</Fact>
         <Fact label="Power">{l.hallMW.toFixed(1)} / {l.powerMW.toFixed(1)} MW</Fact>
         <Fact label="Cooling">{l.hallMW.toFixed(1)} / {l.coolMW.toFixed(1)} MW</Fact>
         <Fact label="Trees cut">{imp.cleared}/{imp.trees}</Fact>

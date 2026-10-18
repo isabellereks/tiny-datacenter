@@ -34,6 +34,7 @@ export type Action =
   | { type: 'boost'; floor: number }
   | { type: 'addBuilding' }
   | { type: 'speed'; speed: number }
+  | { type: 'call'; act: 'answer' | 'decline' | 'missed' | 'hangup' }
   | { type: 'bld'; b: number }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
@@ -270,6 +271,16 @@ export function apply(s: GameState, a: Action): Effects {
       s.stageMonth = s.month;
       note(s, `Building ${s.campus} started`);
       return { rebuild: true, refit: true };
+    }
+    case 'call': {
+      const c = s.call;
+      if (!c) return {};
+      // picking up and listening helps a little; ignoring people stings
+      if (a.act === 'answer') { c.answered = true; if (c.mood === 'mad') s.trust = Math.min(100, s.trust + 1); return {}; }
+      if (a.act === 'decline' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 1); note(s, `Declined a call from ${c.who}. Trust −1`); }
+      if (a.act === 'missed' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 2); note(s, `Missed a call from ${c.who}. Trust −2`); }
+      s.call = null;
+      return {};
     }
     case 'speed':
       s.speed = Math.max(0, Math.min(3, a.speed));
