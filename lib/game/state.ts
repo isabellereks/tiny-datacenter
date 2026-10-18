@@ -1,5 +1,5 @@
 import {
-  BUDGET, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LOCS, COMMUNITY_FUND, POWER_MW, SHAPES, SOLAR_MW, SUBSTATION_MW, TECH_SALARY, TYPES,
+  BUDGET, COOL_MW, CUSTS, FH, FOUND_ORDER, FOUNDS, FW, HOURS_PER_MONTH, LOCS, COMMUNITY_FUND, HIRE_FEE, POWER_MW, SHAPES, SOLAR_MW, SUBSTATION_MW, TECH_SALARY, TYPES,
   type BuildableType, type CustKey, type Fill, type FloorType, type FoundKey,
   type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
@@ -25,6 +25,19 @@ export type PermitKey = 'zoning' | 'height' | 'air' | 'water';
 export type Board = 'pro' | 'neutral' | 'anti';
 export interface Law { id: string; until: number }
 export interface Headline { id: number; tag: string; headline: string; ticker: string[] }
+
+export interface Staff {
+  /** how your techs feel, 0 to 100 */
+  morale: number;
+  /** 0 standard pay, 1 +10%, 2 +20% */
+  pay: number;
+  health: boolean; retire: boolean; overtime: boolean;
+  union: boolean; strike: boolean;
+  /** lingering lift from team events, or anger from saying no; fades */
+  cheer: number;
+  /** months in a row morale has been low */
+  low: number;
+}
 
 export interface Upgrades {
   soundWalls: boolean; closedLoop: boolean; renewables: boolean;
@@ -98,6 +111,9 @@ export interface GameState {
   /** no new alert before this month, so decisions don't pile up */
   calm: number;
   news: Headline | null;
+  staff: Staff;
+  /** halls running hot for a while */
+  boosts: { floor: number; until: number }[];
 }
 
 /** One month of the datacenter's books, plus the physical numbers behind them. */
@@ -146,6 +162,8 @@ export function fresh(): GameState {
     books: null, over: null,
     laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0 }, applying: [],
     inspectAt: 10, electionAt: 24, board: 'neutral', fired: [], strikes: 0, calm: 0, news: null,
+    staff: { morale: 65, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0 },
+    boosts: [],
   };
 }
 
@@ -159,7 +177,7 @@ export function load(): GameState {
       if (saved.phase === 'play' && !saved.permits && saved.floors) {
         const n = saved.floors.length, power = saved.floors.filter(f => f.type === 'power').length;
         saved.permits = {
-          zoning: (['slab', 'raised', 'piles', 'bedrock'] as FoundKey[]).indexOf(saved.found ?? 'slab'),
+          zoning: FOUND_ORDER.indexOf(saved.found ?? 'slab'),
           height: n > 20 ? 2 : n > 12 ? 1 : 0, air: Math.max(0, Math.ceil((power - 2) / 2)), water: 99,
         };
         saved.inspectAt = (saved.month ?? 0) + 6;
@@ -168,7 +186,7 @@ export function load(): GameState {
       return {
         ...base, ...saved,
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
-        permits: { ...base.permits, ...saved.permits },
+        permits: { ...base.permits, ...saved.permits }, staff: { ...base.staff, ...saved.staff },
         build: null,
       };
     }
@@ -179,6 +197,20 @@ export function load(): GameState {
 export function save(s: GameState): void {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
 }
+
+export const isBoosted = (s: GameState, i: number) => s.boosts.some(b => b.floor === i && b.until > s.month);
+
+/** Pay level and deals that raise every tech's wage. */
+export const wageMult = (s: GameState) =>
+  [1, 1.1, 1.2][s.staff.pay] * (s.staff.union ? 1.15 : 1) * (s.staff.overtime ? 1.3 : 1);
+/** Monthly benefits per tech. */
+export const benefitsPer = (s: GameState) => (s.staff.health ? 1_500 : 0) + (s.staff.retire ? 600 : 0);
+/** One tech's wage: each tech you add pushes everyone's wage up 3%, as the local labor pool runs dry. */
+export const wageFor = (s: GameState, n = s.workers.length) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1)) * wageMult(s);
+/** Monthly staff cost before inflation. */
+export const payroll = (s: GameState, n = s.workers.length) => n * (wageFor(s, n) + benefitsPer(s));
+/** Recruiting gets harder as you hire more. */
+export const hireFee = (s: GameState) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length));
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -237,8 +269,10 @@ export const hallCount = (s: GameState) => s.floors.filter(f => f.done && f.type
 export function utilization(s: GameState, i: number) {
   const K = CUSTS[s.cust], Sh = SHAPES[s.shape];
   if (!techsOn(s, i)) return 0;
+  // overtime squeezes more out of a hall, a boost runs it hot, a strike nearly stops it
+  const push = (s.staff.overtime ? 1.1 : 1) * (isBoosted(s, i) ? 1.25 : 1) * (s.staff.strike ? 0.3 : 1);
   const breaks = s.floors.filter(f => f.done && f.type === 'break').length;
-  return Math.min(1, K.base + K.per * techsOn(s, i) * Sh.crew * (1 + 0.1 * breaks));
+  return Math.min(1, K.base + K.per * techsOn(s, i) * Sh.crew * (1 + 0.1 * breaks)) * push;
 }
 
 export function ledger(s: GameState): Ledger {
@@ -278,7 +312,7 @@ export function ledger(s: GameState): Ledger {
   const power = infl * mwh * rate;
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
-  const staff = infl * s.workers.length * TECH_SALARY;
+  const staff = infl * payroll(s);
   const upkeep = (infl * assets(s) * 0.015) / 12;
   const fund = s.up.fund ? COMMUNITY_FUND : 0;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves

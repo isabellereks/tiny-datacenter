@@ -82,6 +82,15 @@ export function makeFoundation(key: FoundKey, chosen = false) {
       cyl(g, 0.3, 1.4, 'surf', a * (W / 2 - 0.6), 0.7, b * (D / 2 - 0.6), 12);
     }
     box(g, W, 0.4, D, top, 0, 1.6, 0);
+  } else if (key === 'caisson') {
+    for (const [a, b] of [[-1, -1], [0, -1], [1, -1], [-1, 1], [0, 1], [1, 1]]) {
+      cyl(g, 0.45, 1.2, 'dark', a * (W / 2 - 0.4), 0.6, b * (D / 2 - 0.4), 12);
+    }
+    box(g, W + 1.6, 0.4, D + 1.6, 'surf', 0, 1.4, 0);
+  } else if (key === 'megaframe') {
+    box(g, W + 3, 0.6, D + 3, 'surf', 0, 0.3, 0);
+    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(g, 1.2, 1.2, 1.2, 'dark', a * (W / 2), 1.2, b * (D / 2));
+    box(g, W + 1.2, 0.2, D + 1.2, top, 0, 1.9, 0);
   } else {
     box(g, W + 2.2, 0.5, D + 2.2, 'surf', 0, 0.25, 0);
     box(g, W + 1.1, 0.5, D + 1.1, 'surf', 0, 0.75, 0);

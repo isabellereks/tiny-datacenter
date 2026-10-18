@@ -1,4 +1,5 @@
-import { FOUNDS, LOCS, type FoundKey } from './data';
+import { FOUND_ORDER, FOUNDS, LOCS, type FoundKey } from './data';
+import { STAFF_DECISIONS } from './staff';
 import {
   hallCount, hasLaw, ledger, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
@@ -10,7 +11,6 @@ import {
  * trust, and laws that come and go on each location's timeline.
  */
 
-const FOUND_ORDER: FoundKey[] = ['slab', 'raised', 'piles', 'bedrock'];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const addTrust = (s: GameState, d: number) => { s.trust = clamp(s.trust + d, 0, 100); };
 const FOREVER = 1e9;
@@ -85,9 +85,9 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
     max: () => FOUND_ORDER.length - 1,
   },
   height: {
-    name: 'Height permit', fee: 750_000, wait: 4, here: () => true, max: () => 2,
-    by: s => (s.permits.height === 0 ? LOCS[s.loc].gov.local : LOCS[s.loc].gov.us ? 'FAA' : 'Icelandic Transport Authority'),
-    what: s => (s.permits.height === 0 ? 'Up to 20 floors' : s.permits.height === 1 ? 'Over 20 floors, flight safety review' : 'No height limit'),
+    name: 'Height permit', fee: 750_000, wait: 4, here: () => true, max: () => 3,
+    by: s => (s.permits.height === 1 ? (LOCS[s.loc].gov.us ? 'FAA' : 'Icelandic Transport Authority') : LOCS[s.loc].gov.local),
+    what: s => ['Up to 20 floors', 'Up to 40 floors, flight safety review', 'Skyscraper review, no limit', 'No height limit'][s.permits.height],
   },
   air: {
     name: 'Air permit', by: s => LOCS[s.loc].gov.air, fee: 150_000, wait: 3, here: () => true, max: () => 20,
@@ -100,7 +100,7 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
 };
 
 /** Floors allowed by your height permit. */
-export const heightLimit = (s: GameState) => [12, 20, 999][Math.min(2, s.permits.height)];
+export const heightLimit = (s: GameState) => [12, 20, 40, 999][Math.min(3, s.permits.height)];
 /** Power floors your air permit covers; each has diesel backup generators. */
 export const powerLimit = (s: GameState) => 2 + 2 * s.permits.air;
 /** Server halls your water allocation covers (only in Arizona, and not once you use water-saving cooling). */
@@ -166,7 +166,7 @@ function decidePermit(s: GameState, key: PermitKey) {
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
   const n = s.floors.length;
-  if (n >= heightLimit(s)) return s.permits.height === 0 ? 'Needs a height permit' : 'Needs flight safety review';
+  if (n >= heightLimit(s)) return ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
   if (s.next === 'power' && s.floors.filter(f => f.type === 'power').length >= powerLimit(s)) return 'Needs an air permit';
   if (s.next === 'hall' && s.floors.filter(f => f.type === 'hall').length >= hallLimit(s)) return 'Needs more water';
   return null;
@@ -285,10 +285,13 @@ export const DECISIONS: Decision[] = [
   },
 ];
 
+/** Every decision that can pop up: government, utilities and your own staff. */
+export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS];
+
 export const decisionCost = (s: GameState, c: GovChoice) => (c.cost ? c.cost(s) : 0);
 
 export function resolveDecision(s: GameState, choice: number) {
-  const d = DECISIONS.find(x => x.id === s.complaint);
+  const d = ALL_DECISIONS().find(x => x.id === s.complaint);
   if (!d) return false;
   const c = d.choices[choice];
   const cost = decisionCost(s, c);

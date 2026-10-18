@@ -22,12 +22,18 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
 - If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
 
+## Staff
+
+Each tech you add pushes everyone's wage up 3% as the local labor pool runs dry, and recruiting gets pricier too. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
+
+Boosts: run a server hall hot for 3 months (+25% output, more power and outages), turn on overtime (+10% output, +30% wages, lower morale), or hold a team event.
+
 ## Government
 
 Everything big needs a permit, and permits take months. The Gov tab shows each one, what it allows, what it costs and how long it takes.
 
 - **Zoning approval** from the county for a bigger foundation, decided at a hearing that needs enough trust. In Loudoun County it takes 6 months, after its 2025 special exception rule.
-- **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
+- **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority, and past 40 a skyscraper review. Deep caissons (50 floors) and a mega-frame core (99) unlock after bedrock. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
 - **Air permits** for the diesel backup generators on power floors. Three generator violations and the regulator stops approving them.
 - **Water allocation** in Phoenix for more server halls, unless you switch to water-saving cooling.
 

@@ -3,8 +3,8 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '@/lib/game/actions';
 import {
-  BUILDABLE, COMMUNITY_FUND, COOL_MW, CUSTS, FOUNDS, HIRE_FEE, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
-  SHAPES, STITCH, SUBSTATION_MW, TECH_SALARY, TYPES,
+  BUILDABLE, COMMUNITY_FUND, COOL_MW, CUSTS, FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
+  SHAPES, STITCH, SUBSTATION_MW, TYPES,
   type BuildableType, type StitchSize,
 } from '@/lib/game/data';
 import {
@@ -12,13 +12,14 @@ import {
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, inflation, isBroken, ledger, money, today,
+  GRID_LABEL, buildCost, buildDelta, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, wageFor, ledger, money, today,
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
   DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, hearingBar, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
+import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
 import { Threads } from './Threads';
 
 export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'look';
@@ -114,7 +115,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   // the bar warns about the most urgent problem
   const downAlone = s.broken.some(b => techsOn(s, b.floor) === 0);
   const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
-  const warn = downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
+  const warn = s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
 
   let body: ReactNode;
   if (over) {
@@ -244,7 +245,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
       <div className="ex-body" key={tab}>
         {tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'floor' && <FloorTab s={s} l={l} dispatch={dispatch} />}
-        {tab === 'crew' && <StaffTab s={s} dispatch={dispatch} onTab={onTab} />}
+        {tab === 'crew' && <StaffTab s={s} l={l} dispatch={dispatch} onTab={onTab} />}
         {tab === 'money' && <MoneyTab s={s} l={l} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
@@ -391,12 +392,13 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               <span>Techs {techs}/{MAX_TECHS}</span>
             </div>
             {techs < MAX_TECHS ? (
-              <button className="pill white" disabled={s.cash < today(s, HIRE_FEE)} onClick={() => dispatch({ type: 'hire' })}>
-                Hire {money(today(s, HIRE_FEE))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
+              <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })}>
+                Hire {money(hireFee(s))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
               </button>
             ) : <span className="muted">Full crew</span>}
           </div>
-          <p className="muted small">Salary {money(today(s, TECH_SALARY))}/mo. Techs fix outages for free.</p>
+          <p className="muted small">Wage {money(today(s, wageFor(s, s.workers.length + 1)))}/mo each after this hire. Techs fix outages for free.</p>
+          <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
       <Threads label="Floor color" value={f.fill} onPick={fill => dispatch({ type: 'fill', fill })} />
@@ -405,13 +407,59 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
   );
 }
 
-function StaffTab({ s, dispatch, onTab }: { s: GameState; dispatch: (a: Action) => void; onTab: (t: Tab) => void }) {
+function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch: (a: Action) => void; onTab: (t: Tab) => void }) {
   const hoped = hopedJobs(s);
+  const S = s.staff;
+  const mood = moraleMood(s);
+  const n = s.workers.length;
+  const teamWait = Math.max(0, Math.ceil((s.cooldown.team ?? 0) - s.month));
+  const dir = mood.target > S.morale + 1 ? '▲' : mood.target < S.morale - 1 ? '▼' : '–';
   return (
     <>
-      <Meter label="Jobs" value={s.workers.length} max={Math.max(hoped, s.workers.length, 1)} text={`${s.workers.length}/${hoped}`} bad={s.workers.length < hoped * 0.5} />
-      <p className="muted small">Town wants 2 jobs per hall.</p>
-      {s.workers.length ? (
+      {S.strike && <p className="warn">On strike. Halls run at 30% until you settle.</p>}
+      <Meter label="Morale" value={S.morale} max={100} text={`${Math.round(S.morale)} ${dir} ${Math.round(mood.target)}`} bad={S.morale < 35} marks={[mood.target]} />
+      <div className="stats"><span>Union drive below 35</span><span className="bad">Strike below 20</span>{S.union && <span className="good">Union contract</span>}</div>
+      <div className="books">
+        <Row label="Base" value={String(mood.base)} />
+        {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
+          <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
+        ))}
+      </div>
+
+      <span className="label">Pay</span>
+      <div className="seg three" role="group" aria-label="Pay">
+        {['Standard', '+10%', '+20%'].map((x, k) => (
+          <button key={x} aria-pressed={S.pay === k} disabled={S.union && k < S.pay} onClick={() => dispatch({ type: 'pay', level: k })}>{x}</button>
+        ))}
+      </div>
+      <div className="ups">
+        <button className="up" aria-pressed={S.health} disabled={S.union && S.health} onClick={() => dispatch({ type: 'benefit', key: 'health', on: !S.health })}>
+          <b>Health insurance</b><small>{money(today(s, 1_500))} per tech a month. Morale +10</small><span>{S.health ? (S.union ? 'In union contract' : 'On') : 'Off'}</span>
+        </button>
+        <button className="up" aria-pressed={S.retire} onClick={() => dispatch({ type: 'benefit', key: 'retire', on: !S.retire })}>
+          <b>Retirement plan</b><small>{money(today(s, 600))} per tech a month. Morale +5</small><span>{S.retire ? 'On' : 'Off'}</span>
+        </button>
+      </div>
+
+      <span className="label">Boosts</span>
+      <div className="ups">
+        <button className="up" aria-pressed={S.overtime} onClick={() => dispatch({ type: 'benefit', key: 'overtime', on: !S.overtime })}>
+          <b>Overtime</b><small>Halls +10%. Wages +30%. Morale −12</small><span>{S.overtime ? 'On' : 'Off'}</span>
+        </button>
+        <button className="up" disabled={!n || teamWait > 0 || s.cash < teamEventCost(s)} onClick={() => dispatch({ type: 'teamEvent' })}>
+          <b>Team event</b><small>Morale +10, fades over time</small><span>{teamWait ? `Ready in ${teamWait} mo` : money(teamEventCost(s))}</span>
+        </button>
+      </div>
+
+      <span className="label">Techs {n}</span>
+      <div className="books">
+        <Row label="Payroll" value={`${money(l.staff)}/mo`} />
+        <Row label="Wage" value={`${money(today(s, wageFor(s)))}/mo`} sub=" rises 3% per tech" />
+        <Row label="Next hire" value={hireFee(s) ? money(hireFee(s)) : '$0'} />
+        <Row label="Jobs the town wants" value={`${n}/${hoped}`} neg={n < hoped * 0.5} />
+        <Row label="Break rooms" value={`${breakRooms(s)}/${breaksNeeded(s)}`} neg={breakRooms(s) < breaksNeeded(s)} sub=" 1 per 8 techs" />
+      </div>
+      {n ? (
         <ul className="list">
           {[...s.workers].sort((a, b) => b.floor - a.floor).map(w => (
             <li key={w.id}>
@@ -423,7 +471,6 @@ function StaffTab({ s, dispatch, onTab }: { s: GameState; dispatch: (a: Action) 
           ))}
         </ul>
       ) : <p className="muted">No techs. Hire them on a server hall.</p>}
-      <p className="muted small">Payroll {money(today(s, s.workers.length * TECH_SALARY))}/mo</p>
     </>
   );
 }
@@ -528,7 +575,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   const voteIn = Math.max(0, Math.ceil(s.electionAt - s.month));
   const laws = activeLaws(s);
   const limits: Record<string, string> = {
-    zoning: `Up to ${FOUNDS[(['slab', 'raised', 'piles', 'bedrock'] as const)[s.permits.zoning]].max} floors of foundation`,
+    zoning: `Up to ${FOUNDS[FOUND_ORDER[s.permits.zoning]].max} floors of foundation`,
     height: heightLimit(s) > 100 ? 'No height limit' : `Up to ${heightLimit(s)} floors`,
     air: `${s.floors.filter(f => f.type === 'power').length}/${powerLimit(s)} power floors`,
     water: hallLimit(s) > 100 ? 'Not limited' : `${hallCount(s)}/${hallLimit(s)} server halls`,
@@ -572,5 +619,19 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
         </div>
       ) : <p className="muted">None right now.</p>}
     </>
+  );
+}
+
+function BoostRow({ s, i, dispatch }: { s: GameState; i: number; dispatch: (a: Action) => void }) {
+  const on = isBoosted(s, i);
+  const left = Math.ceil((s.boosts.find(b => b.floor === i)?.until ?? 0) - s.month);
+  const wait = Math.max(0, Math.ceil((s.cooldown[`boost-${i}`] ?? 0) - s.month));
+  return (
+    <div className="crewrow">
+      <span className="muted small">{on ? `Boosted, ${left} mo left` : `Boost: +25% output for ${BOOST_MONTHS} mo. More power, more outages.`}</span>
+      <button className="pill" disabled={on || wait > 0 || s.cash < boostCost(s)} onClick={() => dispatch({ type: 'boost', floor: i })}>
+        {on ? 'Boosted' : wait ? `Ready in ${wait} mo` : `Boost ${money(boostCost(s))}`}
+      </button>
+    </div>
   );
 }

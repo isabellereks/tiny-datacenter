@@ -1,10 +1,11 @@
 import {
-  FOUNDS, HIRE_FEE, MAX_TECHS, NAMES, REPAIR_COST, SUBSTATION_MW, SETUP, STARTER, TYPES,
+  FOUNDS, MAX_TECHS, NAMES, REPAIR_COST, SUBSTATION_MW, SETUP, STARTER, TYPES,
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
-import { buildCost, floorPrice, fresh, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { BOOST_MONTHS, BOOST_WAIT, boostCost, TEAM_EVENT_WAIT, teamEventCost } from './staff';
+import { buildCost, floorPrice, fresh, hireFee, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -27,6 +28,10 @@ export type Action =
   | { type: 'fund'; on: boolean }
   | { type: 'substation' }
   | { type: 'permit'; key: PermitKey }
+  | { type: 'pay'; level: number }
+  | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
+  | { type: 'teamEvent' }
+  | { type: 'boost'; floor: number }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
   | { type: 'smoke'; on: boolean }
@@ -116,7 +121,7 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true };
     case 'hire': {
       const f = s.floors[s.sel];
-      const fee = today(s, HIRE_FEE);
+      const fee = hireFee(s);
       if (s.cash < fee || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
       s.cash -= fee;
       const used = new Set(s.workers.map(w => w.name));
@@ -209,6 +214,36 @@ export function apply(s: GameState, a: Action): Effects {
       if (s.phase !== 'play') return {};
       applyPermit(s, a.key);
       return {};
+    case 'pay':
+      if (s.phase !== 'play' || s.staff.union && a.level < s.staff.pay) return {};
+      s.staff.pay = Math.max(0, Math.min(2, a.level));
+      note(s, `Pay set to ${['standard', '+10%', '+20%'][s.staff.pay]}`);
+      return {};
+    case 'benefit':
+      if (s.phase !== 'play') return {};
+      // a union contract locks in health insurance
+      if (a.key === 'health' && !a.on && s.staff.union) return {};
+      s.staff[a.key] = a.on;
+      note(s, `${{ health: 'Health insurance', retire: 'Retirement plan', overtime: 'Overtime' }[a.key]} ${a.on ? 'on' : 'off'}`);
+      return {};
+    case 'teamEvent': {
+      const cost = teamEventCost(s);
+      if (s.phase !== 'play' || s.cash < cost || (s.cooldown.team ?? 0) > s.month || !s.workers.length) return {};
+      s.cash -= cost;
+      s.staff.cheer += 10;
+      s.cooldown.team = s.month + TEAM_EVENT_WAIT;
+      note(s, 'Team event. Morale +10');
+      return {};
+    }
+    case 'boost': {
+      const f = s.floors[a.floor], cost = boostCost(s);
+      if (s.phase !== 'play' || f?.type !== 'hall' || !f.done || s.cash < cost || isBoosted(s, a.floor) || (s.cooldown[`boost-${a.floor}`] ?? 0) > s.month) return {};
+      s.cash -= cost;
+      s.boosts.push({ floor: a.floor, until: s.month + BOOST_MONTHS });
+      s.cooldown[`boost-${a.floor}`] = s.month + BOOST_WAIT;
+      note(s, `Floor ${a.floor + 1} boosted for ${BOOST_MONTHS} months`);
+      return {};
+    }
     case 'inside':
       s.inside = a.on;
       return { rebuild: true, home: true };

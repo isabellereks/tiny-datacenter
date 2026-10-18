@@ -3,7 +3,7 @@ export const FD = 7;
 export const FH = 1.8;
 
 export type LocKey = 'dalles' | 'reykjavik' | 'phoenix' | 'ashburn';
-export type FoundKey = 'slab' | 'raised' | 'piles' | 'bedrock';
+export type FoundKey = 'slab' | 'raised' | 'piles' | 'bedrock' | 'caisson' | 'megaframe';
 export type ShapeKey = 'box' | 'saw' | 'shed' | 'tower' | 'hangar';
 export type CustKey = 'ai' | 'stream' | 'bank' | 'games';
 export type FloorType = 'lobby' | 'hall' | 'cool' | 'power' | 'net' | 'break';
@@ -124,7 +124,13 @@ export const FOUNDS: Record<FoundKey, Foundation> = {
   raised: { name: 'Raised floor', max: 12, cost: 2_500_000, acres: 8, cool: 1.1, h: 0.9, note: '12 floors max. 8 acres. Cooling +10%.' },
   piles: { name: 'Steel piles', max: 18, cost: 5_000_000, acres: 12, cool: 1, h: 1.8, note: '18 floors max. 12 acres.' },
   bedrock: { name: 'Bedrock plinth', max: 30, cost: 10_000_000, acres: 18, cool: 1.2, h: 1.3, note: '30 floors max. 18 acres. Cooling +20%.' },
+  // later upgrades only, not offered at setup
+  caisson: { name: 'Deep caissons', max: 50, cost: 30_000_000, acres: 24, cool: 1.2, h: 1.6, note: '50 floors max. 24 acres.' },
+  megaframe: { name: 'Mega-frame core', max: 99, cost: 80_000_000, acres: 30, cool: 1.25, h: 2, note: '99 floors max. 30 acres.' },
 };
+/** Foundations from smallest to biggest; the first four can be picked at setup. */
+export const FOUND_ORDER: FoundKey[] = ['slab', 'raised', 'piles', 'bedrock', 'caisson', 'megaframe'];
+export const SETUP_FOUNDS: FoundKey[] = FOUND_ORDER.slice(0, 4);
 
 export const SHAPES: Record<ShapeKey, Shape> = {
   box: { name: 'Box', note: 'No bonus.', cost: 0, cool: 1, crew: 1, rev: 1, trees: 1 },

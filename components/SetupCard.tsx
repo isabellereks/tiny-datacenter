@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { setupIndex, type Action } from '@/lib/game/actions';
 import {
-  BUDGET, CUSTS, FOUNDS, LOCS, SETUP, SHAPES, STARTER, TYPES,
-  type CustKey, type FoundKey, type LocKey, type ShapeKey,
+  BUDGET, CUSTS, FOUNDS, SETUP_FOUNDS, LOCS, SETUP, SHAPES, STARTER, TYPES,
+  type CustKey, type LocKey, type ShapeKey,
 } from '@/lib/game/data';
 import { impact } from '@/lib/game/events';
 import { floorPrice, landCost, ledger, money, setupCost, type GameState } from '@/lib/game/state';
@@ -84,7 +84,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
         )}
         {s.step === 'found' && (
           <div className="opts four">
-            {keys<FoundKey>(FOUNDS).map(k => (
+            {SETUP_FOUNDS.map(k => (
               <Option key={k} title={FOUNDS[k].name} price={money(FOUNDS[k].cost + landCost(s.loc, k))} sub={FOUNDS[k].note}
                 on={s.found === k} onClick={() => dispatch({ type: 'found', found: k })} />
             ))}

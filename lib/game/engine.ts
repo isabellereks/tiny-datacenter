@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { CROWD, FD, FH, FOUNDS, FW, LOCS, MONTH_SECONDS, STITCH, type FoundKey, type LocKey } from './data';
+import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
 import { baseY, ledger, simulate, type GameState } from './state';
@@ -9,7 +9,7 @@ import { createStitchMaterial } from './stitchPass';
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
 THREE.ColorManagement.enabled = false;
 
-const OPTION_X: Record<FoundKey, number> = { slab: -21, raised: -7, piles: 7, bedrock: 21 };
+const OPTION_X: Partial<Record<FoundKey, number>> = { slab: -21, raised: -7, piles: 7, bedrock: 21 };
 const OUTSIDE_DIR = new THREE.Vector3(0.85, 0.55, 1).normalize();
 // looking straight into the open floors, like Tiny Tower. Level enough that the floors
 // themselves don't show, since a floor seen edge-on is nothing but outline.
@@ -291,9 +291,9 @@ export class Engine {
     this.lastLoc = s.loc;
 
     clear(this.options);
-    for (const key of Object.keys(FOUNDS) as FoundKey[]) {
+    for (const key of SETUP_FOUNDS) {
       const g = makeFoundation(key, key === s.found);
-      g.position.x = OPTION_X[key];
+      g.position.x = OPTION_X[key] ?? 0;
       g.traverse(o => { o.userData.found = key; });
       this.options.add(g);
     }

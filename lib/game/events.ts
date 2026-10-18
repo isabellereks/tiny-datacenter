@@ -1,6 +1,7 @@
-import { FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
+import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
-import { gridLevel, hallCount, inflation, isBroken, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
+import { staffMonth } from './staff';
+import { gridLevel, hallCount, inflation, isBoosted, isBroken, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -203,6 +204,7 @@ export const GOALS: Goal[] = [
   { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Add power and cooling until halls hit 100%.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 },
   { text: 'Fill a hall with 3 techs', reward: 3_000_000, hint: '3 techs fill a hall.', done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS) },
   { text: 'Help the community', reward: 1_000_000, hint: 'Town tab, Community.', done: s => s.goodwill > 0.5 || s.up.fund },
+  { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab: pay, benefits, break rooms.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
   { text: 'Build a network floor', reward: 2_000_000, hint: 'Every hall earns more.', done: s => has(s, 'net') },
   { text: 'Fix an outage', reward: 1_500_000, hint: 'Tap a floor that is down.', done: s => s.tally.fixed >= 1 },
   { text: 'Hire 2 techs per server hall', reward: 6_000_000, hint: 'The town wants local jobs.', done: s => hallCount(s) >= 2 && s.workers.length >= hopedJobs(s) },
@@ -217,6 +219,8 @@ export const GOALS: Goal[] = [
   { text: 'Finish every project in Town', reward: 30_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.every(u => s.up[u.key]) },
   { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 70 },
   { text: 'Build 20 floors', reward: 80_000_000, hint: 'Needs steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
+  { text: 'Avoid a strike for 10 years', reward: 60_000_000, hint: 'Keep morale up as you grow.', done: s => s.month >= 120 && !s.staff.union || s.month >= 120 && s.staff.morale >= 50 },
+  { text: 'Build 40 floors', reward: 150_000_000, hint: 'Needs deep caissons and a skyscraper review.', done: s => doneFloors(s) >= 40 },
 ];
 
 /** Checks the current goal and pays out when it's met. */
@@ -254,7 +258,7 @@ export function endOfMonth(s: GameState) {
   // a hall can go down; it's likelier when power, cooling or the grid is short, or nobody is watching it
   const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
   for (const { k } of halls) {
-    const p = 0.015 + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0);
+    const p = 0.015 + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
     if (s.broken.length < 2 && Math.random() < p) {
       s.broken.push({ floor: k, t: 0 });
       note(s, techsOn(s, k) ? `Floor ${k + 1} is down. Your techs are fixing it.` : `Floor ${k + 1} is down`);
@@ -269,7 +273,7 @@ export function endOfMonth(s: GameState) {
   if (s.trust <= 0) { endGame(s, 'town'); return; }
   if (s.debt >= 3) { endGame(s, 'broke'); return; }
 
-  const decision = govMonth(s, l);
+  const decision = govMonth(s, l) ?? staffMonth(s);
   if (s.phase !== 'play') return;
   if (decision) { s.complaint = decision; return; }
   if (s.complaint || s.month < s.calm) return;
@@ -338,8 +342,7 @@ export function rating(s: GameState, l: Ledger = ledger(s)) {
 export const stars = (r: number) => Math.round(r / 20 * 2) / 2;
 
 export function nextFoundation(s: GameState): FoundKey | null {
-  const order: FoundKey[] = ['slab', 'raised', 'piles', 'bedrock'];
-  return order[order.indexOf(s.found) + 1] ?? null;
+  return FOUND_ORDER[FOUND_ORDER.indexOf(s.found) + 1] ?? null;
 }
 
 /** Moving to a bigger foundation: the new foundation plus the extra land it needs. */
