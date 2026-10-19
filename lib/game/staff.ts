@@ -44,6 +44,13 @@ export const BOOST_MONTHS = 3;
 export const BOOST_WAIT = 6;
 export const boostCost = (s: GameState) => today(s, 250_000);
 
+/** Give the union what it asked for and end the strike. */
+export function settle(s: GameState) {
+  Object.assign(s.staff, { union: true, health: true, retire: true, strike: false, struck: 0, pay: Math.max(s.staff.pay, 1) });
+  s.staff.cheer += 15;
+  note(s, 'Strike over. Techs are back at work.');
+}
+
 export const STAFF_DECISIONS: Decision[] = [
   {
     id: 'staffAsk', from: () => 'Your techs',
@@ -80,11 +87,7 @@ export const STAFF_DECISIONS: Decision[] = [
     choices: [
       {
         label: 'Meet their demands', note: 'Pay +10%, union, health and retirement',
-        apply: s => {
-          Object.assign(s.staff, { union: true, health: true, retire: true, strike: false, pay: Math.max(s.staff.pay, 1) });
-          s.staff.cheer += 15;
-          note(s, 'Strike over. Techs are back at work.');
-        },
+        apply: settle,
       },
       { label: 'Wait it out', note: 'Trust −3', apply: s => addTrust(s, -3) },
     ],
@@ -127,7 +130,20 @@ export function staffMonth(s: GameState): string | null {
     note(s, 'Your techs are on strike');
   } else if (S.strike && S.morale >= 45) {
     S.strike = false;
+    S.struck = 0;
     note(s, 'Strike over. Techs are back at work.');
+  } else if (S.strike) {
+    // a long strike becomes a story, and the town picks a side
+    S.struck++;
+    const n = S.struck;
+    if (n === 3) {
+      addTrust(s, -4);
+      s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Local news', headline: `Strike at ${siteName(s)} enters month three`, ticker: ['Picket line grows outside the gate', `Families ask ${ownerName(s)} to settle`] };
+    } else if (n >= 6 && n % 6 === 0) {
+      addTrust(s, -6);
+      s.notoriety = clamp(s.notoriety + 8, 0, 100);
+      s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `${n}-month strike at ${siteName(s)} goes national`, ticker: ['Other unions join the picket', `Senators question ${ownerName(s)}`, 'Customers ask about outages'] };
+    }
   }
 
   if (s.complaint || s.month < s.calm) return null;

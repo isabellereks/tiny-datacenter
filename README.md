@@ -98,7 +98,7 @@ People from town phone you about what you are actually doing to them: cut trees,
 
 ## Share
 
-Share on X (View tab, or the end screen) stitches a card from your datacenter with your run's stats. On a phone it goes straight to the share sheet; on a computer the image downloads and X opens with the post text ready.
+Share on X (the settings button, or the end screen) stitches a card from your datacenter with its stats. On a phone it goes to the share sheet; on a computer the image is copied and X opens, so you paste it in.
 
 ## How it's built
 

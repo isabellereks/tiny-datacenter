@@ -3,10 +3,10 @@
 import type { Action } from '@/lib/game/actions';
 import { LOCS, type LocKey } from '@/lib/game/data';
 import {
-  billEta, billForces, billStageName, borrowLimit, debt, LOAN_SIZES, loanRate, siteCost, siteNet, SITE_MW,
+  billEta, billForces, billStageName, borrowLimit, debt, LOAN_SIZES, loanRate, siteCost, siteNet,
 } from '@/lib/game/strategy';
-import { hasLaw, LOBBY_COST, MARKET_MULT, money, today, type GameState, type Ledger } from '@/lib/game/state';
-import { Meter, Row } from './Island';
+import { LOBBY_COST, MARKET_MULT, money, today, type GameState, type Ledger } from '@/lib/game/state';
+import { Meter, Row, Why } from './Island';
 
 const pct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}`;
 
@@ -17,30 +17,29 @@ export function BillPanel({ s, l, dispatch }: { s: GameState; l: Ledger; dispatc
   const eta = billEta(s, l);
   return (
     <>
-      <span className="label">Moratorium bill</span>
+      {(law || s.bill) && <span className="label">Moratorium bill</span>}
       {law ? (
-        <p className="warn">Moratorium in force for {Math.ceil(law.until - s.month)} more months. No new floors, buildings or growth permits here. Grow elsewhere on the Map.</p>
+        <p className="warn">Moratorium: no growth here for {Math.ceil(law.until - s.month)} mo</p>
       ) : s.bill ? (
         <>
           <Meter label={billStageName(s)} value={s.bill.progress} max={100} text={`${Math.round(s.bill.progress)}%`} bad={s.bill.progress >= 40} marks={[40, 80]} />
-          <p className="muted small">{s.bill.name}. {eta ? `At this pace it passes in about ${eta} months.` : 'It has stalled for now.'}</p>
-          <div className="books">
-            <Row label="Base pressure" value="+0.3" />
-            {f.parts.map(p => <Row key={p.label} label={p.label} value={pct(p.value)} neg={p.value > 0} />)}
-            <Row label="Per month" value={pct(f.total)} strong neg={f.total > 0} />
-          </div>
+          <Why label={eta ? `Passes in about ${eta} mo` : 'Stalled'}>
+            <div className="books">
+              <Row label="Base pressure" value="+0.3" />
+              {f.parts.map(p => <Row key={p.label} label={p.label} value={pct(p.value)} neg={p.value > 0} />)}
+              <Row label="Per month" value={pct(f.total)} strong neg={f.total > 0} />
+            </div>
+          </Why>
         </>
-      ) : <p className="muted small">No bill yet. One gets filed once you&apos;re noticed: notoriety 25, or year 3.</p>}
-      <Meter label="Notoriety" value={s.notoriety} max={100} text={`${Math.round(s.notoriety)}`} bad={s.notoriety >= 50} />
-      <p className="muted small">
-        {s.codename ? `Filed as ${s.codename}, so people notice you less. It can leak, and a leak hurts.` : 'Fame brings customers (up to +20% prices) and backlash.'}
-      </p>
-      <div className="ups">
+      ) : null}
+      {(s.bill || s.notoriety >= 5) && <Meter label="Notoriety" value={s.notoriety} max={100} text={`${Math.round(s.notoriety)}`} bad={s.notoriety >= 50} />}
+      {s.codename && <p className="muted small">Filed as {s.codename}</p>}
+      {(s.bill || s.lobby) && <div className="ups">
         <button className="up" aria-pressed={s.lobby} onClick={() => dispatch({ type: 'lobby', on: !s.lobby })}>
-          <b>Lobbyists</b><small>{money(today(s, LOBBY_COST))}/mo. Bill −1.6/mo. 3% a month they get caught.</small>
+          <b>Lobbyists</b><small>{money(today(s, LOBBY_COST))}/mo</small>
           <span>{s.lobby ? 'Hired' : 'None'}</span>
         </button>
-      </div>
+      </div>}
     </>
   );
 }
@@ -58,7 +57,7 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
         </span>
         {s.contract && <span>Contract: 80% at {Math.round(s.contract.mult * 100)}%, {Math.ceil((s.contract.until - s.month) / 12)} yrs, {s.contract.misses}/5 strikes</span>}
       </div>
-      <span className="label">Loans: {money(debt(s))} owed</span>
+      <span className="label">Loans{debt(s) > 0 ? `: ${money(debt(s))} owed` : ''}</span>
       {s.loans.length > 0 && (
         <div className="books">
           {s.loans.map(x => (
@@ -77,7 +76,6 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
           </button>
         ))}
       </div>
-      <p className="muted small">Banks lend up to 80% of your buildings and land ({money(limit)} left). Rates rise in a glut and the deeper you&apos;re in debt. Payments come out every month, boom or bust.</p>
     </>
   );
 }
@@ -91,7 +89,6 @@ const SPOTS: Record<LocKey, [number, number]> = {
 /** Your sites, and where else you could buy. */
 export function MapTab({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
   const locs = Object.keys(LOCS) as LocKey[];
-  const banned = hasLaw(s, 'moratorium');
   return (
     <>
       <svg className="map" viewBox="0 0 100 44" role="img" aria-label="Map of your sites">
@@ -113,7 +110,6 @@ export function MapTab({ s, dispatch }: { s: GameState; dispatch: (a: Action) =>
           );
         })}
       </svg>
-      <p className="muted small">Each site you buy is an existing {SITE_MW} MW datacenter. It sends home its profit every month. When a moratorium passes, copycat laws can spread to your other US sites.</p>
       <div className="ups">
         {locs.filter(k => k !== s.loc).map(k => {
           const owned = s.sites.find(z => z.loc === k);
@@ -127,7 +123,6 @@ export function MapTab({ s, dispatch }: { s: GameState; dispatch: (a: Action) =>
           );
         })}
       </div>
-      {banned && <p className="warn">Home is frozen by a moratorium. Growing elsewhere is the way out.</p>}
     </>
   );
 }

@@ -43,6 +43,8 @@ export interface Staff {
   pay: number;
   health: boolean; retire: boolean; overtime: boolean;
   union: boolean; strike: boolean;
+  /** months the current strike has lasted */
+  struck: number;
   /** lingering lift from team events, or anger from saying no; fades */
   cheer: number;
   /** months in a row morale has been low */
@@ -209,7 +211,7 @@ export function fresh(): GameState {
     books: null, over: null,
     laws: [], permits: { zoning: 0, height: 0, air: 0, water: 0, campus: 0 }, applying: [], permitLog: {},
     inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
-    staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0, cuts: 0 },
+    staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, struck: 0, cheer: 0, low: 0, cuts: 0 },
     boosts: [], campus: 1, bld: 0, speed: 1, call: null,
     notoriety: 0, codename: null, bill: null, lobby: false, loans: [], market: { phase: 'normal', until: 30 },
     contract: null, seeds: [], waterUsed: 0, briefing: false, sites: [],

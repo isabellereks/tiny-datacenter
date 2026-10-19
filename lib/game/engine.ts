@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
-import { baseY, bOf, buildingX, heightOf, ledger, levelY, simulate, tallest, type GameState } from './state';
+import { baseY, bOf, buildingX, heightOf, ledger, level, levelY, simulate, tallest, type GameState } from './state';
 import { createStitchMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
@@ -112,6 +112,10 @@ export class Engine {
   private disposed = false;
   private textHidden = false;
   private moved = false;
+  /** a tall tower that doesn't fit scrolls; this is the floor the wheel has scrolled to, until you pick another */
+  private scrolled = false;
+  private look: number | null = null;
+  private lookSel = -1;
 
   constructor(private host: HTMLElement, private hooks: EngineHooks, private font: string) {
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -149,6 +153,8 @@ export class Engine {
     this.post.uniforms.uNear.value = this.camera.near;
     this.post.uniforms.uFar.value = this.camera.far;
 
+    // capture so it runs before the camera's zoom
+    canvas.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointerup', this.onUp);
     canvas.addEventListener('pointermove', this.onMove);
@@ -400,9 +406,14 @@ export class Engine {
     // too tall to fit: scroll to the selected floor, but never past the ground or the roof
     let cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2;
     const scrolled = toU < want - 1e-6;
+    this.scrolled = scrolled;
+    if (s.sel !== this.lookSel) { this.look = null; this.lookSel = s.sel; }
     if (scrolled) {
-      const i = Math.max(0, Math.min(s.sel, s.floors.length - 1));
-      const focus = new THREE.Vector3(buildingX(bOf(s, i)), baseY(s, i) + FH / 2, 0).applyMatrix4(view);
+      const sel = Math.max(0, Math.min(s.sel, s.floors.length - 1));
+      const top = heightOf(s, bOf(s, sel)) - 1;
+      const lv = this.look === null ? level(s, sel) : Math.max(0, Math.min(top, this.look));
+      this.look = this.look === null ? null : lv;
+      const focus = new THREE.Vector3(buildingX(bOf(s, sel)), levelY(s, lv) + FH / 2, 0).applyMatrix4(view);
       const halfH = (band * toU) / 2 / 1.04, halfW = (vn * toU) / 2 / 1.04;
       // keep the view inside the scene; if the scene is narrower than the view, just center it
       const keep = (lo: number, hi: number, v: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
@@ -444,6 +455,17 @@ export class Engine {
     const hits = this.raycaster.intersectObject(this.picking ? this.options : this.building, true);
     return hits.length ? (hits[0].object.userData as { floor?: number; found?: FoundKey }) : null;
   }
+
+  /** On a tower too tall to fit, the wheel scrolls up and down it, Tiny Tower style. Pinch or ctrl still zooms. */
+  private onWheel = (e: WheelEvent) => {
+    if (!this.scrolled || e.ctrlKey || this.picking) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const s = this.s, sel = Math.max(0, Math.min(s.sel, s.floors.length - 1));
+    const from = this.look ?? level(s, sel);
+    this.look = Math.max(0, Math.min(heightOf(s, bOf(s, sel)) - 1, from - e.deltaY / 40));
+    this.fit(true);
+  };
 
   private onDown = (e: PointerEvent) => { this.down = [e.clientX, e.clientY]; };
 

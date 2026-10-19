@@ -16,7 +16,7 @@ import {
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
-  DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, hearingBar, heightLimit, hallLimit,
+  DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
@@ -30,11 +30,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'floor', label: 'Floors' },
   { key: 'crew', label: 'Staff' },
-  { key: 'money', label: 'Money' },
   { key: 'town', label: 'Town' },
   { key: 'gov', label: 'Gov' },
-  { key: 'map', label: 'Map' },
-  { key: 'look', label: 'View' },
+  { key: 'money', label: 'Money' },
 ];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
@@ -83,6 +81,11 @@ export function Meter({ label, value, max, text, bad, marks = [] }: {
       <span className="num">{text}</span>
     </div>
   );
+}
+
+/** Detail that stays out of the way until asked for. */
+export function Why({ label, children }: { label: string; children: ReactNode }) {
+  return <details className="why"><summary>{label}</summary>{children}</details>;
 }
 
 function Chip({ on, onClick, children, disabled }: { on?: boolean; onClick: () => void; children: ReactNode; disabled?: boolean }) {
@@ -260,6 +263,9 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         <div className="ex-side">
           <SpeedButton s={s} dispatch={dispatch} />
           <span className="score">Rating <Count value={r.total} /></span>
+          <button className="close" aria-pressed={tab === 'look'} onClick={() => onTab(tab === 'look' ? 'build' : 'look')} aria-label="View and settings" title="View and settings">
+            <svg width="14" height="14" viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true"><path d="M3 0h1v1h1v1h1v1h1v1H6v1H5v1H4v1H3V6H2V5H1V4H0V3h1V2h1V1h1zM3 3v1h1V3z" fill="currentColor" /></svg>
+          </button>
           <button className="close" onClick={onClose} aria-label="Close">
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 9l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
@@ -278,7 +284,6 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'money' && <MoneyTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
-        {tab === 'map' && <MapTab s={s} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
             <div className="seg" role="group" aria-label="Camera">
@@ -366,8 +371,8 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       )}
       {n >= max && (
         <div className="note">
-          <span>Max height. {max}/{max} floors.</span>
-          {up && !zoningAllows(s, up) && <span>{FOUNDS[up].name} needs zoning approval (Gov tab).</span>}
+          <span>Max height</span>
+          {up && !zoningAllows(s, up) && <span>Taller needs a zoning permit</span>}
           {up && zoningAllows(s, up) && (
             <button className="pill white" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
               {FOUNDS[up].name} ({FOUNDS[up].max} floors)  {money(upCost)}
@@ -386,7 +391,7 @@ function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => v
   const allowed = s.campus <= s.permits.campus;
   return (
     <div className="note">
-      <span>Real datacenters are campuses of several buildings. {s.campus}/{maxBuildings(s)} fit on this lot.</span>
+      <span>Buildings {s.campus}/{maxBuildings(s)}</span>
       <button className="pill" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
         {allowed ? `New building  ${money(cost)}` : 'Needs site plan approval (Gov tab)'}
       </button>
@@ -438,7 +443,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
           )}
         </div>
       )}
-      {f.type === 'hall' && f.done && !techs && !broken && <p className="warn">No techs. This hall is off until you hire one.</p>}
+      {f.type === 'hall' && f.done && !techs && !broken && <p className="warn">Off until you hire a tech</p>}
       {f.type === 'hall' && f.done && (
         <>
           <div className="books">
@@ -452,21 +457,19 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
             </div>
             {techs < MAX_TECHS ? (
               <span className="hires">
-                <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })}>
+                <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })} title="Counts as a town job">
                   Local {money(hireFee(s))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
                 </button>
-                <button className="pill" disabled={s.cash < hireFee(s, true)} onClick={() => dispatch({ type: 'hire', overseas: true })}>
+                <button className="pill" disabled={s.cash < hireFee(s, true)} onClick={() => dispatch({ type: 'hire', overseas: true })} title={`Half the wage, ${money(today(s, VISA_FEE))} visa a year`}>
                   Overseas {money(hireFee(s, true))} <span className="cost">{perMonth(hireDelta(s, i, true))}</span>
                 </button>
               </span>
             ) : <span className="muted">Full crew</span>}
           </div>
-          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs earn half as much but need a {money(today(s, VISA_FEE))} visa every year, and the town notices.</p>
           <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
       <Threads label="Floor color" value={f.fill} onPick={fill => dispatch({ type: 'fill', fill })} />
-      <p className="muted small">Cost {money(f.cost)}</p>
     </div>
   );
 }
@@ -480,15 +483,21 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
   const dir = mood.target > S.morale + 1 ? '▲' : mood.target < S.morale - 1 ? '▼' : '–';
   return (
     <>
-      {S.strike && <p className="warn">On strike. Halls run at 30% until you settle.</p>}
+      {S.strike && (
+        <div className="note bad">
+          <span>On strike{S.struck ? ` for ${S.struck} mo` : ''}. Halls at 30%.</span>
+          <button className="pill white" onClick={() => dispatch({ type: 'settle' })} title="Pay +10%, union, health and retirement">Settle</button>
+        </div>
+      )}
       <Meter label="Morale" value={S.morale} max={100} text={`${Math.round(S.morale)} ${dir} ${Math.round(mood.target)}`} bad={S.morale < 35} marks={[mood.target]} />
-      <div className="stats"><span>Union drive below 35</span><span className="bad">Strike below 20</span>{S.union && <span className="good">Union contract</span>}</div>
-      <div className="books">
-        <Row label="Base" value={String(mood.base)} />
-        {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
-          <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
-        ))}
-      </div>
+      <Why label="Why">
+        <div className="books">
+          <Row label="Base" value={String(mood.base)} />
+          {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
+            <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
+          ))}
+        </div>
+      </Why>
 
       <span className="label">Pay</span>
       <div className="seg three" role="group" aria-label="Pay">
@@ -498,32 +507,36 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
       </div>
       <div className="ups">
         <button className="up" aria-pressed={S.health} disabled={S.union && S.health} onClick={() => dispatch({ type: 'benefit', key: 'health', on: !S.health })}>
-          <b>Health insurance</b><small>{money(today(s, 1_500))} per tech a month. Morale +10</small><span>{S.health ? (S.union ? 'In union contract' : 'On') : 'Off'}</span>
+          <b>Health insurance</b><small>{money(today(s, 1_500))}/tech</small><span>{S.health ? (S.union ? 'In union contract' : 'On') : 'Off'}</span>
         </button>
         <button className="up" aria-pressed={S.retire} onClick={() => dispatch({ type: 'benefit', key: 'retire', on: !S.retire })}>
-          <b>Retirement plan</b><small>{money(today(s, 600))} per tech a month. Morale +5</small><span>{S.retire ? 'On' : 'Off'}</span>
+          <b>Retirement</b><small>{money(today(s, 600))}/tech</small><span>{S.retire ? 'On' : 'Off'}</span>
         </button>
       </div>
 
       <span className="label">Boosts</span>
       <div className="ups">
         <button className="up" aria-pressed={S.overtime} onClick={() => dispatch({ type: 'benefit', key: 'overtime', on: !S.overtime })}>
-          <b>Overtime</b><small>Halls +10%. Wages +30%. Morale −12</small><span>{S.overtime ? 'On' : 'Off'}</span>
+          <b>Overtime</b><small>Halls +10%, wages +30%</small><span>{S.overtime ? 'On' : 'Off'}</span>
         </button>
         <button className="up" disabled={!n || teamWait > 0 || s.cash < teamEventCost(s)} onClick={() => dispatch({ type: 'teamEvent' })}>
-          <b>Team event</b><small>Morale +10, fades over time</small><span>{teamWait ? `Ready in ${teamWait} mo` : money(teamEventCost(s))}</span>
+          <b>Team event</b><small>Morale +10</small><span>{teamWait ? `Ready in ${teamWait} mo` : money(teamEventCost(s))}</span>
         </button>
       </div>
 
       <span className="label">Techs {n}</span>
       <div className="books">
         <Row label="Payroll" value={`${money(l.staff)}/mo`} />
-        <Row label="Local wage" value={`${money(today(s, wageFor(s)))}/mo`} sub=" rises 3% per local" />
-        <Row label="Overseas wage" value={`${money(today(s, overseasWage(s)))}/mo`} sub={` plus ${money(today(s, VISA_FEE))} visa a year`} />
-        <Row label="Next hire" value={hireFee(s) ? money(hireFee(s)) : '$0'} />
         <Row label="Local jobs" value={`${locals(s)}/${hoped}`} neg={locals(s) < hoped * 0.5} sub={` ${overseas(s)} overseas`} />
-        <Row label="Break rooms" value={`${breakRooms(s)}/${breaksNeeded(s)}`} neg={breakRooms(s) < breaksNeeded(s)} sub=" 1 per 8 techs" />
+        <Row label="Break rooms" value={`${breakRooms(s)}/${breaksNeeded(s)}`} neg={breakRooms(s) < breaksNeeded(s)} />
       </div>
+      <Why label="Wages">
+        <div className="books">
+          <Row label="Local" value={`${money(today(s, wageFor(s)))}/mo`} />
+          <Row label="Overseas" value={`${money(today(s, overseasWage(s)))}/mo`} sub={` + ${money(today(s, VISA_FEE))} visa/yr`} />
+          <Row label="Next hire" value={hireFee(s) ? money(hireFee(s)) : '$0'} />
+        </div>
+      </Why>
       {n ? (
         <ul className="list">
           {[...s.workers].sort((a, b) => b.floor - a.floor).map(w => (
@@ -535,13 +548,12 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
             </li>
           ))}
         </ul>
-      ) : <p className="muted">No techs. Hire them on a server hall.</p>}
+      ) : null}
     </>
   );
 }
 
 function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
-  const L = LOCS[s.loc];
   const books = s.books ?? l;
   const r = rating(s, l);
   return (
@@ -550,34 +562,32 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       <span className="label">{s.books ? 'Last month' : 'Each month'}</span>
       <div className="books">
         <Row label="Income" value={money(books.revenue)} />
-        <Row label="Power" value={money(-books.power)} neg sub={` $${L.power}/MWh${l.strain > 0.6 ? ', grid surcharge' : ''}`} />
+        <Row label="Power" value={money(-books.power)} neg sub={l.strain > 0.6 ? ' grid surcharge' : undefined} />
         <Row label="Water" value={money(-books.water)} neg />
         <Row label="Staff" value={money(-books.staff)} neg />
         <Row label="Upkeep" value={money(-books.upkeep)} neg />
         {books.fund > 0 && <Row label="Community fund" value={money(-books.fund)} neg />}
         <Row label="Property tax" value={money(-books.propertyTax)} neg />
-        <Row label="Profit tax" value={money(-books.incomeTax)} neg sub={` ${Math.round(L.incomeTax * 100)}%`} />
+        <Row label="Profit tax" value={money(-books.incomeTax)} neg />
         {books.lobby > 0 && <Row label="Lobbyists" value={money(-books.lobby)} neg />}
         {books.interest > 0 && <Row label="Loan interest" value={money(-books.interest)} neg />}
         {books.principal > 0 && <Row label="Loan principal" value={money(-books.principal)} neg />}
         {s.sites.length > 0 && <Row label="Other sites" value={money(sitesNet(s))} neg={sitesNet(s) < 0} />}
         <Row label="Profit" value={money(books.net)} strong neg={books.net < 0} />
       </div>
-      <div className="facts">
-        <span>Servers use {l.itMW.toFixed(1)} MW</span>
-        <span>PUE {l.pue.toFixed(2)}</span>
-        <span>Costs ×{inflation(s).toFixed(2)} since opening</span>
-        <span>{L.taxNote}</span>
-      </div>
       <FinancePanel s={s} dispatch={dispatch} />
-      <span className="label">Rating {r.total}/100</span>
-      <div className="books">
-        <Row label="Trust" value={`${r.parts.trust}/30`} />
-        <Row label="Profit margin" value={`${r.parts.profit}/25`} />
-        <Row label="Halls running" value={`${r.parts.running}/20`} />
-        <Row label="Jobs" value={`${r.parts.jobs}/15`} />
-        <Row label="Grid" value={`${r.parts.grid}/10`} />
-      </div>
+      <span className="label">Other sites</span>
+      <MapTab s={s} dispatch={dispatch} />
+      <Why label={`Rating ${r.total}/100`}>
+        <div className="books">
+          <Row label="Trust" value={`${r.parts.trust}/30`} />
+          <Row label="Profit margin" value={`${r.parts.profit}/25`} />
+          <Row label="Halls running" value={`${r.parts.running}/20`} />
+          <Row label="Jobs" value={`${r.parts.jobs}/15`} />
+          <Row label="Grid" value={`${r.parts.grid}/10`} />
+          <Row label="Costs since opening" value={`×${inflation(s).toFixed(2)}`} />
+        </div>
+      </Why>
     </>
   );
 }
@@ -590,18 +600,15 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
   return (
     <>
       <Meter label="Trust" value={s.trust} max={100} text={`${Math.round(s.trust)} ${dir === 'rising' ? '▲' : dir === 'falling' ? '▼' : '–'} ${Math.round(mood.target)}`} bad={s.trust < 40} marks={[mood.target]} />
-      <div className="stats"><span>Protests below 40</span><span className="bad">Shutdown at 0</span></div>
-      <span className="label">Town opinion</span>
-      <div className="books">
-        <Row label="Base" value={String(mood.base)} />
-        {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
-          <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
-        ))}
-      </div>
-
-      <span className="label">Town grid: {GRID_LABEL[lvl]}</span>
-      <Meter label="Grid" value={l.gridMW} max={l.gridCap} text={`${Math.round(l.strain * 100)}%`} bad={lvl >= 2} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
-      <div className="stats"><span>60% Higher prices</span><span>85% Brownouts</span><span className="bad">100% Blackouts</span></div>
+      <Why label="Why">
+        <div className="books">
+          <Row label="Base" value={String(mood.base)} />
+          {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
+            <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
+          ))}
+        </div>
+      </Why>
+      <Meter label="Grid" value={l.gridMW} max={l.gridCap} text={GRID_LABEL[lvl]} bad={lvl >= 2} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
 
       <span className="label">Community</span>
       <div className="ups">
@@ -611,15 +618,15 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
           return (
             <button key={g.key} className="up" disabled={wait > 0 || none || s.cash < today(s, g.cost)} onClick={() => dispatch({ type: 'gift', key: g.key })}>
               <b>{g.name}</b><small>{g.note}</small>
-              <span>{wait ? `Ready in ${wait} mo` : none ? 'No trees cut' : `${money(today(s, g.cost))}  Trust +${g.trust}`}</span>
+              <span>{wait ? `${wait} mo` : none ? 'No trees cut' : money(today(s, g.cost))}</span>
             </button>
           );
         })}
         <button className="up" disabled={s.cash < sub || hasLaw(s, 'eirgrid')} onClick={() => dispatch({ type: 'substation' })}>
-          <b>Substation</b><small>Grid +{SUBSTATION_MW} MW. Owned: {s.substations}</small><span>{hasLaw(s, 'eirgrid') ? 'Blocked by grid moratorium' : money(sub)}</span>
+          <b>Substation</b><small>Grid +{SUBSTATION_MW} MW</small><span>{hasLaw(s, 'eirgrid') ? 'Blocked by grid moratorium' : money(sub)}</span>
         </button>
         <button className="up" aria-pressed={s.up.fund} onClick={() => dispatch({ type: 'fund', on: !s.up.fund })}>
-          <b>Community fund</b><small>{money(COMMUNITY_FUND)}/mo to the town. Trust +8</small>
+          <b>Community fund</b><small>{money(COMMUNITY_FUND)}/mo</small>
           <span>{s.up.fund ? 'On' : 'Off'}</span>
         </button>
       </div>
@@ -632,8 +639,9 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
           </button>
         ))}
       </div>
-      <span className="label">Recent</span>
-      <ul className="log">{s.log.slice(0, 5).map((x, k) => <li key={k}>{x}</li>)}</ul>
+      <Why label="Recent">
+        <ul className="log">{s.log.slice(0, 5).map((x, k) => <li key={k}>{x}</li>)}</ul>
+      </Why>
     </>
   );
 }
@@ -666,18 +674,16 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
           return (
             <button key={k} className="up" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'permit', key: k })}>
               <b>{P.name}</b>
-              <small>Approved: {limits[k]}</small>
-              {!block && <small>Next: {P.what(s)}, from {P.by(s)}</small>}
-              {log && <small className={log.ok === null ? undefined : log.ok ? 'ok' : 'bad'}>{log.text}</small>}
-              {!pending && !block && needs !== null && <small className={s.trust >= needs ? 'ok' : 'bad'}>Needs trust {needs}, you have {Math.round(s.trust)}</small>}
-              <span>{pending ? `Decision in ${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `Apply ${money(fee)}, ${permitWait(s, k)} mo`}</span>
+              <small>{limits[k]}</small>
+              {log && log.ok === false && <small className="bad">{log.text}</small>}
+              {!pending && !block && needs !== null && s.trust < needs && <small className="bad">Needs trust {needs}</small>}
+              <span>{pending ? `${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `${money(fee)}, ${permitWait(s, k)} mo`}</span>
             </button>
           );
         })}
       </div>
-      <p className="muted small">Hearings need trust {hearingBar(s)}+. Air permits stop after 3 generator violations ({s.strikes}/3).</p>
 
-      {hasLaw(s, 'stopWork') && <p className="warn">Stop-work order. No income, bills still due, and a penalty each failed reinspection. Fix every item below; the inspector checks monthly.</p>}
+      {hasLaw(s, 'stopWork') && <p className="warn">Stop-work order. Fix every failed item.</p>}
       <span className="label">{hasLaw(s, 'stopWork') ? 'Reinspection next month' : `${inspectionTitle(s)} in ${inspectIn} mo`}</span>
       <div className="books">
         {checks.map(c => <Row key={c.label} label={c.label} value={c.ok ? 'Pass' : 'Fail'} neg={!c.ok} />)}
@@ -685,21 +691,9 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
 
       <span className="label">{L.gov.local} election in {voteIn} mo</span>
       <Meter label="Pro-growth" value={pollPro(s)} max={1} text={`${Math.round(pollPro(s) * 100)}%`} bad={pollPro(s) < 0.5} marks={[0.5]} />
-      <p className="muted small">
-        Your town&apos;s trust sets the odds. A pro-growth board makes permits 25% faster and hearings need trust 40.
-        A slow-growth board makes them 50% slower and hearings need 60.
-      </p>
-      {L.gov.us && (
-        <>
-          <span className="label">National election in {Math.max(0, Math.ceil(s.nationalAt - s.month))} mo</span>
-          <p className="muted small">
-            {s.admin === 'build' ? 'Now: build-fast administration. ' : s.admin === 'green' ? 'Now: clean-energy administration. ' : ''}
-            A 50/50 race your town can&apos;t sway. Build-fast means faster permits. Clean-energy means a solar credit and tougher generator rules.
-          </p>
-        </>
-      )}
+      {L.gov.us && <Row label={`National election in ${Math.max(0, Math.ceil(s.nationalAt - s.month))} mo`} value={s.admin === 'build' ? 'Build-fast' : s.admin === 'green' ? 'Clean-energy' : ''} />}
 
-      <span className="label">Laws and deals</span>
+      {laws.length > 0 && <span className="label">Laws</span>}
       {laws.length ? (
         <div className="books">
           {laws.map(x => LAWS[x.id] && (
@@ -707,7 +701,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
               value={`${LAWS[x.id].effect}${x.until < 1e8 ? `, ${Math.max(1, Math.ceil(x.until - s.month))} mo` : ''}`} />
           ))}
         </div>
-      ) : <p className="muted">None right now.</p>}
+      ) : null}
     </>
   );
 }
@@ -718,7 +712,7 @@ function BoostRow({ s, i, dispatch }: { s: GameState; i: number; dispatch: (a: A
   const wait = Math.max(0, Math.ceil((s.cooldown[`boost-${i}`] ?? 0) - s.month));
   return (
     <div className="crewrow">
-      <span className="muted small">{on ? `Boosted, ${left} mo left` : `Boost: +25% output for ${BOOST_MONTHS} mo. More power, more outages.`}</span>
+      <span className="muted small">{on ? `Boosted, ${left} mo left` : `+25% for ${BOOST_MONTHS} mo`}</span>
       <button className="pill" disabled={on || wait > 0 || s.cash < boostCost(s)} onClick={() => dispatch({ type: 'boost', floor: i })}>
         {on ? 'Boosted' : wait ? `Ready in ${wait} mo` : `Boost ${money(boostCost(s))}`}
       </button>

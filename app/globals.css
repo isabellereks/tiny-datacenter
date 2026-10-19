@@ -429,3 +429,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- collapsed detail ---------- */
+.why { display: flex; flex-direction: column; gap: 6px; }
+.why > summary { list-style: none; cursor: pointer; font-size: 13px; color: var(--isl-dim); display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+.why > summary::-webkit-details-marker { display: none; }
+.why > summary::before { content: ''; width: 0; height: 0; border-left: 5px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .15s; }
+.why[open] > summary::before { transform: rotate(90deg); }
+.why > summary:hover { color: inherit; }
+.why[open] > :not(summary) { margin-top: 6px; }

@@ -5,7 +5,7 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { buySite, newCodename, payOff, takeLoan } from './strategy';
-import { BOOST_MONTHS, BOOST_WAIT, boostCost, TEAM_EVENT_WAIT, teamEventCost } from './staff';
+import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { buildCost, buildingCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
@@ -32,6 +32,7 @@ export type Action =
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
   | { type: 'teamEvent' }
+  | { type: 'settle' }
   | { type: 'boost'; floor: number }
   | { type: 'addBuilding' }
   | { type: 'speed'; speed: number }
@@ -247,6 +248,11 @@ export function apply(s: GameState, a: Action): Effects {
       s.staff[a.key] = a.on;
       note(s, `${{ health: 'Health insurance', retire: 'Retirement plan', overtime: 'Overtime' }[a.key]} ${a.on ? 'on' : 'off'}`);
       return {};
+    case 'settle': {
+      if (s.phase !== 'play' || !s.staff.strike) return {};
+      settleStrike(s);
+      return {};
+    }
     case 'teamEvent': {
       const cost = teamEventCost(s);
       if (s.phase !== 'play' || s.cash < cost || (s.cooldown.team ?? 0) > s.month || !s.workers.length) return {};
