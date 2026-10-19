@@ -461,7 +461,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               </span>
             ) : <span className="muted">Full crew</span>}
           </div>
-          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs earn 30% less but need a {money(today(s, VISA_FEE))} visa every year, and the town notices.</p>
+          <p className="muted small">Locals count as town jobs but raise local wages 3% each. Overseas techs earn half as much but need a {money(today(s, VISA_FEE))} visa every year, and the town notices.</p>
           <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}

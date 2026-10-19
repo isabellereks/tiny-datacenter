@@ -260,7 +260,7 @@ export const overseas = (s: GameState) => s.workers.filter(w => w.overseas).leng
 /** A local tech's wage: each local you add pushes local wages up 3%, as the town's labor pool runs dry. */
 export const wageFor = (s: GameState, n = locals(s)) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1)) * wageMult(s);
 /** Overseas techs on work visas earn less and don't touch the local wage. */
-export const OVERSEAS_WAGE = 0.7;
+export const OVERSEAS_WAGE = 0.5;
 export const overseasWage = (s: GameState) => TECH_SALARY * OVERSEAS_WAGE * wageMult(s);
 /** Monthly staff cost before inflation. */
 export const payroll = (s: GameState) =>
