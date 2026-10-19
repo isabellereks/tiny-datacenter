@@ -259,7 +259,7 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
     const next = s.market.phase === 'normal' ? (Math.random() < 0.6 ? 'boom' : 'glut') : s.market.phase === 'boom' ? 'glut' : 'normal';
     s.market = { phase: next, until: s.month + (next === 'boom' ? 18 + Math.random() * 18 : next === 'glut' ? 12 + Math.random() * 18 : 24 + Math.random() * 24) };
     if (next === 'boom') headline(s, 'Business news', 'AI boom: everyone wants datacenters', ['Prices for capacity jump 30%', 'Banks lend cheaply', 'Analysts warn of a bubble']);
-    else if (next === 'glut') headline(s, 'Breaking news', 'The AI bubble pops', ['Chip glut crashes capacity prices 35%', 'AI labs cancel orders', 'Banks raise rates on datacenter loans']);
+    else if (next === 'glut') headline(s, 'Breaking news', 'The AI bubble pops', ['Capacity prices crash 35%', 'AI labs cancel orders', 'Banks raise rates on datacenter loans']);
     else { note(s, 'The datacenter market is back to normal'); if (!s.fired.includes('glutSurvived')) s.fired.push('glutSurvived'); }
   }
 
@@ -328,7 +328,7 @@ export function briefing(s: GameState): Brief[] {
   const l = ledger(s);
   const eta = billEta(s, l);
   const rows: Brief[] = [
-    { label: 'Market', value: s.market.phase === 'boom' ? 'Boom, prices +30%' : s.market.phase === 'glut' ? 'Glut, prices −35%' : 'Normal', bad: s.market.phase === 'glut' },
+    { label: 'Market', value: s.market.phase === 'boom' ? 'Boom, prices +30%' : s.market.phase === 'glut' ? 'AI crash, prices −35%' : 'Normal', bad: s.market.phase === 'glut' },
     { label: 'Notoriety', value: `${Math.round(s.notoriety)}/100${s.codename ? `, hidden as ${s.codename}` : ''}`, bad: s.notoriety > 50 },
     {
       label: 'Moratorium bill',

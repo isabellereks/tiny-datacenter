@@ -53,7 +53,7 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
       <span className="label">Market</span>
       <div className="stats">
         <span className={m === 'glut' ? 'bad' : m === 'boom' ? 'good' : undefined}>
-          {m === 'boom' ? 'AI boom' : m === 'glut' ? 'Glut' : 'Normal'}: prices {Math.round(MARKET_MULT[m] * 100)}%
+          {m === 'boom' ? 'AI boom' : m === 'glut' ? 'AI crash' : 'Normal'}: prices {Math.round(MARKET_MULT[m] * 100)}%
         </span>
         {s.contract && <span>Contract: 80% at {Math.round(s.contract.mult * 100)}%, {Math.ceil((s.contract.until - s.month) / 12)} yrs, {s.contract.misses}/5 strikes</span>}
       </div>
