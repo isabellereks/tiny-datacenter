@@ -17,7 +17,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - Your power comes from the town grid. Over 60% of its capacity, power costs more; over 85%, the town gets brownouts; over 100%, blackouts and your halls get cut back. Pay for substations, solar or batteries to keep up.
 - Help the town with trees, open houses, school funding or a monthly community fund, or finish projects like a sound wall, water-saving cooling and heat reuse. Gifts fade; projects last.
 - Neighbors, the council, the water board, the power company and the paper complain by name. Pay to fix it or ignore it. Ignoring costs trust, and the town holds a grudge.
-- Costs rise about 3% a year and upkeep grows with your building, while customer prices rise more slowly, so margins shrink unless you keep improving.
+- Costs rise about 3% a year. Customer prices rise a little slower, so margins tighten by up to 30% over about 18 years, then hold, so a long run stays playable.
 - Your rating (0 to 100) scores how well you run things right now: trust, profit margin, halls running, jobs and grid. It doesn't grow by waiting.
 - 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
 - If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.

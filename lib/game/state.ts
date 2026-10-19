@@ -322,9 +322,11 @@ export const assets = (s: GameState) =>
 /** Costs rise about 3% a year once you open: power, wages, water, parts and construction.
  *  What customers pay rises more slowly, so margins shrink unless you keep improving. */
 export const COST_GROWTH = 0.03;
-export const PRICE_GROWTH = 0.015;
+/** prices trail costs by this much a year, up to SQUEEZE_MAX, so margins tighten but a long run stays playable */
+export const SQUEEZE = 0.015;
+export const SQUEEZE_MAX = 1.3;
 export const inflation = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + COST_GROWTH) ** (s.month / 12));
-export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + PRICE_GROWTH) ** (s.month / 12));
+export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : inflation(s) / Math.min(SQUEEZE_MAX, (1 + SQUEEZE) ** (s.month / 12)));
 /** A price from the data tables, in today's dollars. */
 export const today = (s: GameState, base: number) => Math.round(base * inflation(s));
 

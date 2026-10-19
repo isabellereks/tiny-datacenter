@@ -263,7 +263,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         <div className="ex-side">
           <SpeedButton s={s} dispatch={dispatch} />
           <span className="score">Rating <Count value={r.total} /></span>
-          <button className="close" aria-pressed={tab === 'look'} onClick={() => onTab(tab === 'look' ? 'build' : 'look')} aria-label="View and settings" title="View and settings">
+          <button className="close" aria-pressed={tab === 'look'} onClick={() => onTab(tab === 'look' ? 'build' : 'look')} aria-label="Settings" title="Settings and start over">
             <svg width="14" height="14" viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true"><path d="M3 0h1v1h1v1h1v1h1v1H6v1H5v1H4v1H3V6H2V5H1V4H0V3h1V2h1V1h1zM3 3v1h1V3z" fill="currentColor" /></svg>
           </button>
           <button className="close" onClick={onClose} aria-label="Close">
@@ -286,6 +286,9 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
+            <button className={`pill wide${armed ? ' danger' : ''}`} onClick={() => dispatch({ type: 'reset' })}>
+              {armed ? 'Tap again to start over' : 'Start over'}
+            </button>
             <div className="seg" role="group" aria-label="Camera">
               <button aria-pressed={!s.inside} onClick={() => dispatch({ type: 'inside', on: false })}>Outside</button>
               <button aria-pressed={s.inside} onClick={() => dispatch({ type: 'inside', on: true })}>Inside</button>
@@ -304,9 +307,6 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
             <span className="label">Datacenter name</span>
             <input className="field" value={s.look.name} maxLength={24} placeholder="Name" onChange={e => dispatch({ type: 'name', text: e.target.value })} />
             <button className="pill white wide" onClick={onShare}>Share on X</button>
-            <button className={`pill wide${armed ? ' danger' : ''}`} onClick={() => dispatch({ type: 'reset' })}>
-              {armed ? 'Tap again to confirm' : 'Start over'}
-            </button>
           </>
         )}
       </div>
