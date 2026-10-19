@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { LOCS } from '@/lib/game/data';
 import { rating } from '@/lib/game/events';
 import { hallCount, ledger, money, ownerName, siteName, type GameState } from '@/lib/game/state';
+import { encodeRun, runOf } from '@/lib/shareLink';
 
 const W = 1200, H = 675;
 
@@ -195,16 +196,15 @@ export function Share({ s, capture, font, ui, onClose }: {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setStatus('Image saved');
   };
+  const link = `${location.origin}/s?${encodeRun(runOf(s))}`;
   const post = () => {
     const b = blob.current;
     if (b && isTouch()) {
       const f = new File([b], file, { type: 'image/png' });
-      if (navigator.canShare?.({ files: [f] })) { navigator.share({ files: [f], text }).catch(() => {}); return; }
+      if (navigator.canShare?.({ files: [f] })) { navigator.share({ files: [f], text, url: link }).catch(() => {}); return; }
     }
-    // copy first while this tab still has focus, then open X right away
-    const copied = copy();
-    window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-    copied.then(ok => { if (ok) setStatus('Image copied. Paste it into your post.'); else save(); });
+    // the link's preview card carries the picture, so the post needs nothing pasted
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`, '_blank', 'noopener');
   };
   const copyOnly = () => copy().then(ok => setStatus(ok ? 'Image copied' : 'Copy not supported here. Try Save.'));
 

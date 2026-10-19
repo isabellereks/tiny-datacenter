@@ -438,3 +438,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .why[open] > summary::before { transform: rotate(90deg); }
 .why > summary:hover { color: inherit; }
 .why[open] > :not(summary) { margin-top: 6px; }
+
+/* ---------- shared run page ---------- */
+.shared { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 16px; background: #0A0C14; }
+.shared img { width: min(900px, 100%); height: auto; border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+.shared .pill { text-decoration: none; padding: 12px 22px; }

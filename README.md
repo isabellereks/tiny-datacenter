@@ -98,7 +98,7 @@ People from town phone you about what you are actually doing to them: cut trees,
 
 ## Share
 
-Share on X (the settings button, or the end screen) stitches a card from your datacenter with its stats. On a phone it goes to the share sheet; on a computer the image is copied and X opens, so you paste it in.
+Share on X (the settings button, or the end screen) posts your stats with a link to your run. The link preview on X shows a card of your tower in its own threads with the rating and stats, drawn on the server from the link, so nothing gets pasted or stored. Copy and Save give you the full picture of your datacenter too.
 
 ## How it's built
 
