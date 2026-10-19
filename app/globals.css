@@ -301,6 +301,32 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--isl-dim); font-size: 12.5px; }
 .log li:first-child { color: var(--isl-text); }
 
+/* ---------- strategy ---------- */
+.compact .flag.bill { background: #3A3A3C; color: #fff; }
+.compact .flag.bill.hot { background: var(--bad); }
+.link-btn { border: 0; background: none; color: var(--ok); font-size: 12.5px; cursor: pointer; padding: 0; }
+.link-btn:disabled { opacity: .35; cursor: not-allowed; }
+.ex-body svg.map { width: 100%; height: auto; aspect-ratio: 100 / 44; flex: none; background: var(--isl-2); border-radius: 12px; display: block; }
+.map .land { fill: #2C2C2E; }
+.map rect.home { fill: #FF7A45; }
+.map rect.owned { fill: var(--ok); }
+.map rect.hurt { fill: var(--meh); }
+.map rect.free { fill: #8E8E93; }
+.map .heat { fill: rgba(255, 69, 58, .25); stroke: rgba(255, 69, 58, .6); stroke-width: .3; }
+.map text { fill: #EBEBF5; font-size: 2.6px; font-family: var(--body), sans-serif; }
+
+/* ---------- briefing and the shell company box ---------- */
+.brief h2 { margin: 0; font-size: 22px; }
+.brief-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.brief-rows div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); }
+.brief-rows span { font-size: 12px; opacity: .65; }
+.brief-rows b { font-size: 13.5px; }
+.brief-rows .bad b { color: var(--red); }
+.permit-code { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.permit-code input { margin-top: 2px; accent-color: var(--thread); }
+.permit-code small { opacity: .7; }
+@media (max-width: 720px) { .brief-rows { grid-template-columns: minmax(0, 1fr); } }
+
 /* ---------- hover label ---------- */
 .hover-label { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 15; pointer-events: none; background: #050505; color: #fff; border-radius: 999px; padding: 7px 14px; font-size: 13px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; box-shadow: 0 6px 20px rgba(0, 0, 0, .15); animation: fade .15s ease both; }
 .hover-label.top { bottom: auto; top: 24px; }

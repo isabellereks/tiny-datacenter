@@ -20,10 +20,12 @@ import {
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
+import { BillPanel, FinancePanel, MapTab } from './Strategy';
 import { Cash, Count } from './Num';
+import { sitesNet } from '@/lib/game/strategy';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'look';
+export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'map' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'floor', label: 'Floors' },
@@ -31,6 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'money', label: 'Money' },
   { key: 'town', label: 'Town' },
   { key: 'gov', label: 'Gov' },
+  { key: 'map', label: 'Map' },
   { key: 'look', label: 'View' },
 ];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
@@ -67,7 +70,7 @@ export function Hearts({ trust }: { trust: number }) {
 }
 
 /** A bar with optional tick marks where something changes, like when people start to complain. */
-function Meter({ label, value, max, text, bad, marks = [] }: {
+export function Meter({ label, value, max, text, bad, marks = [] }: {
   label: string; value: number; max: number; text: string; bad?: boolean; marks?: number[];
 }) {
   return (
@@ -136,7 +139,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   // the bar warns about the most urgent problem
   const downAlone = s.broken.some(b => techsOn(s, b.floor) === 0);
   const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
-  const warn = hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
+  const warn = hasLaw(s, 'moratorium') ? 'Moratorium' : hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
 
   let body: ReactNode;
   if (over) {
@@ -156,6 +159,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <Cash className={l.net >= 0 ? 'rate' : 'rate neg'} value={l.net} perMonth signed />
         <Hearts trust={s.trust} />
         {warn && <span className="flag">{warn}</span>}
+        {s.bill && <span className={`flag bill${s.bill.progress >= 80 ? ' hot' : ''}`}>Bill {Math.round(s.bill.progress)}%</span>}
       </button>
       <SpeedButton s={s} dispatch={dispatch} />
       </div>
@@ -218,7 +222,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   );
 }
 
-function Row({ label, value, strong, neg, sub }: { label: string; value: string; strong?: boolean; neg?: boolean; sub?: string }) {
+export function Row({ label, value, strong, neg, sub }: { label: string; value: string; strong?: boolean; neg?: boolean; sub?: string }) {
   return (
     <div className={`row${strong ? ' strong' : ''}`}>
       <span>{label}{sub && <small>{sub}</small>}</span>
@@ -271,9 +275,10 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'floor' && <FloorTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'crew' && <StaffTab s={s} l={l} dispatch={dispatch} onTab={onTab} />}
-        {tab === 'money' && <MoneyTab s={s} l={l} />}
+        {tab === 'money' && <MoneyTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
+        {tab === 'map' && <MapTab s={s} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
             <div className="seg" role="group" aria-label="Camera">
@@ -535,7 +540,7 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
   );
 }
 
-function MoneyTab({ s, l }: { s: GameState; l: Ledger }) {
+function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
   const L = LOCS[s.loc];
   const books = s.books ?? l;
   const r = rating(s, l);
@@ -552,6 +557,10 @@ function MoneyTab({ s, l }: { s: GameState; l: Ledger }) {
         {books.fund > 0 && <Row label="Community fund" value={money(-books.fund)} neg />}
         <Row label="Property tax" value={money(-books.propertyTax)} neg />
         <Row label="Profit tax" value={money(-books.incomeTax)} neg sub={` ${Math.round(L.incomeTax * 100)}%`} />
+        {books.lobby > 0 && <Row label="Lobbyists" value={money(-books.lobby)} neg />}
+        {books.interest > 0 && <Row label="Loan interest" value={money(-books.interest)} neg />}
+        {books.principal > 0 && <Row label="Loan principal" value={money(-books.principal)} neg />}
+        {s.sites.length > 0 && <Row label="Other sites" value={money(sitesNet(s))} neg={sitesNet(s) < 0} />}
         <Row label="Profit" value={money(books.net)} strong neg={books.net < 0} />
       </div>
       <div className="facts">
@@ -560,6 +569,7 @@ function MoneyTab({ s, l }: { s: GameState; l: Ledger }) {
         <span>Costs ×{inflation(s).toFixed(2)} since opening</span>
         <span>{L.taxNote}</span>
       </div>
+      <FinancePanel s={s} dispatch={dispatch} />
       <span className="label">Rating {r.total}/100</span>
       <div className="books">
         <Row label="Trust" value={`${r.parts.trust}/30`} />
@@ -643,6 +653,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   };
   return (
     <>
+      <BillPanel s={s} l={l} dispatch={dispatch} />
       <span className="label">Permits</span>
       <div className="ups">
         {keys(PERMITS).filter(k => PERMITS[k].here(s)).map(k => {

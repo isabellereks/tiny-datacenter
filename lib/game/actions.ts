@@ -4,6 +4,7 @@ import {
 } from './data';
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
+import { buySite, newCodename, payOff, takeLoan } from './strategy';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { buildCost, buildingCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
@@ -34,6 +35,12 @@ export type Action =
   | { type: 'boost'; floor: number }
   | { type: 'addBuilding' }
   | { type: 'speed'; speed: number }
+  | { type: 'loan'; amount: number }
+  | { type: 'payoff'; id: number }
+  | { type: 'lobby'; on: boolean }
+  | { type: 'buySite'; loc: LocKey }
+  | { type: 'codename'; on: boolean }
+  | { type: 'briefing' }
   | { type: 'call'; act: 'answer' | 'decline' | 'missed' | 'hangup' }
   | { type: 'bld'; b: number }
   | { type: 'inside'; on: boolean }
@@ -260,7 +267,7 @@ export function apply(s: GameState, a: Action): Effects {
     }
     case 'addBuilding': {
       const cost = buildingCost(s);
-      if (s.phase !== 'play' || s.build || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
+      if (s.phase !== 'play' || s.build || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
       s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus });
@@ -272,6 +279,30 @@ export function apply(s: GameState, a: Action): Effects {
       note(s, `Building ${s.campus} started`);
       return { rebuild: true, refit: true };
     }
+    case 'loan':
+      if (s.phase !== 'play') return {};
+      takeLoan(s, a.amount);
+      return {};
+    case 'payoff':
+      payOff(s, a.id);
+      return {};
+    case 'lobby':
+      if (s.phase !== 'play') return {};
+      s.lobby = a.on;
+      note(s, a.on ? 'Hired lobbyists. They might get caught.' : 'Let the lobbyists go');
+      return {};
+    case 'buySite':
+      if (s.phase !== 'play') return {};
+      buySite(s, a.loc);
+      return {};
+    case 'codename':
+      // only before you open: once the permit is filed, the name is public record
+      if (s.phase !== 'setup') return {};
+      s.codename = a.on ? newCodename() : null;
+      return {};
+    case 'briefing':
+      s.briefing = false;
+      return {};
     case 'call': {
       const c = s.call;
       if (!c) return {};

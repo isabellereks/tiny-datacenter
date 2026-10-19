@@ -38,7 +38,7 @@ export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'car
       return {
         tag: 'Breaking news',
         headline: `Blackouts across ${where.split(',')[0]}`,
-        ticker: [`${site} is using more power than the grid can give`, `Families lose power at home`, `CEO ${owner} blamed`],
+        ticker: [`${site} is using more power than the grid can give`, 'Families lose power at home', 'Hospital switches to backup generators', `CEO ${owner} blamed`],
       };
     case 'jobs':
       return {

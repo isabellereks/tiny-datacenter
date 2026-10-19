@@ -7,6 +7,9 @@ import {
 /** `b` is which building on the campus the floor is in (older saves: 0). */
 import type { Call } from './calls';
 
+/** A bank loan, paid back in equal monthly payments. */
+export interface Loan { id: number; balance: number; rate: number; payment: number }
+
 export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number; b?: number }
 
 export interface Worker {
@@ -133,6 +136,25 @@ export interface GameState {
   speed: number;
   /** someone from town on the phone */
   call: Call | null;
+
+  // ---------- strategy: see strategy.ts ----------
+  /** how much attention you draw, 0 to 100: brings customers, and backlash */
+  notoriety: number;
+  /** filed under a shell company code name; null once exposed or never used */
+  codename: string | null;
+  /** the state's moratorium bill: 0 to 100, passes at 100 */
+  bill: { progress: number; stage: number; name: string } | null;
+  lobby: boolean;
+  loans: Loan[];
+  market: { phase: 'normal' | 'boom' | 'glut'; until: number };
+  contract: { share: number; mult: number; until: number; misses: number } | null;
+  /** things you did that come back later */
+  seeds: { id: string; at: number }[];
+  /** megalitres of water used since opening */
+  waterUsed: number;
+  briefing: boolean;
+  /** other datacenters you bought elsewhere */
+  sites: { loc: LocKey; since: number; copycat: boolean }[];
   /** halls running hot for a while */
   boosts: { floor: number; until: number }[];
 }
@@ -146,6 +168,10 @@ export interface Ledger {
   /** repairs and parts, about 1.5% of what you've built each year */
   upkeep: number;
   fund: number;
+  /** lobbyists on retainer */
+  lobby: number;
+  /** loan interest (tax-deductible) and the principal paid down */
+  interest: number; principal: number;
   propertyTax: number;
   incomeTax: number;
   net: number;
@@ -185,6 +211,8 @@ export function fresh(): GameState {
     inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
     staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, cheer: 0, low: 0, cuts: 0 },
     boosts: [], campus: 1, bld: 0, speed: 1, call: null,
+    notoriety: 0, codename: null, bill: null, lobby: false, loans: [], market: { phase: 'normal', until: 30 },
+    contract: null, seeds: [], waterUsed: 0, briefing: false, sites: [],
   };
 }
 
@@ -241,6 +269,19 @@ export const payroll = (s: GameState) =>
 export const VISA_FEE = 10_000;
 /** Recruiting gets harder as you hire more; overseas hires also pay the first year's visa. */
 export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) + (abroad ? VISA_FEE : 0));
+
+/** What the AI market pays compared to normal. */
+export const MARKET_MULT = { normal: 1, boom: 1.3, glut: 0.65 } as const;
+/** Interest rates move with the market. */
+export const MARKET_RATE = { normal: 0.06, boom: 0.05, glut: 0.085 } as const;
+export const LOBBY_COST = 400_000;
+/** Customer prices: contracted capacity at its locked price, the rest at today's market, plus a little for fame. */
+export const priceMult = (s: GameState) => {
+  const m = MARKET_MULT[s.market.phase];
+  const c = s.contract && s.contract.until > s.month ? s.contract : null;
+  const base = c ? c.share * c.mult + (1 - c.share) * m : m;
+  return base * (1 + Math.min(0.2, s.notoriety / 500));
+};
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -360,7 +401,7 @@ export function ledger(s: GameState): Ledger {
   const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue) * (stopped ? 0.3 : 1);
   const trustPay = 0.85 + 0.15 * (s.trust / 100);
   const infl = inflation(s);
-  const revenue = (stopped ? 0 : 1) * priceGrowth(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
+  const revenue = (stopped ? 0 : 1) * priceGrowth(s) * priceMult(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
 
   const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
@@ -375,11 +416,14 @@ export function ledger(s: GameState): Ledger {
   const fund = s.up.fund ? COMMUNITY_FUND : 0;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves
   const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1) * (hasLaw(s, 'txAbate') || hasLaw(s, 'ohAbate') ? 0.4 : 1);
-  const pre = revenue - power - water - staff - upkeep - fund - propertyTax;
+  const lobby = s.lobby ? LOBBY_COST * infl : 0;
+  const interest = s.loans.reduce((t, x) => t + x.balance * x.rate / 12, 0);
+  const principal = s.loans.reduce((t, x) => t + Math.min(x.balance, x.payment - x.balance * x.rate / 12), 0);
+  const pre = revenue - power - water - staff - upkeep - fund - lobby - interest - propertyTax;
   const incomeTax = Math.max(0, pre) * (hasLaw(s, 'pillar2') ? 0.15 : L.incomeTax);
 
   return {
-    revenue, power, water, staff, upkeep, fund, propertyTax, incomeTax, net: pre - incomeTax,
+    revenue, power, water, staff, upkeep, fund, lobby, interest, principal, propertyTax, incomeTax, net: pre - incomeTax - principal,
     itMW, hallMW, powerMW, coolMW, pe, ce, eff, pue, gridMW, gridCap, strain,
     waterML: litres / 1e6, carbonT: mwh * L.carbon * (s.up.renewables ? 0.1 : 1),
   };

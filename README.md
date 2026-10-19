@@ -22,6 +22,18 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 - 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
 - If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
 
+## The long game
+
+- **Notoriety** comes from your size, your grid use, your other sites and the complaints you ignore. It brings customers (up to 20% higher prices) and backlash.
+- **A moratorium bill** is filed once you're noticed. It moves forward every month with notoriety, power bills, water and low trust, and slows with lobbyists, a happy town and local jobs. At 40% and 80% you're called to testify. If it passes, nothing new gets built at home for five years, and copycat laws can hit your other sites.
+- **Shell companies:** file your permit under a code name and people notice you less, until it leaks. Lobbyists can leak too.
+- **The AI market** booms (prices +30%, cheap loans) and crashes (prices −35%, dear loans).
+- **Loans:** borrow $10M to $150M against your buildings and land, paid back monthly over 10 years. Rates follow the market and your debt.
+- **Contracts:** a hyperscaler offers 10 years of fixed prices for 80% of your capacity. They protect you in a crash and cost you in a boom, and outages bring penalties; five strikes and they walk.
+- **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the hum leads to a sleep study and a class action, and in the desert the wells can run dry.
+- **Map:** buy existing datacenters in the other locations. They send their profit home every month.
+- **A yearly briefing** pauses the game every January: market, notoriety, the bill's odds, grid, debt, contract, sites and lawsuit risk.
+
 ## Campus
 
 Big datacenters are campuses of several wide buildings. With site plan approval from the county you can add up to three buildings, side by side, each with its own stack of floors. Pick which building to build on in the Build tab. A foundation upgrade applies to every building.

@@ -14,6 +14,7 @@ import { SetupCard } from './SetupCard';
 import { Share } from './Share';
 import { HoverLabel } from './HoverLabel';
 import { Call } from './Call';
+import { Briefing } from './Briefing';
 import type { FoundKey } from '@/lib/game/data';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
@@ -192,6 +193,7 @@ export default function Game() {
       {phase === 'play' && !open && !flash && <GoalCard s={s} onHeight={setGoalH} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
       {hovered && <HoverLabel s={s} what={hovered} />}
+      {phase === 'play' && s.briefing && <Briefing s={s} dispatch={dispatch} />}
       {phase === 'play' && s.call && <Call key={s.call.id} call={s.call} dispatch={dispatch} font={pixel.className} />}
       {sharing && (
         <Share s={s} capture={() => engineRef.current?.capture() ?? null} font={pixel.style.fontFamily} ui={ui.style.fontFamily}

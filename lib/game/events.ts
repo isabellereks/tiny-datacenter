@@ -2,7 +2,8 @@ import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type Fou
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
 import { callMonth } from './calls';
-import { floorLabel, gridLevel, hallCount, inflation, isBoosted, isBroken, locals, overseas, tallest, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
+import { strategyMonth } from './strategy';
+import { floorLabel, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, locals, overseas, tallest, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -276,6 +277,8 @@ export const GOALS: Goal[] = [
   { text: 'Reach year 5 with trust above 50', reward: 10_000_000, hint: 'Check Town opinion.', done: s => s.month >= 48 && s.trust > 50 },
   { text: 'Build a substation', reward: 5_000_000, hint: 'More grid, no brownouts.', done: s => s.substations >= 1 },
   { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab: site plan approval. Then Build.', done: s => s.campus >= 2 },
+  { text: 'Buy a datacenter in another place', reward: 10_000_000, hint: 'Map tab. It sends profit home every month.', done: s => s.sites.length >= 1 },
+  { text: 'Sign a 10-year contract', reward: 5_000_000, hint: 'Big customers call when you have 2+ halls.', done: s => !!s.contract },
   { text: 'Upgrade your foundation', reward: 10_000_000, hint: 'Fill every floor, then upgrade in Build.', done: s => s.found !== s.startFound },
   { text: 'Build 12 floors', reward: 25_000_000, hint: 'Taller is louder. Get a sound wall.', done: s => doneFloors(s) >= 12 },
   { text: 'Make $3M profit in a month', reward: 40_000_000, hint: 'Full halls and a happy town.', done: s => (s.books?.net ?? 0) >= 3_000_000 },
@@ -283,6 +286,8 @@ export const GOALS: Goal[] = [
   { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 70 },
   { text: 'Build 20 floors', reward: 80_000_000, hint: 'Needs steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
   { text: 'Avoid a strike for 10 years', reward: 60_000_000, hint: 'Keep morale up as you grow.', done: s => s.month >= 120 && !s.fired.includes('strike') },
+  { text: 'Make it through an AI crash', reward: 40_000_000, hint: 'Keep cash or contracts for when prices fall.', done: s => s.fired.includes('glutSurvived') },
+  { text: 'Own sites in 4 places', reward: 100_000_000, hint: 'Spread out before the moratoriums do.', done: s => s.sites.length >= 3 },
   { text: 'Build 40 floors', reward: 150_000_000, hint: 'Needs deep caissons and a skyscraper review.', done: s => doneFloors(s) >= 40 },
 ];
 
@@ -320,6 +325,7 @@ export function endOfMonth(s: GameState) {
 
   // a hall can go down; it's likelier when power, cooling or the grid is short, or nobody is watching it
   const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
+  const before = s.broken.length;
   for (const { k } of halls) {
     const p = 0.015 + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
     if (s.broken.length < 2 && Math.random() < p) {
@@ -327,6 +333,14 @@ export function endOfMonth(s: GameState) {
       note(s, techsOn(s, k) ? `${floorLabel(s, k)} is down. Your techs are fixing it.` : `${floorLabel(s, k)} is down`);
     }
   }
+
+  // cascades: say out loud when one problem caused the next
+  const newDown = s.broken.length - before;
+  if (newDown > 0 && hasLaw(s, 'heat') && !s.fired.includes(`heat-${Math.floor(s.month / 12)}`)) {
+    s.fired.push(`heat-${Math.floor(s.month / 12)}`);
+    s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `Heat wave knocks ${siteNameOf(s)} offline`, ticker: ['Chillers could not keep up', s.contract ? 'Big customer threatens penalties' : 'Customers left waiting', 'Techs work through the night'] };
+  }
+  if (newDown > 0 && lvl === 3) note(s, 'Blackout in town took floors down with it');
 
   if (s.cash < 0) {
     s.debt++;
@@ -336,8 +350,11 @@ export function endOfMonth(s: GameState) {
   if (s.trust <= 0) { endGame(s, 'town'); return; }
   if (s.debt >= 3) { endGame(s, 'broke'); return; }
 
-  const decision = govMonth(s, l) ?? staffMonth(s);
+  // every system runs every month; the first one with a question gets to ask it
+  const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
+  const decision = asks.find(x => x) ?? null;
   callMonth(s);
+  if (Math.floor(s.month) % 12 === 0 && s.month >= 12) s.briefing = true;
   if (s.phase !== 'play') return;
   if (decision) { s.complaint = decision; return; }
   if (s.complaint || s.month < s.calm) return;

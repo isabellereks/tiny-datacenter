@@ -1,5 +1,6 @@
 import { EU, FOUND_ORDER, FOUNDS, LOCS, type FoundKey, type LocKey } from './data';
-import { STAFF_DECISIONS } from './staff';
+import { breakRooms, breaksNeeded, STAFF_DECISIONS } from './staff';
+import { STRAT_DECISIONS } from './strategy';
 import {
   dateLabel, hallCount, hasLaw, heightOf, ledger, locals, maxBuildings, tallest, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
@@ -22,6 +23,8 @@ export interface LawInfo { name: string; by: (s: GameState) => string; effect: s
 export const LAWS: Record<string, LawInfo> = {
   itc: { name: 'Clean energy tax credit', by: () => 'Congress', effect: 'Solar farm 30% off' },
   fasttrack: { name: 'Fast-track permitting order', by: () => 'The White House', effect: 'Permits take half as long' },
+  moratorium: { name: 'Datacenter moratorium', by: s => LOCS[s.loc].gov.state, effect: 'No new floors, buildings or growth permits' },
+  waterCap: { name: 'Datacenter water cap', by: s => LOCS[s.loc].gov.local, effect: 'No new server halls' },
   stopWork: { name: 'Stop-work order', by: s => LOCS[s.loc].gov.local, effect: 'No income until you pass reinspection' },
   cleanAir: { name: 'Stricter generator rules', by: () => 'EPA', effect: 'Air permits take 3 mo longer' },
   vaExempt: { name: 'Equipment sales tax break', by: s => LOCS[s.loc].gov.state, effect: 'New floors 5% off' },
@@ -148,6 +151,7 @@ export function permitBlock(s: GameState, key: PermitKey): string | null {
   if (s.permits[key] >= P.max(s)) return 'Fully approved';
   if (s.applying.some(a => a.key === key)) return 'Under review';
   if ((key === 'zoning' || key === 'height' || key === 'campus') && hasLaw(s, 'pause')) return 'Paused by the county';
+  if ((key === 'zoning' || key === 'height' || key === 'campus') && hasLaw(s, 'moratorium')) return 'Blocked by the moratorium';
   const retry = Math.ceil((s.cooldown[`permit-${key}`] ?? 0) - s.month);
   if (retry > 0) return `Denied. Reapply in ${retry} mo`;
   return null;
@@ -213,6 +217,8 @@ export const permitNeeds = (s: GameState, key: PermitKey) =>
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
   const n = heightOf(s, s.bld);
+  if (hasLaw(s, 'moratorium')) return 'Moratorium: no building';
+  if (s.next === 'hall' && hasLaw(s, 'waterCap')) return 'Water cap: no new halls';
   if (n >= heightLimit(s)) return s.permits.height >= LOCS[s.loc].space.heights.length - 1 ? 'Height cap for this location' : ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
   if (s.next === 'power' && s.floors.filter(f => f.type === 'power').length >= powerLimit(s)) return 'Needs an air permit';
   if (s.next === 'hall' && s.floors.filter(f => f.type === 'hall').length >= hallLimit(s)) return 'Needs more water';
@@ -235,7 +241,8 @@ export function checklist(s: GameState, l: Ledger = ledger(s)): Check[] {
   const list: Check[] = [
     { label: 'No floors down', ok: s.broken.length === 0 },
     { label: 'A tech on every hall', ok: halls.every(o => techsOn(s, o.i) > 0) },
-    { label: 'Enough power and cooling', ok: l.eff >= 0.999 },
+    // workplace safety: tired techs make mistakes
+    { label: 'Break rooms for staff', ok: breakRooms(s) >= breaksNeeded(s) || s.workers.length < 6 },
   ];
   if (EU.includes(s.loc)) list.push({ label: 'PUE 1.3 or better', ok: l.pue <= 1.3 });
   if (s.loc === 'ashburn') list.push({ label: 'Under 55 dB at homes', ok: s.up.soundWalls || tallest(s) <= 5 });
@@ -254,8 +261,9 @@ function inspect(s: GameState, l: Ledger) {
     const fine = today(s, 250_000 * fails.length);
     s.cash -= fine;
     addTrust(s, -2 * fails.length);
-    enact(s, 'stopWork');
-    headline(s, 'Local news', `${siteName(s)} fails ${name}`, [`${fails.map(f => f.label).join(', ')}`, `Fined ${money(fine)}. Stop-work order until it passes`, `${ownerName(s)} promises fixes`]);
+    // one problem is a fine; two or more and they shut you down until it's fixed
+    if (fails.length >= 2) enact(s, 'stopWork');
+    headline(s, 'Local news', `${siteName(s)} fails ${name}`, [`${fails.map(f => f.label).join(', ')}`, fails.length >= 2 ? `Fined ${money(fine)}. Stop-work order until it passes` : `Fined ${money(fine)}`, `${ownerName(s)} promises fixes`]);
   }
   s.inspectAt = s.month + 12;
 }
@@ -361,7 +369,7 @@ export const DECISIONS: Decision[] = [
 ];
 
 /** Every decision that can pop up: government, utilities and your own staff. */
-export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS];
+export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS, ...STRAT_DECISIONS];
 
 export const decisionCost = (s: GameState, c: GovChoice) => (c.cost ? c.cost(s) : 0);
 
@@ -375,6 +383,7 @@ export function resolveDecision(s: GameState, choice: number) {
   c.apply(s);
   note(s, `${c.label}. ${c.note}`);
   s.cooldown[d.id] = s.month + 12;
+  s.seeds = s.seeds.filter(x => x.id !== d.id);
   s.complaint = null;
   s.calm = s.month + 2;
   return true;
@@ -458,7 +467,7 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   // the inspector comes back every month until everything passes
   else if (hasLaw(s, 'stopWork')) {
     const fails = checklist(s, l).filter(c => !c.ok);
-    if (!fails.length) { repeal(s, 'stopWork'); note(s, 'Passed reinspection. Back to work.'); }
+    if (fails.length <= 1) { repeal(s, 'stopWork'); note(s, 'Passed reinspection. Back to work.'); }
     else {
       const fee = today(s, 100_000 * fails.length);
       s.cash -= fee;
