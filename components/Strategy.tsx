@@ -5,9 +5,10 @@ import { LOCS, type LocKey } from '@/lib/game/data';
 import {
   billEta, billForces, billStageName, borrowLimit, debt, LOAN_SIZES, loanRate, siteCost, siteNet,
 } from '@/lib/game/strategy';
-import { LOBBY_COST, MARKET_MULT, money, today, type GameState, type Ledger } from '@/lib/game/state';
+import { ECON, LOBBY_COST, MARKET_MULT, money, today, type GameState, type Ledger } from '@/lib/game/state';
 import { Meter, Row, Why } from './Island';
 
+const pct1 = (n: number) => `${n >= 0 ? '+' : '−'}${Math.round(Math.abs(n) * 100)}%`;
 const pct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}`;
 
 /** The moratorium bill: the clock you race. */
@@ -50,8 +51,12 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
   const m = s.market.phase;
   return (
     <>
-      <span className="label">Market</span>
+      <span className="label">Economy</span>
       <div className="stats">
+        <span className={s.econ.phase === 'steady' ? undefined : 'bad'}>
+          {ECON[s.econ.phase].name}: costs {pct1(ECON[s.econ.phase].cost)}/yr, prices {pct1(ECON[s.econ.phase].price)}/yr
+          {ECON[s.econ.phase].power !== 1 ? `, power ${pct1(ECON[s.econ.phase].power - 1)}` : ''}
+        </span>
         <span className={m === 'glut' ? 'bad' : m === 'boom' ? 'good' : undefined}>
           {m === 'boom' ? 'AI boom' : m === 'glut' ? 'AI crash' : 'Normal'}: prices {Math.round(MARKET_MULT[m] * 100)}%
         </span>

@@ -2,8 +2,8 @@ import { CUSTS, LOCS, type LocKey } from './data';
 import { hopedJobs, impact } from './events';
 import type { Decision } from './gov';
 import {
-  assets, hallCount, hasLaw, inflation, landCost, ledger, locals, MARKET_MULT, MARKET_RATE, money, note, ownerName, siteName, tallest, today,
-  type GameState, type Ledger,
+  assets, ECON, econDrift, hallCount, hasLaw, inflation, landCost, ledger, locals, MARKET_MULT, MARKET_RATE, money, note, ownerName, siteName, tallest, today,
+  type EconPhase, type GameState, type Ledger,
 } from './state';
 
 /*
@@ -90,7 +90,7 @@ export const debt = (s: GameState) => s.loans.reduce((t, x) => t + x.balance, 0)
 export const borrowLimit = (s: GameState) =>
   Math.max(0, (assets(s) + landCost(s.loc, s.found) * s.campus) * 0.8 + s.sites.length * 40_000_000 - debt(s));
 /** The rate a bank offers now: the market rate, plus more the deeper in debt you are. */
-export const loanRate = (s: GameState) => MARKET_RATE[s.market.phase] + 0.02 + Math.min(0.06, (debt(s) / Math.max(1, assets(s))) * 0.08);
+export const loanRate = (s: GameState) => MARKET_RATE[s.market.phase] + ECON[s.econ.phase].rate + 0.02 + Math.min(0.06, (debt(s) / Math.max(1, assets(s))) * 0.08);
 
 export function takeLoan(s: GameState, amount: number) {
   if (amount > borrowLimit(s)) return false;
@@ -254,6 +254,20 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
   if (s.codename && Math.random() < 0.015 + s.notoriety / 900 + s.campus * 0.01) scandal(s, 'codename');
   if (s.lobby && Math.random() < 0.03) scandal(s, 'lobbying');
 
+  // the wider economy drifts each month and shifts phase now and then
+  econDrift(s);
+  if (s.month >= s.econ.until) {
+    const from = s.econ.phase;
+    const next: EconPhase = from !== 'steady' ? 'steady' : (['inflation', 'recession', 'energy'] as const)[Math.floor(Math.random() * 3)];
+    const [lo, hi] = ECON[next].months;
+    s.econ.phase = next;
+    s.econ.until = s.month + Math.round(lo + Math.random() * (hi - lo));
+    if (next === 'inflation') headline(s, 'Business news', 'Inflation hits a 20-year high', ['Wages, parts and power all cost more', 'The central bank raises rates', 'Customers push back on price hikes']);
+    else if (next === 'recession') headline(s, 'Breaking news', 'The economy slips into recession', ['Companies cut cloud budgets', 'Prices for capacity fall', 'Costs barely move']);
+    else if (next === 'energy') headline(s, 'Breaking news', 'Energy crisis: power prices soar', ['Gas supplies tighten', `Power bills up about ${Math.round((ECON.energy.power - 1) * 100)}%`, 'Utilities ask big users to cut back']);
+    else note(s, from === 'recession' ? 'The recession is over' : from === 'energy' ? 'Power prices settle down' : 'Inflation cools off');
+  }
+
   // the market: booms, gluts and back
   if (s.month >= s.market.until) {
     const next = s.market.phase === 'normal' ? (Math.random() < 0.6 ? 'boom' : 'glut') : s.market.phase === 'boom' ? 'glut' : 'normal';
@@ -328,6 +342,7 @@ export function briefing(s: GameState): Brief[] {
   const l = ledger(s);
   const eta = billEta(s, l);
   const rows: Brief[] = [
+    { label: 'Economy', value: `${ECON[s.econ.phase].name}, costs ${ECON[s.econ.phase].cost >= 0 ? '+' : ''}${Math.round(ECON[s.econ.phase].cost * 100)}%/yr`, bad: s.econ.phase !== 'steady' },
     { label: 'Market', value: s.market.phase === 'boom' ? 'Boom, prices +30%' : s.market.phase === 'glut' ? 'AI crash, prices −35%' : 'Normal', bad: s.market.phase === 'glut' },
     { label: 'Notoriety', value: `${Math.round(s.notoriety)}/100${s.codename ? `, hidden as ${s.codename}` : ''}`, bad: s.notoriety > 50 },
     {

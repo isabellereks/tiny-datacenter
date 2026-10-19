@@ -149,6 +149,8 @@ export interface GameState {
   lobby: boolean;
   loans: Loan[];
   market: { phase: 'normal' | 'boom' | 'glut'; until: number };
+  /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
+  econ: { phase: EconPhase; until: number; cost: number; price: number };
   contract: { share: number; mult: number; until: number; misses: number } | null;
   /** things you did that come back later */
   seeds: { id: string; at: number }[];
@@ -214,6 +216,7 @@ export function fresh(): GameState {
     staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, struck: 0, cheer: 0, low: 0, cuts: 0 },
     boosts: [], campus: 1, bld: 0, speed: 1, call: null,
     notoriety: 0, codename: null, bill: null, lobby: false, loans: [], market: { phase: 'normal', until: 30 },
+    econ: { phase: 'steady', until: 48, cost: 1, price: 1 },
     contract: null, seeds: [], waterUsed: 0, briefing: false, sites: [],
   };
 }
@@ -239,6 +242,11 @@ export function load(): GameState {
         ...base, ...saved,
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
         permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
+        // older saves grew costs on a fixed curve; start the economy from where that curve had got to
+        econ: saved.econ ?? (() => {
+          const y = (saved.month ?? 0) / 12, cost = 1.03 ** y;
+          return { phase: 'steady' as const, until: (saved.month ?? 0) + 24, cost, price: cost / Math.min(SQUEEZE_MAX, 1.015 ** y) };
+        })(),
         build: null,
       };
     }
@@ -319,14 +327,27 @@ export function setupCost(s: GameState) {
 export const assets = (s: GameState) =>
   (FOUNDS[s.found].cost + SHAPES[s.shape].cost) * s.campus + s.floors.reduce((t, f) => t + (f.done ? f.cost : 0), 0);
 
-/** Costs rise about 3% a year once you open: power, wages, water, parts and construction.
- *  What customers pay rises more slowly, so margins shrink unless you keep improving. */
-export const COST_GROWTH = 0.03;
-/** prices trail costs by this much a year, up to SQUEEZE_MAX, so margins tighten but a long run stays playable */
-export const SQUEEZE = 0.015;
+/*
+ * The economy moves in phases instead of a straight line. Each phase sets how fast costs (power, wages,
+ * parts, construction) and customer prices change a year, what power costs, and where interest rates sit.
+ */
+export type EconPhase = 'steady' | 'inflation' | 'recession' | 'energy';
+export const ECON: Record<EconPhase, { name: string; cost: number; price: number; power: number; rate: number; months: [number, number] }> = {
+  steady: { name: 'Steady growth', cost: 0.025, price: 0.015, power: 1, rate: 0, months: [36, 96] },
+  inflation: { name: 'Inflation spike', cost: 0.09, price: 0.05, power: 1.1, rate: 0.03, months: [12, 30] },
+  recession: { name: 'Recession', cost: 0.005, price: -0.04, power: 0.9, rate: -0.015, months: [12, 24] },
+  energy: { name: 'Energy crisis', cost: 0.04, price: 0.02, power: 1.7, rate: 0.01, months: [6, 18] },
+};
+/** prices never fall more than this far behind costs, so a long run stays playable */
 export const SQUEEZE_MAX = 1.3;
-export const inflation = (s: GameState) => (s.phase === 'setup' ? 1 : (1 + COST_GROWTH) ** (s.month / 12));
-export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : inflation(s) / Math.min(SQUEEZE_MAX, (1 + SQUEEZE) ** (s.month / 12)));
+export const inflation = (s: GameState) => (s.phase === 'setup' ? 1 : s.econ.cost);
+export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : s.econ.price);
+/** One month of the economy's drift. */
+export function econDrift(s: GameState) {
+  const E = ECON[s.econ.phase];
+  s.econ.cost *= (1 + E.cost) ** (1 / 12);
+  s.econ.price = Math.min(s.econ.cost, Math.max(s.econ.cost / SQUEEZE_MAX, s.econ.price * (1 + E.price) ** (1 / 12)));
+}
 /** A price from the data tables, in today's dollars. */
 export const today = (s: GameState, base: number) => Math.round(base * inflation(s));
 
@@ -412,7 +433,7 @@ export function ledger(s: GameState): Ledger {
   const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
   const rate = L.power * surcharge * (s.up.renewables ? 1.05 : 1) * (hasLaw(s, 'priority') ? 1.15 : 1) * (hasLaw(s, 'aepTariff') ? 1.1 : 1)
     + (hasLaw(s, 'vaKwh') ? 11 : 0) + (hasLaw(s, 'seTax') ? 35 : 0);
-  const power = infl * mwh * rate;
+  const power = infl * mwh * rate * ECON[s.econ.phase].power;
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
   const staff = infl * payroll(s);
