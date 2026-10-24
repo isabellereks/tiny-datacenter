@@ -8,7 +8,7 @@ import {
   type BuildableType, type StitchSize,
 } from '@/lib/game/data';
 import {
-  COMPLAINTS, GIFTS, UPGRADES, choiceCost, foundationUpgradeCost, giftWait, hopedJobs, nextFoundation, rating,
+  GIFTS, UPGRADES, foundationUpgradeCost, giftWait, hopedJobs, nextFoundation, rating,
   substationCost, townMood, type Impact,
 } from '@/lib/game/events';
 import {
@@ -16,7 +16,7 @@ import {
   techsOn, utilization, type Floor, type GameState, type Ledger,
 } from '@/lib/game/state';
 import {
-  DECISIONS, LAWS, PERMITS, activeLaws, buildBlock, checklist, decisionCost, heightLimit, hallLimit,
+  LAWS, PERMITS, activeLaws, buildBlock, checklist, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
@@ -122,10 +122,9 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   s: GameState; l: Ledger; imp: Impact; open: boolean; tab: Tab; activity: string | null; armed: boolean;
   dispatch: (a: Action) => void; onOpen: () => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void; onShare: () => void;
 }) {
-  const complaint = COMPLAINTS.find(c => c.id === s.complaint);
-  const decision = DECISIONS.find(d => d.id === s.complaint);
+  // complaints and decisions arrive as letters (Letter.tsx), so the island stays out of the way
   const over = s.phase === 'over';
-  const mode = over ? 'activity' : complaint || decision ? 'alert' : open ? 'expanded' : activity ? 'activity' : 'compact';
+  const mode = over ? 'activity' : open ? 'expanded' : activity ? 'activity' : 'compact';
   const inner = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 260, h: 44 });
 
@@ -173,46 +172,6 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <span className="pulse" aria-hidden="true" />
         <span className="msg">{activity}</span>
       </button>
-    );
-  } else if (mode === 'alert' && decision) {
-    body = (
-      <div className="alert" role="alertdialog" aria-labelledby="alert-title">
-        <span className="from">{decision.from(s)}</span>
-        <h2 id="alert-title">{decision.title(s)}</h2>
-        <p>{decision.body(s)}</p>
-        <div className="choices">
-          {decision.choices.map((c, k) => {
-            const cost = decisionCost(s, c);
-            return (
-              <button key={c.label} className={k === 0 ? 'pill white' : 'pill'} disabled={cost > 0 && s.cash < cost}
-                onClick={() => dispatch({ type: 'resolve', choice: k })}>
-                {c.label}
-                <span className="cost">{cost > 0 ? `${money(cost)}  ` : cost < 0 ? `+${money(-cost)}  ` : ''}{c.note}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  } else if (mode === 'alert' && complaint) {
-    body = (
-      <div className="alert" role="alertdialog" aria-labelledby="alert-title">
-        <span className="from">{complaint.from}</span>
-        <h2 id="alert-title">{complaint.title(s, imp)}</h2>
-        <p>{complaint.body(s)}</p>
-        <div className="choices">
-          {complaint.choices.map((c, k) => {
-            const cost = choiceCost(s, c);
-            return (
-              <button key={c.label} className={k === 0 ? 'pill white' : 'pill'} disabled={s.cash < cost}
-                onClick={() => dispatch({ type: 'resolve', choice: k })}>
-                {c.label}
-                <span className="cost">{cost ? `${money(cost)}  Trust +${c.trust ?? 0}` : `Trust −${complaint.sting}`}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
     );
   } else {
     body = <Expanded {...{ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView, onShare }} />;
