@@ -440,6 +440,16 @@ export class Engine {
     this.fitTween = { t0: performance.now(), fromU: this.upc, toU, fromT: this.controls.target.clone(), toT: center };
   }
 
+  /** Where the top of a building is on screen, in CSS pixels, for things that float off the roof. */
+  roofOnScreen(b = 0): { x: number; y: number } | null {
+    const s = this.s;
+    if (!heightOf(s, b)) return null;
+    const p = new THREE.Vector3(buildingX(b), levelY(s, heightOf(s, b)), 0).project(this.camera);
+    const r = this.renderer.domElement.getBoundingClientRect();
+    if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return null;
+    return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+  }
+
   resetView() {
     this.camera.zoom = 1;
     this.camera.position.copy(this.controls.target).add(this.homeDir.clone().multiplyScalar(150));
