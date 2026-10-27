@@ -19,8 +19,6 @@ export function Meta({ s }: { s: GameState }) {
       <span className={`meta-dot${live ? ' on' : ''}`} />
       <span>{COORDS[s.loc]}</span>
       <span>{l.itMW.toFixed(1)} MW</span>
-      <span>{s.floors.length} floors</span>
-      <span>{s.workers.length} techs</span>
       <span>{live ? 'Live' : 'Paused'}</span>
     </div>
   );

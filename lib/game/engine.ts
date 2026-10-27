@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
-import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, type Animated, type TreeSpot } from './models';
+import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
 import { baseY, bOf, buildingX, heightOf, ledger, level, levelY, simulate, tallest, type GameState } from './state';
 import { createStitchMaterial } from './stitchPass';
 
@@ -33,6 +33,8 @@ export interface EngineHooks {
 interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number }
 interface Falling { obj: THREE.Group; t: number; axis: THREE.Vector3 }
 interface Marcher { group: THREE.Group; legs: THREE.Group[]; sign: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; phase: number }
+interface Walker { group: THREE.Group; legs: THREE.Group[]; a: number; speed: number; rx: number; rz: number }
+interface Protester { group: THREE.Group; sign: THREE.Group; phase: number }
 
 /** The town storming the datacenter: walk in, then the floors come down one by one from the top. */
 const RIOT = { walk: 3, collapse: 4.5, hold: 1.2 };
@@ -86,6 +88,11 @@ export class Engine {
   private floorGroups: THREE.Group[] = [];
   private crowd = new THREE.Group();
   private marchers: Marcher[] = [];
+  /** the town going about its day: people out walking, and protesters at the gate when trust is low */
+  private townGroup = new THREE.Group();
+  private walkers: Walker[] = [];
+  private protesters: Protester[] = [];
+  private townKey = '';
   private riotCash = 0;
   private goalClock = 0;
   private thread = '';
@@ -148,7 +155,7 @@ export class Engine {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = 0.005;
     this.ground.receiveShadow = true;
-    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd);
+    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd, this.townGroup);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.post));
     this.post.uniforms.uNear.value = this.camera.near;
     this.post.uniforms.uFar.value = this.camera.far;
@@ -291,6 +298,7 @@ export class Engine {
       }
     } else this.roofs = [];
     this.makeCrowd();
+    this.makeTown();
     for (const w of s.workers) {
       const m = makeWorker();
       m.group.scale.setScalar(1.15);
@@ -349,6 +357,39 @@ export class Engine {
     const sc = this.sun.shadow.camera;
     Object.assign(sc, { left: -30, right: 30, top: 30 + h, bottom: -30, near: 1, far: 200 });
     sc.updateProjectionMatrix();
+  }
+
+  /** How many protesters the town sends to the gate. */
+  private protestSize() {
+    const s = this.s;
+    return s.phase === 'play' && s.trust < 40 ? Math.max(2, Math.min(9, Math.ceil((40 - s.trust) / 4))) : 0;
+  }
+
+  /** People walking around the lot, and a picket at the gate. */
+  private makeTown() {
+    const s = this.s;
+    clear(this.townGroup);
+    this.walkers = [];
+    this.protesters = [];
+    const look = townLook(s);
+    this.townKey = `${look.homes}|${look.lit}|${look.forSale}|${this.protestSize()}`;
+    if (s.phase !== 'play') return;
+    const n = Math.min(5, 2 + Math.floor(look.homes / 3));
+    for (let k = 0; k < n; k++) {
+      const m = makePerson(CROWD[(k * 3) % CROWD.length], false);
+      m.group.scale.setScalar(1.5);
+      this.townGroup.add(m.group);
+      this.walkers.push({ ...m, a: k * 2.1, speed: (0.05 + (k % 3) * 0.015) * (k % 2 ? 1 : -1), rx: (s.campus > 1 ? 18.2 : 15) + (k % 2) * 0.6, rz: 11.5 + (k % 3) * 0.6 });
+    }
+    const p = this.protestSize();
+    for (let k = 0; k < p; k++) {
+      const m = makePerson(CROWD[k % CROWD.length]);
+      m.group.scale.setScalar(1.5);
+      m.group.position.set(-9 + (k % 5) * 1.3, 0, 7.6 + Math.floor(k / 5) * 1.4);
+      m.group.rotation.y = Math.PI;
+      this.townGroup.add(m.group);
+      this.protesters.push({ group: m.group, sign: m.sign, phase: k * 0.8 });
+    }
   }
 
   /** Townspeople for the town ending. They gather around the lot. */
@@ -506,6 +547,11 @@ export class Engine {
     const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call || s.complaint || s.tierUp !== null ? 0 : SPEEDS[s.speed] ?? 1);
     if (newMonth) endOfMonth(s);
     let changed = built || newMonth || fixed;
+    // the town changes month to month: more homes, lights out in a blackout, a picket at the gate
+    if (newMonth) {
+      const look = townLook(s);
+      if (`${look.homes}|${look.lit}|${look.forSale}|${this.protestSize()}` !== this.townKey) this.rebuild();
+    }
     this.goalClock += dt;
     if (s.phase === 'play' && this.goalClock > 0.5) { this.goalClock = 0; if (checkGoal(s, ledger(s))) changed = true; }
     if (s.phase === 'over' && !wasOver) {
@@ -631,6 +677,21 @@ export class Engine {
       const swing = w.pause > 0 ? 0 : Math.sin(t * 9 + w.id) * 0.6;
       m.legs[0].rotation.x = swing;
       m.legs[1].rotation.x = -swing;
+    }
+    for (const w of this.walkers) {
+      w.group.visible = !this.picking && s.phase === 'play';
+      w.a += w.speed * dt;
+      const x = Math.cos(w.a) * w.rx, z = Math.sin(w.a) * w.rz;
+      w.group.position.set(x, 0, z);
+      // face along the path
+      w.group.rotation.y = Math.atan2(-Math.sin(w.a) * w.rx * Math.sign(w.speed), Math.cos(w.a) * w.rz * Math.sign(w.speed));
+      const swing = Math.sin(t * 7 + w.a * 10) * 0.5;
+      w.legs[0].rotation.x = swing;
+      w.legs[1].rotation.x = -swing;
+    }
+    for (const p of this.protesters) {
+      p.group.position.y = Math.abs(Math.sin(t * 5 + p.phase)) * 0.25;
+      p.sign.rotation.z = Math.sin(t * 4 + p.phase) * 0.25;
     }
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
     for (const f of this.anim.rotors) f.rotation.z -= dt * 4;

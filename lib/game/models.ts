@@ -363,8 +363,8 @@ export function makeRoof(s: GameState, anim: Animated, b = 0) {
   return g;
 }
 
-/** A townsperson holding a sign. */
-export function makePerson(shirt: string) {
+/** A townsperson, holding a sign unless they're just out for a walk. */
+export function makePerson(shirt: string, withSign = true) {
   const g = new THREE.Group();
   const legs = [-0.12, 0.12].map(x => {
     const pivot = new THREE.Group();
@@ -379,8 +379,10 @@ export function makePerson(shirt: string) {
   const sign = new THREE.Group();
   sign.position.set(0.38, 0.9, 0.1);
   g.add(sign);
-  box(sign, 0.08, 1.5, 0.08, 'dark', 0, 0.75, 0);
-  box(sign, 1, 0.65, 0.08, 'surf', 0, 1.55, 0.02);
+  if (withSign) {
+    box(sign, 0.08, 1.5, 0.08, 'dark', 0, 0.75, 0);
+    box(sign, 1, 0.65, 0.08, 'surf', 0, 1.55, 0.02);
+  }
   return { group: g, legs, sign };
 }
 
@@ -617,16 +619,55 @@ function landmark(loc: LocKey, g: THREE.Group) {
 
 export interface TreeSpot { x: number; z: number; k: number }
 
-/** Builds the lot: standing trees, stumps for the first `cleared` spots, the site and the landmark. */
+/** Roof colour of the town's houses, by place. */
+const ROOFS: Record<LocKey, string> = {
+  dalles: '#7D8597', reykjavik: '#D7263D', phoenix: '#E9D3A6', ashburn: '#1F2A44',
+  abilene: '#8B5E3C', newalbany: '#7D8597', dublin: '#1F2A44', lulea: '#B5372B',
+};
+
+/** A small house: walls, a pitched roof, a door and two windows that glow unless the power's out. */
+function makeHouse(loc: LocKey, k: number, lit: boolean, forSale: boolean) {
+  const g = new THREE.Group();
+  const w = 2.6 + (k % 2) * 0.5, d = 2.2, h = 1.7 + (k % 3) * 0.2;
+  box(g, w, h, d, 'light', 0, h / 2, 0);
+  prism(g, [[-w / 2 - 0.15, 0], [w / 2 + 0.15, 0], [0, 0.9]], d + 0.2, ROOFS[loc], 0, h, -d / 2 - 0.1);
+  box(g, 0.4, 0.75, 0.05, ['#D7263D', '#2E8B57', '#0045D1', '#F2B43C'][k % 4], -w / 4, 0.38, d / 2 + 0.01);
+  for (const x of [w / 4 - 0.15, w / 4 + 0.4]) box(g, 0.42, 0.42, 0.05, lit ? '#F2B43C' : 'dark', x, h * 0.6, d / 2 + 0.01);
+  if (forSale) {
+    box(g, 0.06, 0.8, 0.06, 'dark', w / 2 + 0.5, 0.4, d / 2 + 0.4);
+    box(g, 0.6, 0.4, 0.05, '#D7263D', w / 2 + 0.5, 0.8, d / 2 + 0.42);
+  }
+  // face the middle of the lot
+  return g;
+}
+
+/** How the town looks this month: how many homes, whether the lights are on, and how many are for sale. */
+export function townLook(s: GameState) {
+  const locals = s.workers.filter(w => !w.overseas).length;
+  const homes = s.phase === 'setup' ? 4 : Math.min(10, 4 + Math.floor(locals / 2));
+  const forSale = s.phase === 'play' && s.trust < 40 ? Math.min(homes, Math.ceil((40 - s.trust) / 8)) : 0;
+  return { homes, lit: s.gridLevel < 3, forSale };
+}
+
+/** Builds the lot: standing trees, stumps for the first `cleared` spots, the town's homes, the site and the landmark. */
 export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared: number): TreeSpot[] {
   clear(g);
   landmark(s.loc, g);
   if (s.phase !== 'setup' || s.step !== 'found') site(s, g);
-  const spots = treeSpots(s.loc, total).map(([x, z], k) => ({ x, z, k }));
+  const town = townLook(s);
+  // the farthest spots are homes; the rest are trees, nearest first, so clearing starts at the building
+  const all = treeSpots(s.loc, total + 10).map(([x, z], k) => ({ x, z, k }));
+  const spots = all.slice(0, total);
   for (const sp of spots) {
     const t = sp.k < cleared ? stump() : makeTree(s.loc, sp.k);
     t.position.set(sp.x, 0, sp.z);
     g.add(t);
   }
+  all.slice(total, total + town.homes).forEach((sp, j) => {
+    const h = makeHouse(s.loc, j, town.lit, j < town.forSale);
+    h.position.set(sp.x, 0, sp.z);
+    h.rotation.y = Math.atan2(-sp.x, -sp.z);
+    g.add(h);
+  });
   return spots;
 }
