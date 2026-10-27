@@ -106,9 +106,9 @@ export const LOCS: Record<LocKey, Location> = {
     cloth: '#F1F4F8', hole: '#DFE5EE', edge: '#C9B6F2', deco: '#99BBFF',
   },
   phoenix: {
-    name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot. Uses lots of water.',
+    name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot and thirsty. Big market.',
     land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
-    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, queue: 24, trees: 14,
+    propertyTax: 0.01, incomeTax: 0.259, demand: 1.1, carbon: 0.4, coolCost: 1.4, grid: 20, queue: 24, trees: 14,
     taxNote: 'Normal taxes.',
     gov: { local: 'Phoenix City Council', state: 'Arizona Legislature', utility: 'APS', air: 'Maricopa County Air Quality', us: true },
     space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 1, hearing: 0 },

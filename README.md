@@ -34,7 +34,7 @@ Trust moves toward that score every month. You can see it in the world too: more
 
 - **The economy** moves in phases: steady growth, inflation spikes, recessions and energy crises. Costs creep up a little faster than prices, but prices never fall more than 20% behind.
 - **The AI market** booms (more offers, higher prices) and crashes (fewer offers, cheap spot prices). Signed deals keep paying.
-- **A moratorium bill** gets filed once you're big or the town turns on you. It moves with your size, power bills, water and low trust, and slows when the town likes you and you hire locals. At 40% and 80% you're called to testify. If it passes, nothing new gets built for five years.
+- **A moratorium bill** gets filed once you're big or the town turns on you. It moves with your size, power bills, water and low trust, and slows when the town likes you and you hire locals. At 40% and 80% you're called to testify. If it passes, no new server halls or buildings for five years, though you can still upgrade power and cooling.
 - **Loans:** $10M to $150M against your buildings, land and signed deals, paid back monthly over 10 years.
 - **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the noise leads to a class action, and in the desert the wells can run dry, after which new halls need water-saving cooling.
 - **A yearly briefing** every January: size, customers, chips, grid, economy, the bill, debt and lawsuit risk.

@@ -23,7 +23,7 @@ export interface LawInfo { name: string; by: (s: GameState) => string; effect: s
 export const LAWS: Record<string, LawInfo> = {
   itc: { name: 'Clean energy tax credit', by: () => 'Congress', effect: 'Solar farm 30% off' },
   fasttrack: { name: 'Fast-track permitting order', by: () => 'The White House', effect: 'Permits take half as long' },
-  moratorium: { name: 'Datacenter moratorium', by: s => LOCS[s.loc].gov.state, effect: 'No new floors, buildings or growth permits' },
+  moratorium: { name: 'Datacenter moratorium', by: s => LOCS[s.loc].gov.state, effect: 'No new server halls, buildings or growth permits' },
   waterCap: { name: 'Datacenter water cap', by: s => LOCS[s.loc].gov.local, effect: 'New halls need water-saving cooling' },
   stopWork: { name: 'Stop-work order', by: s => LOCS[s.loc].gov.local, effect: 'Halls at 30% until you pass reinspection' },
   cleanAir: { name: 'Stricter generator rules', by: () => 'EPA', effect: 'Air permits take 3 mo longer' },
@@ -217,7 +217,8 @@ export const permitNeeds = (s: GameState, key: PermitKey) =>
 /** What stops the next floor from being built, or null. */
 export function buildBlock(s: GameState): string | null {
   const n = heightOf(s, s.bld);
-  if (hasLaw(s, 'moratorium')) return 'Moratorium: no building';
+  // a moratorium stops new capacity, not upgrades to the power and cooling you already run
+  if (hasLaw(s, 'moratorium') && s.next === 'hall') return 'Moratorium: no new halls';
   // the cap is on evaporating water: halls with water-saving or liquid cooling are allowed
   if (s.next === 'hall' && hasLaw(s, 'waterCap') && !s.up.closedLoop && !s.up.liquid) return 'Water cap: needs water-saving cooling';
   if (n >= heightLimit(s)) return s.permits.height >= LOCS[s.loc].space.heights.length - 1 ? 'Height cap for this location' : ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];

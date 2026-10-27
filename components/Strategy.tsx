@@ -11,7 +11,7 @@ const pct1 = (n: number) => `${n >= 0 ? '+' : '−'}${Math.round(Math.abs(n) * 1
 /** The moratorium bill: the clock you race. */
 export function BillPanel({ s, l }: { s: GameState; l: Ledger }) {
   const law = s.laws.find(x => x.id === 'moratorium' && x.until > s.month);
-  if (law) return <p className="warn">Moratorium: no growth here for {Math.ceil(law.until - s.month)} mo</p>;
+  if (law) return <p className="warn">Moratorium: no new halls here for {Math.ceil(law.until - s.month)} mo. Power and cooling upgrades are still allowed.</p>;
   if (!s.bill) return null;
   const f = billForces(s, l);
   const eta = billEta(s, l);

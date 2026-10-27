@@ -245,7 +245,7 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
     }
     if (s.bill.progress >= 100) {
       s.laws.push({ id: 'moratorium', until: s.month + MORATORIUM });
-      headline(s, 'Breaking news', `${billName(s)} becomes law`, ['No new datacenter construction for 5 years', `${ownerName(s)}'s expansion plans frozen`, 'Other states draft copies']);
+      headline(s, 'Breaking news', `${billName(s)} becomes law`, ['No new server halls for 5 years', `${ownerName(s)}'s expansion plans frozen`, 'Other states draft copies']);
       s.bill = null;
     }
   }
