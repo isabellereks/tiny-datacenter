@@ -415,6 +415,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
   .fgrid { grid-template-columns: minmax(0, 1fr); }
   .flist { max-height: 150px; }
   .compact .flag { display: none; }
+  .tabs { flex-wrap: wrap; }
+  .tabs button { flex: 1 1 22%; padding: 7px 4px; }
+  .ex-side { gap: 6px; }
+  .score { font-size: 12px; white-space: nowrap; }
+  .expanded { padding: 14px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { impact } from '@/lib/game/events';
+import { TIERS } from '@/lib/game/data';
 import { money, type GameState } from '@/lib/game/state';
 
 export function EndCard({ s, onAgain, onHeight, onShare }: { s: GameState; onAgain: () => void; onHeight: (h: number) => void; onShare: () => void }) {
@@ -30,8 +30,8 @@ export function EndCard({ s, onAgain, onHeight, onShare }: { s: GameState; onAga
         <div className="fact"><span>Best rating</span><b>{s.tally.best}/100</b></div>
         <div className="fact"><span>Months</span><b>{months}</b></div>
         <div className="fact"><span>Profit</span><b>{money(s.tally.profit)}</b></div>
-        <div className="fact"><span>Trees cut</span><b>{impact(s).cleared}</b></div>
-        <div className="fact"><span>Ignored</span><b>{s.tally.ignored}</b></div>
+        <div className="fact"><span>Grew into</span><b>{TIERS[s.tier].name}</b></div>
+        <div className="fact"><span>Peak</span><b>{s.peakMW.toFixed(1)} MW</b></div>
         <div className="fact"><span>Goals</span><b>{s.tally.goals}</b></div>
       </div>
       <div className="setup-foot">
