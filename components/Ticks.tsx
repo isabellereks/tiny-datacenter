@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { money } from '@/lib/game/state';
+import { sfx } from '@/lib/game/sound';
 
 interface Tick { id: number; x: number; y: number; text: string; bad: boolean }
 
@@ -17,6 +18,7 @@ export function Ticks({ month, net, roof }: { month: number; net: number; roof: 
     if (!at || Math.abs(net) < 1) return;
     const t: Tick = { id: ++id.current, x: at.x + (Math.random() - 0.5) * 40, y: at.y - 12, text: `${net >= 0 ? '+' : ''}${money(net)}`, bad: net < 0 };
     setTicks(v => [...v.slice(-3), t]);
+    sfx(t.bad ? 'loss' : 'coin');
     const timer = window.setTimeout(() => setTicks(v => v.filter(x => x.id !== t.id)), 2400);
     return () => window.clearTimeout(timer);
     // only a new month starts a tick

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { Action } from '@/lib/game/actions';
 import { RING_MS, type Call as CallT } from '@/lib/game/calls';
+import { sfx } from '@/lib/game/sound';
 
 /** Their words, typed out as they say them. */
 function useTyped(text: string, on: boolean, ms = 28) {
@@ -19,6 +20,14 @@ function useTyped(text: string, on: boolean, ms = 28) {
 export function Call({ call, dispatch, font }: { call: CallT; dispatch: (a: Action) => void; font: string }) {
   const said = useTyped(call.line, call.answered);
   const [secs, setSecs] = useState(0);
+
+  // the phone rings until you pick up
+  useEffect(() => {
+    if (call.answered) return;
+    sfx('ring');
+    const id = window.setInterval(() => sfx('ring'), 2000);
+    return () => window.clearInterval(id);
+  }, [call.answered]);
 
   // unanswered calls go to voicemail
   useEffect(() => {

@@ -20,6 +20,7 @@ import { TierUp } from './TierUp';
 import { Meta } from './Meta';
 import { Ticks } from './Ticks';
 import type { FoundKey } from '@/lib/game/data';
+import { armSound, setHum, setMuted, sfx } from '@/lib/game/sound';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 /** UI text: a pixel face that stays readable at small sizes. */
@@ -65,6 +66,8 @@ export default function Game() {
     if (a.type === 'reset' && !armedRef.current) { armedRef.current = true; redraw(); return; }
     armedRef.current = false;
 
+    if (a.type === 'build' || a.type === 'refresh' || a.type === 'addBuilding') sfx('build');
+    if (a.type === 'sign') sfx('sign');
     const fx = apply(s, a);
     if (fx.replace) {
       stateRef.current = fx.replace;
@@ -86,6 +89,10 @@ export default function Game() {
 
   useEffect(() => {
     stateRef.current = load();
+    armSound();
+    // a soft tick on every button
+    const tap = (e: MouseEvent) => { if ((e.target as HTMLElement)?.closest?.('button')) sfx('click'); };
+    document.addEventListener('click', tap, true);
     lastLog.current = stateRef.current.log[0];
     const engine = new Engine(hostRef.current!, {
       state: () => stateRef.current!,
@@ -118,6 +125,7 @@ export default function Game() {
     return () => {
       window.clearInterval(id);
       window.removeEventListener('keydown', onKey);
+      document.removeEventListener('click', tap, true);
       save(stateRef.current!);
       engine.dispose();
       engineRef.current = null;
@@ -141,6 +149,7 @@ export default function Game() {
     lastComplaint.current = complaintNow;
     if (complaintNow === 'protest' || complaintNow === 'carbon' || complaintNow === 'jobs') {
       setFlash(storyFor(st, complaintNow));
+      sfx('news');
       window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
     }
@@ -153,6 +162,7 @@ export default function Game() {
     const st = stateRef.current;
     if (st && grid === 3 && lastGrid.current < 3) {
       setFlash(storyFor(st, 'blackout'));
+      sfx('news');
       window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
     }
@@ -170,11 +180,21 @@ export default function Game() {
     if (lastNews.current === null) { lastNews.current = newsId; return; }
     if (st.news && newsId !== lastNews.current && st.phase === 'play') {
       setFlash({ tag: st.news.tag, headline: st.news.headline, ticker: st.news.ticker });
+      sfx('news');
       window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
     }
     lastNews.current = newsId;
   }, [newsId]);
+
+  // the hum follows the load; sound follows the setting
+  const muted = !!s?.muted;
+  useEffect(() => { setMuted(muted); }, [muted]);
+  const running = s && s.phase === 'play' && s.speed > 0 && !s.briefing ? ledger(s) : null;
+  const humLevel = running ? Math.round((running.itMW / Math.max(4, running.hallMW)) * 10) / 10 : 0;
+  useEffect(() => { setHum(humLevel); }, [humLevel]);
+  const tierNow = s?.tierUp ?? null;
+  useEffect(() => { if (tierNow !== null) sfx('tier'); }, [tierNow]);
 
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 

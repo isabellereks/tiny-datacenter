@@ -22,6 +22,8 @@ export function createStitchMaterial() {
       uNear: { value: 1 },
       uFar: { value: 400 },
       uDepthEdge: { value: 0.5 },
+      /** 0 at noon, 1 deep at night: the cloth dims to dusk blue, lit windows keep glowing */
+      uNight: { value: 0 },
       uLightDir: { value: new THREE.Vector3(-0.55, 0.6, 0.58).normalize() },
       uCloth: { value: new THREE.Color('#F5F4F1') },
       uHole: { value: new THREE.Color('#E5E3DD') },
@@ -46,6 +48,7 @@ export function createStitchMaterial() {
       uniform float uNear;
       uniform float uFar;
       uniform float uDepthEdge;
+      uniform float uNight;
       uniform vec3 uLightDir;
       uniform vec3 uCloth;
       uniform vec3 uHole;
@@ -104,9 +107,12 @@ export function createStitchMaterial() {
         float s = dot(n, uLightDir);
         if (role == 1) return vec4(uShade, 1.0);
         if (role == 2) return vec4(uOutline, 1.0);
-        if (role == 3) return vec4(uAccent, 1.0);
+        // status lights and warm windows glow after dark (a = 2)
+        if (role == 3) return vec4(uAccent, 2.0);
         if (role == 4) {
-          vec3 c = paletteAt(int(floor(rr.g * 16.0 + 0.5)));
+          int pi = int(floor(rr.g * 16.0 + 0.5));
+          vec3 c = paletteAt(pi);
+          if (pi == 3 || pi == 7) return vec4(c, 2.0);
           if (s > 0.15) return vec4(c, 1.0);
           return vec4(mix(c, uOutline, s > -0.75 ? 0.25 : 0.5), 1.0);
         }
@@ -135,6 +141,10 @@ export function createStitchMaterial() {
           col = mix(col, th * 0.86, m1);
           col = mix(col, th * (0.9 + 0.18 * sin(along * 3.1416)), m2);
         }
+        // night: everything dims toward dusk blue except what glows
+        vec3 dusk = col * vec3(0.66, 0.7, 0.88);
+        float glow = t.a > 1.5 ? 1.0 : 0.0;
+        col = mix(col, dusk, uNight * (1.0 - glow));
         gl_FragColor = vec4(col, 1.0);
       }`,
   });

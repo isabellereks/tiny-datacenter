@@ -30,11 +30,31 @@ export interface EngineHooks {
   onHover: (what: { found?: FoundKey; floor?: number } | null) => void;
 }
 
-interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number }
+interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number; dust?: { dx: number; dz: number } }
 interface Falling { obj: THREE.Group; t: number; axis: THREE.Vector3 }
 interface Marcher { group: THREE.Group; legs: THREE.Group[]; sign: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; phase: number }
 interface Walker { group: THREE.Group; legs: THREE.Group[]; a: number; speed: number; rx: number; rz: number }
 interface Protester { group: THREE.Group; sign: THREE.Group; phase: number }
+
+/** Snow and rain by place and month. */
+const SNOW: Partial<Record<LocKey, number[]>> = {
+  lulea: [10, 11, 0, 1, 2, 3], reykjavik: [10, 11, 0, 1, 2], dalles: [11, 0, 1], ashburn: [0, 1], newalbany: [11, 0, 1], dublin: [0],
+};
+const RAIN: Partial<Record<LocKey, number[]>> = {
+  dublin: [1, 2, 3, 4, 8, 9, 10, 11], dalles: [2, 3, 9, 10], reykjavik: [4, 5, 8, 9], ashburn: [3, 4, 5, 8], newalbany: [3, 4, 5, 9], lulea: [5, 8],
+};
+export function weatherOf(loc: LocKey, month: number): 'snow' | 'rain' | null {
+  const m = Math.floor(month) % 12;
+  if (SNOW[loc]?.includes(m)) return 'snow';
+  if (RAIN[loc]?.includes(m)) return 'rain';
+  return null;
+}
+/** A slow day: one day and night every three months of game time. 0 at noon, 1 deep at night. */
+export function nightOf(month: number) {
+  const n = 0.5 - 0.5 * Math.cos((month / 3) * Math.PI * 2);
+  const k = Math.max(0, Math.min(1, (n - 0.55) / 0.3));
+  return k * k * (3 - 2 * k);
+}
 
 /** The town storming the datacenter: walk in, then the floors come down one by one from the top. */
 const RIOT = { walk: 3, collapse: 4.5, hold: 1.2 };
@@ -93,6 +113,9 @@ export class Engine {
   private walkers: Walker[] = [];
   private protesters: Protester[] = [];
   private townKey = '';
+  private weather = new THREE.Group();
+  private drops: { mesh: THREE.Mesh; v: number; drift: number }[] = [];
+  private weatherKind: 'snow' | 'rain' | null = null;
   private riotCash = 0;
   private goalClock = 0;
   private thread = '';
@@ -106,6 +129,7 @@ export class Engine {
   private puffList: Puff[] = [];
   private puffGeo = new THREE.SphereGeometry(1, 24, 16);
   private puffClock = 0;
+  private lastBuild = -1;
   private ledClock = 0;
   private saveClock = 0;
   private hover: FoundKey | null = null;
@@ -155,7 +179,7 @@ export class Engine {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = 0.005;
     this.ground.receiveShadow = true;
-    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd, this.townGroup);
+    this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd, this.townGroup, this.weather);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.post));
     this.post.uniforms.uNear.value = this.camera.near;
     this.post.uniforms.uFar.value = this.camera.far;
@@ -559,7 +583,7 @@ export class Engine {
       this.resetView();
     } else if (built || (newMonth && s.broken.length) || fixed) {
       this.rebuild();
-      if (built) this.fit(true);
+      if (built) { this.fit(true); this.dust(this.lastBuild); }
     }
     if (this.riot(now)) changed = true;
     if (changed) this.hooks.onChange();
@@ -583,6 +607,7 @@ export class Engine {
     (u.uAccent.value as THREE.Color).set(s.look.accent);
     // gaps smaller than a couple of stitches aren't worth a line
     u.uDepthEdge.value = Math.max(0.35, (this.upc / this.camera.zoom) * 2);
+    u.uNight.value = s.phase === 'play' ? nightOf(s.month) * 0.8 : 0;
     this.render();
 
     this.saveClock += dt;
@@ -636,6 +661,45 @@ export class Engine {
       return true;
     }
     return false;
+  }
+
+  /** Dust kicks up around a floor that just finished. */
+  private dust(i: number) {
+    const s = this.s;
+    if (i < 0 || !s.floors[i] || this.picking) return;
+    const y = baseY(s, i), x0 = buildingX(bOf(s, i));
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const mesh = new THREE.Mesh(this.puffGeo, mat('surf'));
+      this.puffs.add(mesh);
+      this.puffList.push({ mesh, y0: y, age: 0, x: x0 + Math.cos(a) * FW / 2, z: Math.sin(a) * FD / 2, dust: { dx: Math.cos(a), dz: Math.sin(a) } });
+    }
+  }
+
+  /** Snowflakes and raindrops are tiny boxes that the stitch pass turns into single stitches. */
+  private animateWeather(dt: number) {
+    const s = this.s;
+    const kind = s.phase === 'play' && !this.picking ? weatherOf(s.loc, s.month) : null;
+    if (kind !== this.weatherKind) {
+      this.weatherKind = kind;
+      clear(this.weather);
+      this.drops = [];
+      if (kind) {
+        const geo = kind === 'snow' ? new THREE.BoxGeometry(0.22, 0.22, 0.22) : new THREE.BoxGeometry(0.06, 0.7, 0.06);
+        for (let k = 0; k < (kind === 'snow' ? 140 : 110); k++) {
+          const mesh = new THREE.Mesh(geo, mat('light'));
+          mesh.position.set((Math.random() - 0.5) * 38, Math.random() * 30, (Math.random() - 0.5) * 34);
+          this.weather.add(mesh);
+          this.drops.push({ mesh, v: kind === 'snow' ? 1.2 + Math.random() * 0.8 : 14 + Math.random() * 4, drift: (Math.random() - 0.5) * 0.6 });
+        }
+      }
+    }
+    for (const d of this.drops) {
+      const p = d.mesh.position;
+      p.y -= d.v * dt;
+      p.x += d.drift * dt;
+      if (p.y < 0) { p.y = 28 + Math.random() * 4; p.x = (Math.random() - 0.5) * 38; p.z = (Math.random() - 0.5) * 34; }
+    }
   }
 
   /** A copy of the current frame, for the share card. */
@@ -693,6 +757,7 @@ export class Engine {
       p.group.position.y = Math.abs(Math.sin(t * 5 + p.phase)) * 0.25;
       p.sign.rotation.z = Math.sin(t * 4 + p.phase) * 0.25;
     }
+    this.animateWeather(dt);
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
     for (const f of this.anim.rotors) f.rotation.z -= dt * 4;
     const blink = Math.floor(t * 3) % 2 === 0;
@@ -713,7 +778,7 @@ export class Engine {
 
     const cools = s.floors.some(f => f.done && f.type === 'cool');
     this.puffClock -= dt;
-    if (s.smoke && cools && !this.picking && s.phase !== 'over' && this.puffClock <= 0 && this.puffList.length < 2) {
+    if (s.smoke && cools && !this.picking && s.phase !== 'over' && this.puffClock <= 0 && this.puffList.filter(p => !p.dust).length < 2) {
       const mesh = new THREE.Mesh(this.puffGeo, mat('surf'));
       this.puffs.add(mesh);
       this.puffList.push({ mesh, y0: this.anim.vent.y, age: 0, x: this.anim.vent.x, z: this.anim.vent.z });
@@ -721,6 +786,13 @@ export class Engine {
     }
     this.puffList = this.puffList.filter(p => {
       p.age += dt;
+      if (p.dust) {
+        // a quick puff of dust that spreads out and settles
+        p.mesh.position.set(p.x + p.dust.dx * p.age * 2, p.y0 + p.age * 0.8, p.z + p.dust.dz * p.age * 2);
+        p.mesh.scale.setScalar(Math.max(0.01, 0.55 - p.age * 0.5));
+        if (p.age > 1) { this.puffs.remove(p.mesh); return false; }
+        return true;
+      }
       const r = Math.min(0.5 + p.age * 0.35, 1.7);
       p.mesh.position.set(p.x - p.age * 0.25, p.y0 + 0.6 + p.age * 0.75, p.z);
       p.mesh.scale.setScalar(r);
@@ -729,7 +801,9 @@ export class Engine {
     });
 
     if (s.build) {
-      const k = Math.min(1, (Date.now() - s.build.t0) / s.build.dur), e = 1 - Math.pow(1 - k, 3);
+      // the floor drops in and settles with a little bounce
+      const k = Math.min(1, (Date.now() - s.build.t0) / s.build.dur), c = 1.70158, e = 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2);
+      this.lastBuild = s.build.idx;
       if (this.buildFloor) this.buildFloor.scale.y = Math.max(0.02, e);
       const idx = s.build.idx;
       const r = this.roofs.find(x => x.userData.b === bOf(s, idx));

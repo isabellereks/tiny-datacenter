@@ -5,6 +5,7 @@ import type { Action } from '@/lib/game/actions';
 import { COMPLAINTS, choiceCost, type Impact } from '@/lib/game/events';
 import { ALL_DECISIONS, decisionCost } from '@/lib/game/gov';
 import { dateLabel, money, siteName, type GameState } from '@/lib/game/state';
+import { sfx } from '@/lib/game/sound';
 
 /** Who sent it sets the letterhead color: the town, government, your own staff, or lawyers. */
 function sender(from: string) {
@@ -28,6 +29,7 @@ export function Letter({ s, imp, dispatch, font }: { s: GameState; imp: Impact; 
 
   useEffect(() => {
     if (stamped === null) return;
+    sfx('stamp');
     const id = window.setTimeout(() => dispatch({ type: 'resolve', choice: stamped }), 750);
     return () => window.clearTimeout(id);
   }, [stamped, dispatch]);
