@@ -44,6 +44,8 @@ function start() {
 export function armSound() {
   if (typeof window === 'undefined') return;
   const go = () => { start(); void ctx?.resume(); };
+  // in development, tests can play any effect by name
+  if (process.env.NODE_ENV !== 'production') (window as unknown as { __sfx?: typeof sfx }).__sfx = sfx;
   window.addEventListener('pointerdown', go, { once: true });
   window.addEventListener('keydown', go, { once: true });
 }

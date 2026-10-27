@@ -36,7 +36,7 @@ Trust moves toward that score every month. You can see it in the world too: more
 - **The AI market** booms (more offers, higher prices) and crashes (fewer offers, cheap spot prices). Signed deals keep paying.
 - **A moratorium bill** gets filed once you're big or the town turns on you. It moves with your size, power bills, water and low trust, and slows when the town likes you and you hire locals. At 40% and 80% you're called to testify. If it passes, nothing new gets built for five years.
 - **Loans:** $10M to $150M against your buildings, land and signed deals, paid back monthly over 10 years.
-- **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the noise leads to a class action, and in the desert the wells can run dry.
+- **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the noise leads to a class action, and in the desert the wells can run dry, after which new halls need water-saving cooling.
 - **A yearly briefing** every January: size, customers, chips, grid, economy, the bill, debt and lawsuit risk.
 
 ## Staff
@@ -53,11 +53,11 @@ Permits take months and some need a hearing with enough trust: zoning for bigger
 |---|---|---|---|---|---|---|
 | Oregon | $150k/acre | $60/MWh | 30 MW | 18 mo | 3 buildings | Hydro power, lots of trees, a tax deal that needs local jobs |
 | Iceland | $120k/acre | $45/MWh | 24 MW | 12 mo | 2 buildings | Free cooling, dry-winter power cuts, snow |
-| Arizona | $600k/acre | $75/MWh | 20 MW | 24 mo | 3 buildings | Hot, water permits, heat waves |
+| Arizona | $600k/acre | $75/MWh | 20 MW | 24 mo | 3 buildings | Hardest: hot, heat waves, and the wells can run dry. Get water-saving cooling early |
 | Virginia | $2M/acre | $85/MWh | 16 MW | 42 mo | 2 buildings | Customers pay the most, slow permits, a power tax |
 | Texas | $30k/acre | $55/MWh | 40 MW | 9 mo | 3 buildings | Cheap land and wind, fast permits, winter storms |
 | Ohio | $250k/acre | $70/MWh | 22 MW | 24 mo | 3 buildings | Coal-heavy grid, a utility tariff on reserved power |
-| Ireland | $1.5M/acre | $150/MWh | 10 MW | 60 mo | 1 building | Low profit tax, almost no grid left. Hard mode |
+| Ireland | $1.5M/acre | $150/MWh | 10 MW | 60 mo | 1 building | Low profit tax, the grid closed for years. Grow on gas turbines |
 | Sweden | $50k/acre | $40/MWh | 35 MW | 12 mo | 3 buildings | Cold and cheap, snow half the year |
 
 Prices, taxes, PUE and water use are rough estimates based on public figures.

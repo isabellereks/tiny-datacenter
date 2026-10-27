@@ -24,7 +24,7 @@ export const LAWS: Record<string, LawInfo> = {
   itc: { name: 'Clean energy tax credit', by: () => 'Congress', effect: 'Solar farm 30% off' },
   fasttrack: { name: 'Fast-track permitting order', by: () => 'The White House', effect: 'Permits take half as long' },
   moratorium: { name: 'Datacenter moratorium', by: s => LOCS[s.loc].gov.state, effect: 'No new floors, buildings or growth permits' },
-  waterCap: { name: 'Datacenter water cap', by: s => LOCS[s.loc].gov.local, effect: 'No new server halls' },
+  waterCap: { name: 'Datacenter water cap', by: s => LOCS[s.loc].gov.local, effect: 'New halls need water-saving cooling' },
   stopWork: { name: 'Stop-work order', by: s => LOCS[s.loc].gov.local, effect: 'Halls at 30% until you pass reinspection' },
   cleanAir: { name: 'Stricter generator rules', by: () => 'EPA', effect: 'Air permits take 3 mo longer' },
   vaExempt: { name: 'Equipment sales tax break', by: s => LOCS[s.loc].gov.state, effect: 'New floors 5% off' },
@@ -218,7 +218,8 @@ export const permitNeeds = (s: GameState, key: PermitKey) =>
 export function buildBlock(s: GameState): string | null {
   const n = heightOf(s, s.bld);
   if (hasLaw(s, 'moratorium')) return 'Moratorium: no building';
-  if (s.next === 'hall' && hasLaw(s, 'waterCap')) return 'Water cap: no new halls';
+  // the cap is on evaporating water: halls with water-saving or liquid cooling are allowed
+  if (s.next === 'hall' && hasLaw(s, 'waterCap') && !s.up.closedLoop && !s.up.liquid) return 'Water cap: needs water-saving cooling';
   if (n >= heightLimit(s)) return s.permits.height >= LOCS[s.loc].space.heights.length - 1 ? 'Height cap for this location' : ['Needs a height permit', 'Needs flight safety review', 'Needs skyscraper review'][Math.min(2, s.permits.height)];
   if (s.next === 'power' && s.floors.filter(f => f.type === 'power').length >= powerLimit(s)) return 'Needs an air permit';
   if (s.next === 'hall' && s.floors.filter(f => f.type === 'hall').length >= hallLimit(s)) return 'Needs more water';

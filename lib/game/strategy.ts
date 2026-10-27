@@ -228,7 +228,7 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
     s.fired.push('wellsDry');
     s.laws.push({ id: 'waterCap', until: 1e9 });
     addTrust(s, -10);
-    headline(s, 'Breaking news', 'Wells run dry near the datacenters', [`${siteName(s)} has used ${Math.round(s.waterUsed)} million litres`, 'City caps datacenter water: no new halls']);
+    headline(s, 'Breaking news', 'Wells run dry near the datacenters', [`${siteName(s)} has used ${Math.round(s.waterUsed)} million litres`, 'New halls must use water-saving cooling']);
   }
   if (decision) return decision;
   const due = s.seeds.find(x => x.at <= s.month);
