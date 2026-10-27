@@ -16,7 +16,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait, from 9 months in Texas to 5 years in Dublin. In the meantime you can make power on site: solar, batteries, gas turbines, and at the top a small nuclear reactor.
 5. **Grow.** Run more IT power to move up the tiers: edge room, colocation (6 MW), hyperscale (18 MW) and AI factory (45 MW). Each tier brings bigger customers and bigger grid requests, and unlocks gas turbines, liquid cooling and the reactor.
 
-Every month you pay for power, fuel, water, staff, upkeep, property tax, profit tax and loans. Three months in debt and you go bankrupt.
+Every month you pay for power, fuel, water, staff, upkeep, property tax, profit tax and loans. The first month you're in the red, your bank writes: refinance, take an expensive emergency loan, or go it alone. Three months in the red and you go bankrupt.
 
 ### The town
 

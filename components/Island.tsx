@@ -146,7 +146,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
   const short = l.promised > l.served + 0.1;
   const warn = hasLaw(s, 'moratorium') ? 'Moratorium' : hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs'
-    : short ? `Short ${(l.promised - l.served).toFixed(1)} MW` : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : s.offers.length ? `${s.offers.length} ${s.offers.length === 1 ? 'offer' : 'offers'}` : null;
+    : short ? `Short ${(l.promised - l.served).toFixed(1)} MW` : s.debt > 0 ? 'In debt' : l.chipValue < 0.75 ? 'Old chips' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : s.offers.length ? `${s.offers.length} ${s.offers.length === 1 ? 'offer' : 'offers'}` : null;
 
   let body: ReactNode;
   if (over) {

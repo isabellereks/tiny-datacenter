@@ -238,7 +238,7 @@ export function endOfMonth(s: GameState) {
 
   if (s.cash < 0) {
     s.debt++;
-    if (s.debt === 1) note(s, 'You are in debt. After 3 months in debt you go bankrupt.');
+    if (s.debt === 1) note(s, 'You are in the red. After 3 months like this you go bankrupt.');
   } else s.debt = 0;
 
   if (s.trust <= 0) { endGame(s, 'town'); return; }
@@ -247,7 +247,9 @@ export function endOfMonth(s: GameState) {
   // every system runs every month; the first one with a question gets to ask it
   dealsMonth(s, l);
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
-  const decision = asks.find(x => x) ?? null;
+  // the bank calls the first month you're in the red, before anything else
+  const rescue = s.debt === 1 && (s.cooldown.rescue ?? 0) <= s.month ? 'rescue' : null;
+  const decision = rescue ?? asks.find(x => x) ?? null;
   if (Math.floor(s.month) % 12 === 0 && s.month >= 12) s.briefing = true;
   if (s.phase !== 'play') return;
   // one thing at a time: a letter waits behind the briefing, and the phone only rings on a quiet month

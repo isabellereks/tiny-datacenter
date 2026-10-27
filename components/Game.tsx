@@ -208,7 +208,8 @@ export default function Game() {
       {phase === 'play' && !open && <Meta s={s} />}
       {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
       {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
-      {phase === 'play' && flash && <News s={s} story={flash} full={false} font={pixel.className} />}
+      {/* one thing at a time: the news waits while a letter, briefing or new tier is on screen */}
+      {phase === 'play' && flash && !s.complaint && !s.briefing && s.tierUp === null && <News s={s} story={flash} full={false} font={pixel.className} />}
       {phase === 'play' && !ended && (
         <Island
           s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
