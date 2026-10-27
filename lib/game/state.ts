@@ -246,11 +246,40 @@ export function fresh(): GameState {
   };
 }
 
+/** A save from before customers, chips and the grid queue: keep everything built and hand it the new pieces. */
+function upgradeOld(old: Record<string, unknown>): Partial<GameState> {
+  const saved = { ...old } as Partial<GameState> & Record<string, unknown>;
+  const subs = Number(old.substations ?? 0);
+  for (const k of ['substations', 'notoriety', 'codename', 'lobby', 'sites', 'contract']) delete saved[k];
+  if (saved.up) delete (saved.up as unknown as Record<string, unknown>).fund;
+  saved.gridAdded = subs * 20;
+  if (saved.phase !== 'play') return saved;
+  const s = { ...fresh(), ...saved, deals: [], offers: [] } as GameState;
+  const l = ledger(s);
+  const m = Math.floor(s.month);
+  const kind = s.cust ?? 'ai';
+  // the customer you had becomes a deal for most of what you run today
+  const mw = Math.max(1, Math.floor(l.itMW * 0.8));
+  saved.deals = [{
+    id: 1, who: CUSTS[kind].names[0], kind, mw, price: Math.round(marketPrice(s, kind)), months: 36, lead: 0, needs: [],
+    expires: m, start: m, until: m + 36, strikes: 0,
+  }];
+  saved.offers = [];
+  saved.peakMW = l.itMW;
+  saved.tier = tierOf(l.itMW);
+  saved.chipAt = m + 12;
+  saved.nid = Math.max(Number(saved.nid ?? 1), 2);
+  return saved;
+}
+
 export function load(): GameState {
   try {
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY);
+    let old = false;
+    if (!raw) { raw = localStorage.getItem('tiny-datacenter-v4'); old = !!raw; }
     if (raw) {
-      const saved = JSON.parse(raw) as Partial<GameState>;
+      const parsed = JSON.parse(raw);
+      const saved = (old ? upgradeOld(parsed) : parsed) as Partial<GameState>;
       const base = fresh();
       return {
         ...base, ...saved,
@@ -460,25 +489,26 @@ export function ledger(s: GameState): Ledger {
   const peak = s.up.batteries ? 0.85 : 1;
   const gridMW = Math.max(0, wanted * pue - onsite);
   const strain = (gridMW * peak) / gridCap;
-  // a stop-work order after a failed inspection: servers idle, no income, the bills keep coming
+  // a stop-work order after a failed inspection: most servers idle while the bills keep coming
   const stopped = hasLaw(s, 'stopWork');
   const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue) * (stopped ? 0.3 : 1);
 
   // customers are served in the order they signed; what's left goes to the spot market
   const net = count('net');
   let dealIncome = 0, sla = 0, served = 0, promised = 0;
-  for (const { d, got } of allocate(s, stopped ? 0 : itMW)) {
+  for (const { d, got } of allocate(s, itMW)) {
     // picky customers pay less when you don't meet what they asked for
     const green = d.needs.includes('green') && !s.up.renewables && !s.up.solar && !s.up.smr ? 0.8 : 1;
     const fresh = d.needs.includes('fresh') && value < 0.99 ? 0.8 : 1;
     const mult = (1 + 0.08 * net * CUSTS[d.kind].net) * Sh.rev * green * fresh;
-    dealIncome += got * 1000 * dealPrice(s, d) * value * mult;
-    // credits for what you promised and couldn't deliver; strict customers want more back
-    sla += (d.mw - got) * 1000 * d.price * (d.needs.includes('uptime') ? 1.5 : 0.5);
+    const paid = got * 1000 * dealPrice(s, d) * value * mult;
+    dealIncome += paid;
+    // credits for what you missed: half its fee, or all of it for strict customers, but never more than they paid
+    sla += Math.min(paid, (d.mw - got) * 1000 * d.price * (d.needs.includes('uptime') ? 1 : 0.5));
     served += got;
     promised += d.mw;
   }
-  const spare = stopped ? 0 : Math.max(0, itMW - served);
+  const spare = Math.max(0, itMW - served);
   const spot = spare * 1000 * spotPrice(s) * value * Sh.rev;
   const revenue = dealIncome + spot;
 
