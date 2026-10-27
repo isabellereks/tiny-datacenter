@@ -124,7 +124,7 @@ export const LOCS: Record<LocKey, Location> = {
     cloth: '#F5F4F1', hole: '#E5E3DD', edge: '#B8BCC6', deco: '#7D8597',
   },
   abilene: {
-    name: 'Abilene, Texas', short: 'Texas', note: 'Cheap land and wind power. Shaky grid.',
+    name: 'Abilene, Texas', short: 'Texas', note: 'Cheap land. Wind power, shaky grid.',
     land: 30_000, power: 55, pue: 1.35, water: 1.8, waterPrice: 2,
     propertyTax: 0.018, incomeTax: 0.21, demand: 1.05, carbon: 0.37, coolCost: 1.2, grid: 40, queue: 9, trees: 8,
     taxNote: 'No state income tax. High property tax.',
@@ -185,13 +185,13 @@ export const SHAPES: Record<ShapeKey, Shape> = {
 };
 
 export const CUSTS: Record<CustKey, Customer> = {
-  ai: { name: 'AI lab', note: 'Pays the most. Wants new chips and big deals.', price: 280, net: 1, names: ['Northwind AI', 'Helix Labs', 'Parallax AI', 'Quill Research', 'Magpie Labs'] },
-  stream: { name: 'Streaming', note: 'Pays more for network floors.', price: 215, net: 2, names: ['Reelbox', 'Lanternfly TV', 'Hummingbird Media'] },
-  bank: { name: 'Bank', note: 'Pays well. Very strict about outages.', price: 250, net: 1, names: ['First Granite Bank', 'Harbor Trust', 'Copperline Pay'] },
-  games: { name: 'Game servers', note: 'Pays the least. Easygoing.', price: 190, net: 1.5, names: ['Pebble Games', 'Kitecat Studios', 'Moonbeam Online'] },
+  ai: { name: 'AI lab', note: 'Pays the most. Wants new chips and big deals.', price: 280, net: 1, names: ['OpenEye', 'Anthropoid', 'DeepMined', 'Mistrial AI', 'Perplexed', 'xAIdan'] },
+  stream: { name: 'Streaming', note: 'Pays more for network floors.', price: 215, net: 2, names: ['Netflux', 'YouTubby', 'Twitchy', 'Spotifried'] },
+  bank: { name: 'Bank', note: 'Pays well. Very strict about outages.', price: 250, net: 1, names: ['J.P. Morgain', 'Goldman Snacks', 'Wells Fargone', 'Stripey'] },
+  games: { name: 'Game servers', note: 'Pays the least. Easygoing.', price: 190, net: 1.5, names: ['Roblocks', 'Epik Games', 'Valv', 'Ninetendo Online'] },
 };
 /** Cloud companies that sign the biggest deals once you're big enough. */
-export const HYPERSCALERS = ['Cirrus Cloud', 'Stratus', 'Nimbus Compute'];
+export const HYPERSCALERS = ['Amazin Web Services', 'Macrohard Azul', 'Gaggle Cloud', 'Orakle Cloud', 'Meta-ish'];
 
 /** Chip generations. Each one packs more power into a hall; customers pay less for older chips. */
 export const CHIPS: { name: string; mw: number }[] = [

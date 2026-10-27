@@ -120,6 +120,8 @@ export interface GameState {
   tierUp: number | null;
   /** sound off */
   muted: boolean;
+  /** recent calls: topics, callers and lines, so the phone doesn't repeat itself */
+  heard?: string[];
   /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
   gridLevel: number;
   up: Upgrades;

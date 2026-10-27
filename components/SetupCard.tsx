@@ -12,7 +12,24 @@ import { Cash } from './Num';
 import { Threads } from './Threads';
 
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
-const rate = (v: number, low: number, high: number) => (v <= low ? 'Low' : v >= high ? 'High' : 'Medium');
+/** Low, medium or high, as a word and as 1 to 3 pips. */
+const rate = (v: number, low: number, high: number) => (v <= low ? 1 : v >= high ? 3 : 2);
+const WORD = ['', 'Low', 'Medium', 'High'];
+
+/** One line of a place's spec sheet: a label, a value, and pips that are green when lower is better. */
+function Spec({ label, level, value }: { label: string; level?: number; value?: ReactNode }) {
+  return (
+    <div className="spec-row">
+      <span>{label}</span>
+      {level ? (
+        <b className={`pips l${level}`} aria-label={WORD[level]}>
+          {[1, 2, 3].map(k => <i key={k} className={k <= level ? 'on' : ''} />)}
+          <em>{WORD[level]}</em>
+        </b>
+      ) : <b>{value}</b>}
+    </div>
+  );
+}
 
 function Option({ title, price, sub, on, onClick }: { title: string; price: string; sub: string; on: boolean; onClick: () => void }) {
   return (
@@ -71,19 +88,27 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
           <>
             <div className="opts four">
               {keys<LocKey>(LOCS).map(k => (
-                <Option key={k} title={LOCS[k].short} price={`${money(LOCS[k].land)}/acre`} sub={LOCS[k].note} on={s.loc === k} onClick={() => dispatch({ type: 'loc', loc: k })} />
+                <Option key={k} title={LOCS[k].short} price={`${money(LOCS[k].land)}/acre`} sub={LOCS[k].note.split('.')[0]} on={s.loc === k} onClick={() => dispatch({ type: 'loc', loc: k })} />
               ))}
             </div>
-            <div className="facts-grid">
-              <Fact label="Power cost">{rate(L.power, 65, 80)}</Fact>
-              <Fact label="Cooling cost">{rate(L.coolCost, 0.7, 1.2)}</Fact>
-              <Fact label="Water use">{rate(L.water, 0.5, 2)}</Fact>
-              <Fact label="Taxes">{rate(L.propertyTax, 0.004, 0.011)}</Fact>
-              <Fact label="Pollution">{rate(L.carbon, 0.1, 0.35)}</Fact>
-              <Fact label="Room for">{L.space.buildings} {L.space.buildings === 1 ? 'building' : 'buildings'}</Fact>
-              <Fact label="Height limit">{L.space.heights[0]} floors</Fact>
-              <Fact label="Permits">{L.space.permitSpeed <= 0.7 ? 'Fast' : L.space.permitSpeed >= 1.3 ? 'Slow' : 'Normal'}</Fact>
-              <Fact label="Grid">{L.grid} MW</Fact>
+            <div className="spec">
+              <div className="spec-head"><b>{L.name}</b><span>{L.note}</span></div>
+              <div className="spec-cols">
+                <div>
+                  <Spec label="Power cost" level={rate(L.power, 65, 80)} />
+                  <Spec label="Cooling cost" level={rate(L.coolCost, 0.7, 1.2)} />
+                  <Spec label="Water use" level={rate(L.water, 0.5, 2)} />
+                  <Spec label="Taxes" level={rate(L.propertyTax, 0.004, 0.011)} />
+                  <Spec label="Pollution" level={rate(L.carbon, 0.1, 0.35)} />
+                </div>
+                <div>
+                  <Spec label="Town grid" value={`${L.grid} MW`} />
+                  <Spec label="Wait for more grid" value={`${L.queue} months`} />
+                  <Spec label="Room for" value={`${L.space.buildings} ${L.space.buildings === 1 ? 'building' : 'buildings'}`} />
+                  <Spec label="Height to start" value={`${L.space.heights[0]} floors`} />
+                  <Spec label="Permits" value={L.space.permitSpeed <= 0.7 ? 'Fast' : L.space.permitSpeed >= 1.3 ? 'Slow' : 'Normal'} />
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -164,7 +189,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
         )}
       </div>
 
-      {s.step !== 'name' && <div className="forecast" aria-label="Forecast">
+      {s.step !== 'name' && s.step !== 'loc' && <div className="forecast" aria-label="Forecast">
         <Fact label="Profit/mo">{hasHall && l.eff > 0 ? <Cash className={l.net < 0 ? 'neg' : undefined} value={l.net} /> : <span className="neg">$0</span>}</Fact>
         <Fact label="Power">{l.hallMW.toFixed(1)} / {l.powerMW.toFixed(1)} MW</Fact>
         <Fact label="Cooling">{l.hallMW.toFixed(1)} / {l.coolMW.toFixed(1)} MW</Fact>

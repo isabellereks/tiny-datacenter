@@ -281,7 +281,7 @@ export function briefing(s: GameState): Brief[] {
   const signed = signedMW(s);
   return [
     { label: 'Size', value: `${TIERS[s.tier].name}, ${l.itMW.toFixed(1)} MW running` },
-    { label: 'Customers', value: `${signed.toFixed(0)} MW signed, ${s.offers.length} offers waiting`, bad: signed > l.itMW + 0.5 },
+    { label: 'Customers', value: `${signed.toFixed(0)} MW signed, ${s.offers.length} ${s.offers.length === 1 ? 'offer' : 'offers'} waiting`, bad: signed > l.itMW + 0.5 },
     { label: 'Chips', value: c.stale ? `${c.stale} of ${c.halls} halls behind ${CHIPS[s.chip].name}` : `All on ${CHIPS[s.chip].name}`, bad: c.value < 0.8 },
     { label: 'Grid', value: s.gridQueue ? `${Math.round(l.strain * 100)}% used, ${s.gridQueue.mw} MW coming in ${Math.ceil(s.gridQueue.done - s.month)} mo` : `${Math.round(l.strain * 100)}% used`, bad: l.strain > 0.85 },
     { label: 'Economy', value: `${ECON[s.econ.phase].name}, AI market ${s.market.phase === 'boom' ? 'booming' : s.market.phase === 'glut' ? 'crashed' : 'normal'}`, bad: s.econ.phase !== 'steady' || s.market.phase === 'glut' },

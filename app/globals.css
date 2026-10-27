@@ -40,14 +40,23 @@ button, input { font: inherit; color: inherit; }
 button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; }
 
 .app { position: fixed; inset: 0; font-family: var(--body), var(--font); }
-/* the pixel face for things big enough to read in it: titles, names, money and buttons */
-.app h1, .app h2, .app b, .app button, .money, .compact .day, .compact .cash, .compact .rate, .stepno, .goal-no, .reward,
-.tabs, .label, .from, .floorhead b, .tabhead b, .fact b, .budget, .opt-top, .chip-price, .delta, .num, .score, .speed,
-.row.strong, .stats, .flist .fno, .flist .fname, .flist .fstat, .permit-head, .permit-rows b, .share-text {
+/* Two faces, one rule. The pixel face is for display: titles, names, money and buttons.
+   The rounded face is for anything you read as data: rows, numbers in meters, notes and small labels. */
+.app h1, .app h2, .app button, .money b, .compact .cash, .compact .rate, .tabs,
+.floorhead b, .tabhead b, .opt-top b, .up b, .deal-top b, .chip b, .row.strong, .tfac-v, .goal b, .permit-head b, .share-text {
   font-family: var(--pixel), var(--font);
 }
-/* small print inside buttons stays in the readable face */
-.app button small, .app .chip small:not(.chip-price), .app .up small { font-family: var(--body), var(--font); }
+.app b { font-weight: 600; }
+/* inside buttons, everything but the title reads in the rounded face */
+.app button small, .app button span:not(.cost), .app .chip small, .app .up small, .app .up span,
+.stats, .num, .score, .delta, .chip-price, .flist button, .fact b, .budget, .reward, .compact .day, .compact .flag, .row, .row span {
+  font-family: var(--body), var(--font);
+}
+/* small labels above sections and cards: one style everywhere */
+.label, .stepno, .goal-no, .from, .ex-head .day, .why > summary {
+  font-family: var(--body), var(--font); font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: .01em;
+}
+.fact b, .brief-rows b, .stats, .num, .score { font-weight: 700; font-variant-numeric: tabular-nums; }
 /* pixel faces look wrong with tight tracking */
 .app h1, .app h2, .money b, .count b { letter-spacing: 0 !important; }
 .stage { position: absolute; inset: 0; overflow: hidden; }
@@ -56,11 +65,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 /* ---------- setup card ---------- */
 .setup {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  width: min(680px, calc(100vw - 32px)); max-height: 56vh; overflow-y: auto;
+  width: min(680px, calc(100vw - 32px)); max-height: 64vh; overflow-y: auto;
   background: var(--weave), var(--card); border-radius: 10px; padding: 22px 26px 20px;
   box-shadow: var(--patch-shadow);
   outline: 1.5px dashed color-mix(in oklab, var(--thread), transparent 25%); outline-offset: -8px;
-  display: flex; flex-direction: column; gap: 14px;
+  display: flex; flex-direction: column; gap: 12px;
   animation: rise .5s var(--ease) both;
 }
 .progress { display: flex; gap: 4px; }
@@ -79,9 +88,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
   transition: background .2s, box-shadow .2s, transform .2s var(--ease);
 }
 .opt:hover { transform: translateY(-1px); }
-.opt b { font-weight: 600; font-size: 14px; }
+.opt b { font-weight: 600; font-size: 14.5px; }
+.opt { padding: 10px 12px; }
+.opt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .opt small { color: var(--ink-2); font-size: 12px; line-height: 1.3; }
-.opt[aria-pressed="true"] { background: color-mix(in oklab, var(--card), #fff 45%); outline: 2px dashed var(--thread); outline-offset: -5px; }
+.opt[aria-pressed="true"] { background: color-mix(in oklab, var(--card), #fff 55%); box-shadow: inset 0 0 0 2px var(--thread), 0 2px 0 color-mix(in oklab, var(--thread), transparent 70%); }
+.opt[aria-pressed="true"] .opt-top b { color: var(--thread); }
 
 .stepper { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; align-items: center; gap: 16px; }
 .stepper > button { width: 52px; height: 52px; border-radius: 6px; border: 0; background: var(--card-2); font-size: 24px; cursor: pointer; }
@@ -324,7 +336,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .brief-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .brief-rows div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); }
 .brief-rows span { font-size: 12px; opacity: .65; }
-.brief-rows b { font-size: 13.5px; }
+.brief-rows b { font-size: 14px; font-family: var(--body), var(--font); }
 .brief-rows .bad b { color: var(--red); }
 .permit-code { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
 .permit-code input { margin-top: 2px; accent-color: var(--thread); }
@@ -556,3 +568,23 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .tier-steps i.on { background: var(--thread); }
 .tier-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .tier-list li::before { content: '+ '; color: var(--ok); font-weight: 700; }
+
+/* ---------- a place's spec sheet in setup ---------- */
+.spec { margin-top: 10px; padding: 10px 16px 6px; border-radius: 8px; background: color-mix(in oklab, var(--card), #fff 40%); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink), transparent 90%); }
+.spec-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px dashed color-mix(in oklab, var(--ink), transparent 80%); }
+.spec-head b { font-family: var(--pixel), var(--font); font-size: 15px; }
+.spec-head span { font-size: 13px; color: var(--ink-2); }
+.spec-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+.spec-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+.spec-row + .spec-row { border-top: 1px solid color-mix(in oklab, var(--ink), transparent 93%); }
+.spec-row > span { color: var(--ink-2); }
+.spec-row > b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pips { display: inline-flex; align-items: center; gap: 3px; }
+.pips i { width: 10px; height: 10px; border-radius: 2px; background: color-mix(in oklab, var(--ink), transparent 88%); }
+.pips.l1 i.on { background: var(--ok); }
+.pips.l2 i.on { background: var(--meh); }
+.pips.l3 i.on { background: var(--red); }
+.pips em { font-style: normal; font-weight: 600; font-size: 12.5px; min-width: 52px; text-align: right; color: var(--ink-2); }
+@media (max-width: 720px) { .spec-cols { grid-template-columns: minmax(0, 1fr); } .spec-head { flex-direction: column; gap: 2px; } }
+/* every dialog card gets room inside its stitching */
+.share { padding: 24px 26px 20px; }
