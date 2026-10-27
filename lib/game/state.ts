@@ -399,13 +399,13 @@ export const assets = (s: GameState) =>
  */
 export type EconPhase = 'steady' | 'inflation' | 'recession' | 'energy';
 export const ECON: Record<EconPhase, { name: string; cost: number; price: number; power: number; rate: number; months: [number, number] }> = {
-  steady: { name: 'Steady growth', cost: 0.025, price: 0.015, power: 1, rate: 0, months: [36, 96] },
+  steady: { name: 'Steady growth', cost: 0.025, price: 0.02, power: 1, rate: 0, months: [36, 96] },
   inflation: { name: 'Inflation spike', cost: 0.09, price: 0.05, power: 1.1, rate: 0.03, months: [12, 30] },
   recession: { name: 'Recession', cost: 0.005, price: -0.04, power: 0.9, rate: -0.015, months: [12, 24] },
   energy: { name: 'Energy crisis', cost: 0.04, price: 0.02, power: 1.7, rate: 0.01, months: [6, 18] },
 };
 /** prices never fall more than this far behind costs, so a long run stays playable */
-export const SQUEEZE_MAX = 1.3;
+export const SQUEEZE_MAX = 1.2;
 export const inflation = (s: GameState) => (s.phase === 'setup' ? 1 : s.econ.cost);
 export const priceGrowth = (s: GameState) => (s.phase === 'setup' ? 1 : s.econ.price);
 /** One month of the economy's drift. */

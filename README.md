@@ -10,7 +10,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ### The loop
 
-1. **Customers.** Your first customer signs a 3-year deal at opening. New offers arrive every few months in the Deals tab: who they are, how many MW, what they pay, for how long, and when they move in. Some need clean power, no outages or the newest chips. Sign the ones you can supply by their move-in date. If you can't deliver the power you promised, you pay credits and get a strike; three strikes and they leave. Spare capacity sells on the spot market, cheaply. Deal prices rise 2.5% a year, like real contracts.
+1. **Customers.** Your first customer signs a 3-year deal at opening. New offers arrive every few months in the Deals tab: who they are, how many MW, what they pay, for how long, and when they move in. Some need clean power, no outages or the newest chips. Sign the ones you can supply by their move-in date. If you can't deliver the power you promised, you pay credits (never more than they paid that month) and get a strike; three strikes and they leave. Spare capacity sells on the spot market, cheaply. Deal prices rise 2.5% a year, like real contracts.
 2. **Build.** Server halls hold the chips. Power and cooling floors each support 10 MW of halls. Techs keep halls running: a hall with no techs is off, and three fill it. Network floors make customers pay more; break rooms make techs faster.
 3. **Chips.** A new chip generation ships every couple of years. Halls keep the chips they were fitted with, so customers pay less for older halls (15% less per generation) and old chips fail more. Refit a hall with new chips from the Floors tab. From the fourth generation on, chips need liquid cooling.
 4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait, from 9 months in Texas to 5 years in Dublin. In the meantime you can make power on site: solar, batteries, gas turbines, and at the top a small nuclear reactor.
@@ -32,7 +32,7 @@ Trust moves toward that score every month. You can see it in the world too: more
 
 ### The long game
 
-- **The economy** moves in phases: steady growth, inflation spikes, recessions and energy crises. Prices never fall more than 30% behind costs.
+- **The economy** moves in phases: steady growth, inflation spikes, recessions and energy crises. Costs creep up a little faster than prices, but prices never fall more than 20% behind.
 - **The AI market** booms (more offers, higher prices) and crashes (fewer offers, cheap spot prices). Signed deals keep paying.
 - **A moratorium bill** gets filed once you're big or the town turns on you. It moves with your size, power bills, water and low trust, and slows when the town likes you and you hire locals. At 40% and 80% you're called to testify. If it passes, nothing new gets built for five years.
 - **Loans:** $10M to $150M against your buildings, land and signed deals, paid back monthly over 10 years.
