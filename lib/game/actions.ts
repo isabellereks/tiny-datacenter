@@ -317,6 +317,8 @@ export function apply(s: GameState, a: Action): Effects {
       if (a.act === 'decline' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 1); note(s, `Declined a call from ${c.who}. Trust −1`); }
       if (a.act === 'missed' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 2); note(s, `Missed a call from ${c.who}. Trust −2`); }
       s.call = null;
+      // a breather before the next letter or call
+      s.calm = Math.max(s.calm, Math.floor(s.month) + 1);
       return {};
     }
     case 'speed':

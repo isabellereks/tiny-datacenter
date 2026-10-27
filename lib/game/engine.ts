@@ -503,7 +503,7 @@ export class Engine {
     this.last = now;
     const s = this.s;
     const wasOver = s.phase === 'over';
-    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call ? 0 : SPEEDS[s.speed] ?? 1);
+    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call || s.complaint ? 0 : SPEEDS[s.speed] ?? 1);
     if (newMonth) endOfMonth(s);
     let changed = built || newMonth || fixed;
     this.goalClock += dt;

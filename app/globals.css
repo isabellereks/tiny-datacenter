@@ -456,7 +456,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 
 /* ---------- letters: complaints and decisions arrive on paper, answered with a stamp ---------- */
 .letter-back { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; justify-content: center; padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
-.letter { --head: #2E8B57; position: relative; pointer-events: auto; width: min(520px, 100%); background: #FBF8F0; color: #1F2A44; box-shadow: 0 18px 50px rgba(0, 0, 0, .3), 0 2px 0 #E4DCC8; transform: rotate(-.6deg); animation: letter-in .5s var(--ease) both; overflow: hidden;
+.letter { --head: #2E8B57; position: relative; pointer-events: auto; width: min(520px, 100%); background: #FBF8F0; color: #1F2A44; box-shadow: 0 18px 50px rgba(0, 0, 0, .3), 0 2px 0 #E4DCC8; transform: rotate(-.6deg); animation: letter-in .5s .4s var(--ease) both; overflow: hidden;
   background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(31, 42, 68, .06) 27px 28px); }
 .letter.gov { --head: #0B1D4F; }
 .letter.staff { --head: #D7263D; }

@@ -353,19 +353,16 @@ export function endOfMonth(s: GameState) {
   // every system runs every month; the first one with a question gets to ask it
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
   const decision = asks.find(x => x) ?? null;
-  callMonth(s);
   if (Math.floor(s.month) % 12 === 0 && s.month >= 12) s.briefing = true;
   if (s.phase !== 'play') return;
-  if (decision) { s.complaint = decision; return; }
-  if (s.complaint || s.month < s.calm) return;
-  const atSize = s.month - s.stageMonth;
-  for (const c of COMPLAINTS) {
-    if ((s.cooldown[c.id] ?? 0) > s.month) continue;
-    if (c.active(s, i, l) && atSize >= c.wait) {
-      s.complaint = c.id;
-      return;
-    }
+  // one thing at a time: a letter waits behind the briefing, and the phone only rings on a quiet month
+  if (decision) s.complaint = decision;
+  else if (!s.complaint && s.month >= s.calm) {
+    const atSize = s.month - s.stageMonth;
+    const c = COMPLAINTS.find(x => (s.cooldown[x.id] ?? 0) <= s.month && x.active(s, i, l) && atSize >= x.wait);
+    if (c) s.complaint = c.id;
   }
+  if (!s.complaint && !s.briefing && s.month >= s.calm) callMonth(s);
 }
 
 export function resolveComplaint(s: GameState, choice: number) {
