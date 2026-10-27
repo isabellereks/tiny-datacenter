@@ -4,84 +4,71 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## How to play
 
-**Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your floors, a customer and colors, then apply for a building permit with your datacenter's name and yours. Every choice has a price, and the forecast shows your profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
+**Set up.** You get a $100M budget. Pick a location, a foundation, a shape, your first floors, your first customer and colors, then apply for a building permit with your datacenter's name and yours. The forecast shows profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
 
-**Run it.** The bar at the top shows the month, your cash, profit per month and trust. The button on its right pauses and fast-forwards (space pauses, 1 to 3 pick a speed); a month takes 8 seconds at normal speed. Tap it to build floors, hire techs, see your books and buy upgrades. A goal card at the bottom tells you what to do next.
+**Run it.** The bar at the top shows the month, your cash, profit per month and trust. The button on its right pauses and fast-forwards (space pauses, 1 to 3 pick a speed); a month takes 8 seconds at normal speed. Tap the bar for the controls. A goal card at the bottom tells you what to do next. Letters, calls, briefings and new tiers pause the game, and only one comes at a time.
 
-- Server halls earn money. They need enough power and cooling floors to run at full speed.
-- Building costs about what real datacenters do, roughly $10M per MW. Power gear is the biggest cost, then cooling, which is cheapest in Iceland and most expensive in Arizona.
-- A server hall needs at least one tech to run. More techs fill it with more customers and fix outages on their floor. If a floor has no techs, tap it to fix it.
-- Every month you pay for power, water, staff, property tax and profit tax. Three months in debt and you go bankrupt.
-- Every button shows what it does before you tap: what a floor costs and how it changes your monthly profit, what a hire adds, what the town gains.
-- The town has an opinion of you, built from local jobs, noise, trees cut, water, power bills, pollution and the taxes you pay. Trust moves toward that number every month, so a big datacenter that does nothing for the town slowly loses it. The Town tab shows every reason.
-- Your power comes from the town grid. Over 60% of its capacity, power costs more; over 85%, the town gets brownouts; over 100%, blackouts and your halls get cut back. Pay for substations, solar or batteries to keep up.
-- Help the town with trees, open houses, school funding or a monthly community fund, or finish projects like a sound wall, water-saving cooling and heat reuse. Gifts fade; projects last.
-- Neighbors, the council, the water board, the power company and the paper complain by name. Pay to fix it or ignore it. Ignoring costs trust, and the town holds a grudge.
-- The economy moves in phases. Steady growth (costs +2.5% a year, prices +1.5%) runs for years, then gets broken by an inflation spike (costs +9%, rates up), a recession (prices fall 4% a year, rates down) or an energy crisis (power 70% dearer). Each makes the news and shows in the Money tab and the yearly briefing. Prices never fall more than 30% behind costs, so a long run stays playable.
-- Your rating (0 to 100) scores how well you run things right now: trust, profit margin, halls running, jobs and grid. It doesn't grow by waiting.
-- 20 goals take you from your first hire to a 20-floor datacenter the town still likes.
-- If trust hits 0, the town tears down your datacenter, you lose all your money, and it's breaking news.
+### The loop
 
-## The long game
+1. **Customers.** Your first customer signs a 3-year deal at opening. New offers arrive every few months in the Deals tab: who they are, how many MW, what they pay, for how long, and when they move in. Some need clean power, no outages or the newest chips. Sign the ones you can supply by their move-in date. If you can't deliver the power you promised, you pay credits and get a strike; three strikes and they leave. Spare capacity sells on the spot market, cheaply. Deal prices rise 2.5% a year, like real contracts.
+2. **Build.** Server halls hold the chips. Power and cooling floors each support 10 MW of halls. Techs keep halls running: a hall with no techs is off, and three fill it. Network floors make customers pay more; break rooms make techs faster.
+3. **Chips.** A new chip generation ships every couple of years. Halls keep the chips they were fitted with, so customers pay less for older halls (15% less per generation) and old chips fail more. Refit a hall with new chips from the Floors tab. From the fourth generation on, chips need liquid cooling.
+4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait, from 9 months in Texas to 5 years in Dublin. In the meantime you can make power on site: solar, batteries, gas turbines, and at the top a small nuclear reactor.
+5. **Grow.** Run more IT power to move up the tiers: edge room, colocation (6 MW), hyperscale (18 MW) and AI factory (45 MW). Each tier brings bigger customers and bigger grid requests, and unlocks gas turbines, liquid cooling and the reactor.
 
-- **Notoriety** comes from your size, your grid use, your other sites and the complaints you ignore. It brings customers (up to 20% higher prices) and backlash.
-- **A moratorium bill** is filed once you're noticed. It moves forward every month with notoriety, power bills, water and low trust, and slows with lobbyists, a happy town and local jobs. At 40% and 80% you're called to testify. If it passes, nothing new gets built at home for five years, and copycat laws can hit your other sites.
-- **Shell companies:** file your permit under a code name and people notice you less, until it leaks. Lobbyists can leak too.
-- **The AI market** booms (prices +30%, cheap loans) and crashes (prices −35%, dear loans).
-- **Loans:** borrow $10M to $150M against your buildings and land, paid back monthly over 10 years. Rates follow the market and your debt.
-- **Contracts:** a hyperscaler offers 10 years of fixed prices for 80% of your capacity. They protect you in a crash and cost you in a boom, and outages bring penalties; five strikes and they walk.
-- **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the hum leads to a sleep study and a class action, and in the desert the wells can run dry.
-- **Map:** buy existing datacenters in the other locations. They send their profit home every month.
-- **A yearly briefing** pauses the game every January: market, notoriety, the bill's odds, grid, debt, contract, sites and lawsuit risk.
+Every month you pay for power, fuel, water, staff, upkeep, property tax, profit tax and loans. Three months in debt and you go bankrupt.
 
-## Campus
+### The town
 
-Big datacenters are campuses of several wide buildings. With site plan approval from the county you can add up to three buildings, side by side, each with its own stack of floors. Pick which building to build on in the Build tab. A foundation upgrade applies to every building.
+The town judges you on four things you can see, plus what you've done for it:
+
+- **Jobs:** they expect two local hires per server hall.
+- **Noise:** more floors and gas turbines are louder; a sound wall fixes most of it.
+- **Power bills:** go up when you push the town grid.
+- **Nature:** trees cut, water used and carbon.
+- **Good deeds:** plant trees, fund the school, heat homes with server heat. These fade; ignored complaints leave a grudge.
+
+Trust moves toward that score every month. You can see it in the world too: more homes go up as you hire locals, windows go dark in a blackout, "For sale" signs appear and people picket your gate when trust drops. The town writes to you about each of the four, and phones you. At 0 trust the town tears the datacenter down.
+
+### The long game
+
+- **The economy** moves in phases: steady growth, inflation spikes, recessions and energy crises. Prices never fall more than 30% behind costs.
+- **The AI market** booms (more offers, higher prices) and crashes (fewer offers, cheap spot prices). Signed deals keep paying.
+- **A moratorium bill** gets filed once you're big or the town turns on you. It moves with your size, power bills, water and low trust, and slows when the town likes you and you hire locals. At 40% and 80% you're called to testify. If it passes, nothing new gets built for five years.
+- **Loans:** $10M to $150M against your buildings, land and signed deals, paid back monthly over 10 years.
+- **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the noise leads to a class action, and in the desert the wells can run dry.
+- **A yearly briefing** every January: size, customers, chips, grid, economy, the bill, debt and lawsuit risk.
 
 ## Staff
 
-Hire from town or overseas. Locals count as town jobs, but each one pushes local wages up 3% as the labor pool runs dry. Overseas techs earn half as much but need a work visa when hired and again every year, and the town council complains if they outnumber locals. Recruiting gets pricier as you grow. Morale (Staff tab) comes from pay, health insurance, a retirement plan, break rooms (one per 8 techs), overtime and outages. Letting people go hurts morale, more with each layoff, and a wave of layoffs makes the news. Low morale brings requests, then a union drive (recognize it or pay lawyers to fight it), then a strike that runs halls at 30%, and unhappy techs quit.
-
-Boosts: run a server hall hot for 3 months (+25% output, more power and outages), turn on overtime (+10% output, +30% wages, lower morale), or hold a team event.
+Hire from town or overseas. Locals count as town jobs and push local wages up as the labor pool runs dry. Overseas techs earn half as much but need a work visa every year. Morale comes from pay, health insurance, retirement, break rooms (one per 8 techs), overtime and outages. Low morale brings requests, then a union drive, then a strike that runs halls at 30%. You can settle a strike any time, and long strikes make the news.
 
 ## Government
 
-Everything big needs a permit, and permits take months. The Gov tab shows each one, what it allows, what it costs and how long it takes.
-
-- **Zoning approval** from the county for a bigger foundation, decided at a hearing that needs enough trust. In Loudoun County it takes 6 months, after its 2025 special exception rule.
-- **Height permits:** the county allows up to 20 floors; past 20 (about 200 ft) you need a flight safety review from the FAA, or Iceland's transport authority, and past 40 a skyscraper review. Deep caissons (50 floors) and a mega-frame core (99) unlock after bedrock. Tall towers also bring view and shadow complaints, and the town counts the skyline against you.
-- **Air permits** for the diesel backup generators on power floors. Three generator violations and the regulator stops approving them.
-- **Site plan approval** for each new building on the campus.
-
-Reviewers sometimes ask for more before deciding (a traffic study, a shadow study, a public comment period), adding 1 to 3 months, more often under a slow-growth board. Each permit card shows what you have, what is next, the last decision and why, and the trust a hearing needs.
-- **Water allocation** in Phoenix for more server halls, unless you switch to water-saving cooling.
-
-Inspections come once a year, announced two months ahead, with the checklist visible in the Gov tab. Failing costs a fine, makes the news and brings a stop-work order: no income while staff, taxes, upkeep and standby power keep billing, plus a penalty for every failed monthly reinspection until everything passes. Iceland alternates with an EU energy report on PUE.
-
-Every four years the county or city holds an election, and your town's trust sets the odds for the pro-growth side. US sites also get national elections, a coin flip your town can't sway: a build-fast administration speeds up permits, a clean-energy one brings back the solar credit and tightens generator rules. A pro-growth board makes permits faster and hearings easier; a slow-growth board does the opposite, and in Loudoun can pause new datacenters.
-
-Laws follow each place's real timeline, simplified:
-
-- **US:** a federal clean energy credit cuts the solar farm price until Congress ends it; an executive order fast-tracks permits for two years; a state large-load law makes you install a remote disconnect or accept less grid; grid emergencies ask you to run diesel generators.
-- **Virginia:** a sales tax break on equipment, then a tax on datacenter power.
-- **Arizona:** a tax break that the legislature freezes for three years, summer heat waves and water hearings.
-- **Oregon:** a strategic investment tax deal that needs 10 local jobs by year 3 and ends after 15 years.
-- **Iceland:** dry winters when the utility cuts big users, unless you pay for a priority contract.
+Permits take months and some need a hearing with enough trust: zoning for bigger foundations, height permits (past 20 floors a flight safety review, past 40 a skyscraper review), air permits for the backup generators on power floors, site plan approval for each new building, and water in Phoenix. Inspections come once a year with the checklist visible ahead of time; failing two or more items brings a stop-work order. County elections are decided by trust; US national elections are a coin flip. Laws follow each place's real timeline, simplified.
 
 ## Locations
 
-| | Land | Power | Town grid | Room | Permits | Notes |
+| | Land | Power | Town grid | Grid queue | Room | Notes |
 |---|---|---|---|---|---|---|
-| Oregon | $150k/acre | $60/MWh | 30 MW | 3 buildings | Normal | Hydro power, lots of trees, a 15-year tax deal that needs local jobs |
-| Iceland | $120k/acre | $45/MWh | 24 MW | 2 buildings, low height near the airport | Normal | Free cooling, dry-winter power cuts, EU energy reports |
-| Arizona | $600k/acre | $75/MWh | 20 MW | 3 buildings | Normal | Hot, water permits, heat waves, a tax break the legislature freezes |
-| Virginia | $2M/acre | $85/MWh | 16 MW | 2 buildings | Slow | Customers pay the most, special exception hearings, a datacenter power tax |
-| Texas | $30k/acre | $55/MWh | 40 MW | 3 buildings, 20 floors to start | Fast | Cheap land and wind, property tax abatement, winter storms, the large-load law early |
-| Ohio | $250k/acre | $70/MWh | 22 MW | 3 buildings | Fast | Coal-heavy grid, tax abatement, a utility tariff that bills 85% of reserved power |
-| Ireland | $1.5M/acre | $150/MWh | 10 MW | 1 building, 16 floors at most | Slow | 12.5% profit tax until the global minimum tax, a grid moratorium that blocks substations |
-| Sweden | $50k/acre | $40/MWh | 35 MW | 3 buildings | Normal | Cold and cheap, a power tax cut that ends, EU energy reports |
+| Oregon | $150k/acre | $60/MWh | 30 MW | 18 mo | 3 buildings | Hydro power, lots of trees, a tax deal that needs local jobs |
+| Iceland | $120k/acre | $45/MWh | 24 MW | 12 mo | 2 buildings | Free cooling, dry-winter power cuts, snow |
+| Arizona | $600k/acre | $75/MWh | 20 MW | 24 mo | 3 buildings | Hot, water permits, heat waves |
+| Virginia | $2M/acre | $85/MWh | 16 MW | 42 mo | 2 buildings | Customers pay the most, slow permits, a power tax |
+| Texas | $30k/acre | $55/MWh | 40 MW | 9 mo | 3 buildings | Cheap land and wind, fast permits, winter storms |
+| Ohio | $250k/acre | $70/MWh | 22 MW | 24 mo | 3 buildings | Coal-heavy grid, a utility tariff on reserved power |
+| Ireland | $1.5M/acre | $150/MWh | 10 MW | 60 mo | 1 building | Low profit tax, almost no grid left. Hard mode |
+| Sweden | $50k/acre | $40/MWh | 35 MW | 12 mo | 3 buildings | Cold and cheap, snow half the year |
 
 Prices, taxes, PUE and water use are rough estimates based on public figures.
+
+## Look and sound
+
+Every card is a linen patch with a running stitch. In-world things look like the real objects: the news is a TV broadcast, complaints are letters you stamp, callers come on air, and outages set off an alarm. Days turn to night slowly and lit windows glow; it snows and rains by place and season. Sound is made on the fly: a hum that rises with load, a needle when floors are stitched in, stamps, the phone and the news. Turn it off in settings.
+
+## Share
+
+Share on X (settings, or the end screen) posts your stats with a link to your run. The link preview on X shows your tower in its own threads with your rating and stats, drawn on the server from the link. Copy and Save give you the full picture of your datacenter too.
 
 ## Run it
 
@@ -92,18 +79,9 @@ npm run dev
 
 Then open http://localhost:3000.
 
-## Calls
-
-People from town phone you about what you are actually doing to them: cut trees, the hum, power bills, water, jobs, the skyline, a strike. Angrier towns call more. Answering helps a little; declining or letting it ring costs trust. Now and then someone calls to say thanks.
-
-## Share
-
-Share on X (the settings button, or the end screen) posts your stats with a link to your run. The link preview on X shows a card of your tower in its own threads with the rating and stats, drawn on the server from the link, so nothing gets pasted or stored. Copy and Save give you the full picture of your datacenter too.
-
 ## How it's built
 
 - Next.js (App Router), React and TypeScript
-- three.js renders the scene twice at stitch resolution; `lib/game/stitchPass.ts` turns every cell into an X stitch
-- `lib/game/`: `data.ts` (prices and rates), `state.ts` (monthly books and simulation), `gov.ts` (permits, inspections, elections, laws), `events.ts` (town mood, complaints, outages, goals, rating, endings), `actions.ts` (player actions), `models.ts` (3D pieces), `engine.ts` (render loop, camera, the ending)
-- `components/`: `SetupCard` (setup), `Island` (top bar), `GoalCard`, `EndCard`
+- three.js renders the scene twice at stitch resolution; `lib/game/stitchPass.ts` turns every cell into an X stitch and handles night
+- `lib/game/`: `data.ts` (prices, chips, tiers), `state.ts` (monthly books and simulation), `deals.ts` (customers, chips, the grid queue, tiers), `events.ts` (town, complaints, outages, goals, rating), `gov.ts` (permits, inspections, elections, laws), `staff.ts`, `strategy.ts` (economy, market, the bill, loans, lawsuits, briefing), `calls.ts`, `sound.ts`, `actions.ts`, `models.ts` (3D pieces), `engine.ts` (render loop, camera, town life, weather)
 - Progress saves to `localStorage`
