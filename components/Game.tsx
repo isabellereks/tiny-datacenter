@@ -141,6 +141,29 @@ export default function Game() {
     engineRef.current?.setInsets(phase === 'setup' ? 24 : ISLAND_SPACE, bottom);
   }, [phase, ended, cardH, goalH]);
 
+  // The news plays one story at a time, long enough to read. New stories wait their turn;
+  // if a lot happens at once, only the latest few are kept.
+  const newsQueue = useRef<Story[]>([]);
+  const showNext = useCallback(() => {
+    const next = newsQueue.current.shift() ?? null;
+    setFlash(next);
+    if (!next) return;
+    sfx('news');
+    const chars = next.headline.length + next.ticker.join('').length;
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => {
+      setFlash(null);
+      flashTimer.current = window.setTimeout(showNext, 1200);
+    }, Math.min(18_000, 11_000 + chars * 40));
+  }, []);
+  const pushNews = useCallback((story: Story) => {
+    if (newsQueue.current.some(x => x.headline === story.headline)) return;
+    newsQueue.current = [...newsQueue.current, story].slice(-3);
+    if (!flashRef.current) showNext();
+  }, [showNext]);
+  const flashRef = useRef<Story | null>(null);
+  flashRef.current = flash;
+
   // complaints that make the news get a short broadcast
   const complaintNow = s?.complaint ?? null;
   useEffect(() => {
@@ -148,12 +171,9 @@ export default function Game() {
     if (!st || complaintNow === lastComplaint.current) return;
     lastComplaint.current = complaintNow;
     if (complaintNow === 'protest' || complaintNow === 'carbon' || complaintNow === 'jobs') {
-      setFlash(storyFor(st, complaintNow));
-      sfx('news');
-      window.clearTimeout(flashTimer.current);
-      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+      pushNews(storyFor(st, complaintNow));
     }
-  }, [complaintNow]);
+  }, [complaintNow, pushNews]);
 
   // blackouts in town make the news the moment they start
   const grid = s?.gridLevel ?? 0;
@@ -161,13 +181,10 @@ export default function Game() {
   useEffect(() => {
     const st = stateRef.current;
     if (st && grid === 3 && lastGrid.current < 3) {
-      setFlash(storyFor(st, 'blackout'));
-      sfx('news');
-      window.clearTimeout(flashTimer.current);
-      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+      pushNews(storyFor(st, 'blackout'));
     }
     lastGrid.current = grid;
-  }, [grid]);
+  }, [grid, pushNews]);
 
   // laws, hearings and elections make the news
   // -1 until the save has loaded
@@ -179,13 +196,10 @@ export default function Game() {
     // a saved headline doesn't replay when you come back
     if (lastNews.current === null) { lastNews.current = newsId; return; }
     if (st.news && newsId !== lastNews.current && st.phase === 'play') {
-      setFlash({ tag: st.news.tag, headline: st.news.headline, ticker: st.news.ticker });
-      sfx('news');
-      window.clearTimeout(flashTimer.current);
-      flashTimer.current = window.setTimeout(() => setFlash(null), 7000);
+      pushNews({ tag: st.news.tag, headline: st.news.headline, ticker: st.news.ticker });
     }
     lastNews.current = newsId;
-  }, [newsId]);
+  }, [newsId, pushNews]);
 
   // the hum follows the load; sound follows the setting
   const muted = !!s?.muted;

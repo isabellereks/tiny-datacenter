@@ -66,7 +66,8 @@ export function News({ s, story, full, font }: { s: GameState; story: Story; ful
         <div className="tag">{story.tag}</div>
         <div className="headline">{story.headline}</div>
         <div className="ticker" aria-label={story.ticker.join('. ')}>
-          <span>{line}   •   {line}   •   </span>
+          {/* a steady reading pace however long the line is */}
+          <span style={{ animationDuration: `${Math.max(22, line.length * 0.32)}s` }}>{line}   •   {line}   •   </span>
         </div>
       </div>
     </div>
