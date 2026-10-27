@@ -49,6 +49,8 @@ export interface Location {
   space: { buildings: number; heights: number[]; permitSpeed: number; hearing: number };
   /** MW the local grid can spare for you before the town feels it */
   grid: number;
+  /** months the utility's interconnection queue takes for a new grid connection */
+  queue: number;
   trees: number;
   taxNote: string;
   /** cloth tint, ground patch edge and ground texture threads */
@@ -59,12 +61,12 @@ export interface Foundation { name: string; note: string; max: number; cost: num
 export interface Shape { name: string; note: string; cost: number; cool: number; crew: number; rev: number; trees: number }
 export interface Customer {
   name: string; note: string;
-  /** dollars per kW of IT load per month, MW per server hall */
-  price: number; mw: number;
-  /** share of a hall in use with no crew, and per tech (3 max) */
-  base: number; per: number;
-  /** how much each network floor adds */
+  /** dollars per kW of IT load per month, before the market and location */
+  price: number;
+  /** how much each network floor adds to what they pay */
   net: number;
+  /** who signs deals of this kind */
+  names: string[];
 }
 
 /** Money for land and the first build. Whatever is left is your starting cash. */
@@ -76,24 +78,19 @@ export const HOURS_PER_MONTH = 730;
 export const TECH_SALARY = 8_000;
 export const HIRE_FEE = 15_000;
 export const MAX_TECHS = 3;
-/** a substation adds this much grid capacity; each one costs more than the last */
-export const SUBSTATION_MW = 20;
-export const SUBSTATION_COST = 8_000_000;
 /** an onsite solar farm, averaged over day and night */
 export const SOLAR_MW = 3;
-/** monthly payment to the town under a community agreement */
-export const COMMUNITY_FUND = 100_000;
 /** an outside repair crew, for a hall with no techs on it */
 export const REPAIR_COST = 150_000;
 /** MW each power floor can deliver and each cooling floor can remove, before bonuses */
-export const POWER_MW = 6;
-export const COOL_MW = 6;
+export const POWER_MW = 10;
+export const COOL_MW = 10;
 
 export const LOCS: Record<LocKey, Location> = {
   dalles: {
     name: 'The Dalles, Oregon', short: 'Oregon', note: 'Cheap power. Lots of trees.',
     land: 150_000, power: 60, pue: 1.2, water: 1, waterPrice: 1.5,
-    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, trees: 26,
+    propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, queue: 18, trees: 26,
     taxNote: 'Almost no property tax.',
     gov: { local: 'Wasco County', state: 'Oregon Legislature', utility: 'Northern Wasco PUD', air: 'Oregon DEQ', us: true },
     space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 0.9, hearing: 0 },
@@ -102,7 +99,7 @@ export const LOCS: Record<LocKey, Location> = {
   reykjavik: {
     name: 'Reykjavík, Iceland', short: 'Iceland', note: 'Free cooling. Customers pay less.',
     land: 120_000, power: 45, pue: 1.12, water: 0.1, waterPrice: 1,
-    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, grid: 24, trees: 10,
+    propertyTax: 0.005, incomeTax: 0.2, demand: 0.85, carbon: 0.02, coolCost: 0.55, grid: 24, queue: 12, trees: 10,
     taxNote: 'Lowest profit tax.',
     gov: { local: 'Reykjavík City Council', state: 'Alþingi', utility: 'Landsvirkjun', air: 'Environment Agency', us: false },
     space: { buildings: 2, heights: [8, 15, 30, 99], permitSpeed: 1, hearing: 0 },
@@ -111,7 +108,7 @@ export const LOCS: Record<LocKey, Location> = {
   phoenix: {
     name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot. Uses lots of water.',
     land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
-    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, trees: 14,
+    propertyTax: 0.01, incomeTax: 0.259, demand: 1, carbon: 0.4, coolCost: 1.4, grid: 20, queue: 24, trees: 14,
     taxNote: 'Normal taxes.',
     gov: { local: 'Phoenix City Council', state: 'Arizona Legislature', utility: 'APS', air: 'Maricopa County Air Quality', us: true },
     space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 1, hearing: 0 },
@@ -120,7 +117,7 @@ export const LOCS: Record<LocKey, Location> = {
   ashburn: {
     name: 'Ashburn, Virginia', short: 'Virginia', note: 'Best customers. Pricey land.',
     land: 2_000_000, power: 85, pue: 1.3, water: 1.2, waterPrice: 2,
-    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, grid: 16, trees: 18,
+    propertyTax: 0.012, incomeTax: 0.27, demand: 1.25, carbon: 0.3, coolCost: 1, grid: 16, queue: 42, trees: 18,
     taxNote: 'High property tax.',
     gov: { local: 'Loudoun County Board', state: 'Virginia General Assembly', utility: 'Dominion Energy', air: 'Virginia DEQ', us: true },
     space: { buildings: 2, heights: [12, 20, 40, 99], permitSpeed: 1.2, hearing: 5 },
@@ -129,7 +126,7 @@ export const LOCS: Record<LocKey, Location> = {
   abilene: {
     name: 'Abilene, Texas', short: 'Texas', note: 'Cheap land and wind power. Shaky grid.',
     land: 30_000, power: 55, pue: 1.35, water: 1.8, waterPrice: 2,
-    propertyTax: 0.018, incomeTax: 0.21, demand: 1.05, carbon: 0.37, coolCost: 1.2, grid: 40, trees: 8,
+    propertyTax: 0.018, incomeTax: 0.21, demand: 1.05, carbon: 0.37, coolCost: 1.2, grid: 40, queue: 9, trees: 8,
     taxNote: 'No state income tax. High property tax.',
     gov: { local: 'Taylor County', state: 'Texas Legislature', utility: 'ERCOT', air: 'TCEQ', us: true },
     space: { buildings: 3, heights: [20, 40, 99], permitSpeed: 0.6, hearing: -10 },
@@ -138,7 +135,7 @@ export const LOCS: Record<LocKey, Location> = {
   newalbany: {
     name: 'New Albany, Ohio', short: 'Ohio', note: 'Central. Coal-heavy grid.',
     land: 250_000, power: 70, pue: 1.3, water: 1, waterPrice: 2,
-    propertyTax: 0.015, incomeTax: 0.21, demand: 1.1, carbon: 0.5, coolCost: 0.95, grid: 22, trees: 20,
+    propertyTax: 0.015, incomeTax: 0.21, demand: 1.1, carbon: 0.5, coolCost: 0.95, grid: 22, queue: 24, trees: 20,
     taxNote: 'No corporate income tax.',
     gov: { local: 'Licking County', state: 'Ohio General Assembly', utility: 'AEP Ohio', air: 'Ohio EPA', us: true },
     space: { buildings: 3, heights: [12, 20, 40, 99], permitSpeed: 0.8, hearing: -5 },
@@ -147,7 +144,7 @@ export const LOCS: Record<LocKey, Location> = {
   dublin: {
     name: 'Dublin, Ireland', short: 'Ireland', note: 'Low profit tax. Almost no grid left.',
     land: 1_500_000, power: 150, pue: 1.25, water: 0.5, waterPrice: 3,
-    propertyTax: 0.01, incomeTax: 0.125, demand: 1.3, carbon: 0.3, coolCost: 0.7, grid: 10, trees: 12,
+    propertyTax: 0.01, incomeTax: 0.125, demand: 1.3, carbon: 0.3, coolCost: 0.7, grid: 10, queue: 60, trees: 12,
     taxNote: '12.5% profit tax.',
     gov: { local: 'Fingal County Council', state: 'Oireachtas', utility: 'EirGrid', air: 'EPA Ireland', us: false },
     space: { buildings: 1, heights: [8, 12, 16], permitSpeed: 1.6, hearing: 10 },
@@ -156,7 +153,7 @@ export const LOCS: Record<LocKey, Location> = {
   lulea: {
     name: 'Luleå, Sweden', short: 'Sweden', note: 'Cold and cheap. Far from customers.',
     land: 50_000, power: 40, pue: 1.1, water: 0.1, waterPrice: 1.5,
-    propertyTax: 0.005, incomeTax: 0.206, demand: 0.85, carbon: 0.02, coolCost: 0.5, grid: 35, trees: 30,
+    propertyTax: 0.005, incomeTax: 0.206, demand: 0.85, carbon: 0.02, coolCost: 0.5, grid: 35, queue: 12, trees: 30,
     taxNote: 'Low taxes. Cheap hydro.',
     gov: { local: 'Luleå Municipality', state: 'Riksdag', utility: 'Vattenfall', air: 'Swedish EPA', us: false },
     space: { buildings: 3, heights: [10, 20, 40, 99], permitSpeed: 0.9, hearing: -5 },
@@ -188,17 +185,43 @@ export const SHAPES: Record<ShapeKey, Shape> = {
 };
 
 export const CUSTS: Record<CustKey, Customer> = {
-  ai: { name: 'AI lab', note: 'Pays the most. Uses the most power.', price: 250, mw: 4, base: 0.4, per: 0.2, net: 1 },
-  stream: { name: 'Streaming', note: 'Gets more from network floors.', price: 190, mw: 2, base: 0.4, per: 0.2, net: 2 },
-  bank: { name: 'Bank', note: 'Pays well. Needs full crews.', price: 220, mw: 2.4, base: 0.25, per: 0.25, net: 1 },
-  games: { name: 'Game servers', note: 'Pays the least. Easy to run.', price: 170, mw: 2, base: 0.5, per: 0.17, net: 1.5 },
+  ai: { name: 'AI lab', note: 'Pays the most. Wants new chips and big deals.', price: 280, net: 1, names: ['Northwind AI', 'Helix Labs', 'Parallax AI', 'Quill Research', 'Magpie Labs'] },
+  stream: { name: 'Streaming', note: 'Pays more for network floors.', price: 215, net: 2, names: ['Reelbox', 'Lanternfly TV', 'Hummingbird Media'] },
+  bank: { name: 'Bank', note: 'Pays well. Very strict about outages.', price: 250, net: 1, names: ['First Granite Bank', 'Harbor Trust', 'Copperline Pay'] },
+  games: { name: 'Game servers', note: 'Pays the least. Easygoing.', price: 190, net: 1.5, names: ['Pebble Games', 'Kitecat Studios', 'Moonbeam Online'] },
 };
+/** Cloud companies that sign the biggest deals once you're big enough. */
+export const HYPERSCALERS = ['Cirrus Cloud', 'Stratus', 'Nimbus Compute'];
 
-/** Build prices land near real ones: about $10M per MW of IT, with power gear ~$3.5M/MW and cooling ~$2M/MW. */
+/** Chip generations. Each one packs more power into a hall; customers pay less for older chips. */
+export const CHIPS: { name: string; mw: number }[] = [
+  { name: 'CPU racks', mw: 2 },
+  { name: 'GPU racks', mw: 3 },
+  { name: 'Dense GPU racks', mw: 4.5 },
+  { name: 'Liquid-cooled GPUs', mw: 6.5 },
+  { name: 'Rack-scale AI', mw: 9 },
+  { name: 'Wafer-scale AI', mw: 12 },
+];
+/** Chips from this generation on need liquid cooling. */
+export const LIQUID_GEN = 3;
+/** Months between chip launches, roughly. */
+export const CHIP_EVERY = 30;
+
+/** How big you are, by the IT power you've run. Each tier unlocks more. */
+export const TIERS: { name: string; mw: number; unlock: string }[] = [
+  { name: 'Edge room', mw: 0, unlock: 'Halls, power, cooling, network and break rooms' },
+  { name: 'Colocation', mw: 6, unlock: 'Bigger deals, gas turbines, 25 MW grid requests' },
+  { name: 'Hyperscale', mw: 18, unlock: 'Cloud giants, liquid cooling, 50 MW grid requests' },
+  { name: 'AI factory', mw: 45, unlock: 'Mega deals, a small nuclear reactor, 100 MW grid requests' },
+];
+/** Grid you can ask the utility for at each tier. */
+export const GRID_ASK = [10, 25, 50, 100];
+
+/** Build prices for the shell, power and cooling, like a colocation provider pays; customers bring their own servers. */
 export const TYPES: Record<FloorType, { name: string; short: string; cost: number; note: string }> = {
-  hall: { name: 'Server hall', short: 'Server hall', cost: 10_000_000, note: 'Earns money.' },
-  power: { name: 'Power', short: 'Power', cost: 21_000_000, note: '+6 MW power.' },
-  cool: { name: 'Cooling', short: 'Cooling', cost: 12_000_000, note: '+6 MW cooling.' },
+  hall: { name: 'Server hall', short: 'Server hall', cost: 6_000_000, note: 'Earns money.' },
+  power: { name: 'Power', short: 'Power', cost: 10_000_000, note: '+10 MW power.' },
+  cool: { name: 'Cooling', short: 'Cooling', cost: 6_000_000, note: '+10 MW cooling.' },
   net: { name: 'Network', short: 'Network', cost: 3_000_000, note: 'Halls earn more.' },
   break: { name: 'Break room', short: 'Break room', cost: 500_000, note: 'Techs work faster.' },
   lobby: { name: 'Lobby', short: 'Lobby', cost: 2_000_000, note: 'Where staff and visitors come in.' },
@@ -241,7 +264,7 @@ export const SETUP: { key: SetupStep; title: string; sub: string }[] = [
   { key: 'found', title: 'Pick a foundation', sub: 'Bigger foundations hold more floors but need more land.' },
   { key: 'shape', title: 'Pick a shape', sub: 'Each shape gives a small bonus.' },
   { key: 'height', title: 'Add floors', sub: 'To earn money you need a server hall, plus power and cooling for it.' },
-  { key: 'cust', title: 'Pick a customer', sub: 'Your customer sets how much each hall earns and how much power it uses.' },
+  { key: 'cust', title: 'Pick your first customer', sub: 'They sign a 3-year deal for what your halls can run. More customers come once you open.' },
   { key: 'color', title: 'Pick colors', sub: 'Tap a floor, then pick a thread color.' },
   { key: 'name', title: 'Apply for a permit', sub: 'Name your datacenter and sign as the owner.' },
 ];

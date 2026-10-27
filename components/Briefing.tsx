@@ -12,7 +12,7 @@ export function Briefing({ s, dispatch }: { s: GameState; dispatch: (a: Action) 
     <div className="share-back" role="dialog" aria-labelledby="brief-title">
       <div className="share brief">
         <span className="stepno">Year {year} briefing</span>
-        <h2 id="brief-title">{s.codename ?? (s.look.name.trim() || 'Your datacenter')}</h2>
+        <h2 id="brief-title">{s.look.name.trim() || 'Your datacenter'}</h2>
         <div className="brief-rows">
           {rows.map(r => (
             <div key={r.label} className={r.bad ? 'bad' : undefined}><span>{r.label}</span><b>{r.value}</b></div>

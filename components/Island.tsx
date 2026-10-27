@@ -3,32 +3,35 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '@/lib/game/actions';
 import {
-  BUILDABLE, COMMUNITY_FUND, COOL_MW, CUSTS, FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
-  SHAPES, STITCH, SUBSTATION_MW, TYPES,
+  BUILDABLE, CHIPS, COOL_MW, CUSTS, FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
+  SHAPES, STITCH, TIERS, TYPES,
   type BuildableType, type StitchSize,
 } from '@/lib/game/data';
 import {
-  GIFTS, UPGRADES, foundationUpgradeCost, giftWait, hopedJobs, nextFoundation, rating,
-  substationCost, townMood, type Impact,
+  GIFTS, UPGRADES, foundationUpgradeCost, giftWait, hopedJobs, nextFoundation, rating, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, floorLabel, heightOf, level, maxBuildings, dateLabel, floorPrice, gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money, today,
-  techsOn, utilization, type Floor, type GameState, type Ledger,
+  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
+  gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
+  signedMW, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, buildBlock, checklist, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
-import { BillPanel, FinancePanel, MapTab } from './Strategy';
+import {
+  canRefresh, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
+} from '@/lib/game/deals';
+import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
-import { sitesNet } from '@/lib/game/strategy';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'floor' | 'crew' | 'money' | 'town' | 'gov' | 'map' | 'look';
+export type Tab = 'build' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'floor', label: 'Floors' },
+  { key: 'deals', label: 'Deals' },
   { key: 'crew', label: 'Staff' },
   { key: 'town', label: 'Town' },
   { key: 'gov', label: 'Gov' },
@@ -141,7 +144,9 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   // the bar warns about the most urgent problem
   const downAlone = s.broken.some(b => techsOn(s, b.floor) === 0);
   const idle = s.floors.some((f, k) => f.done && f.type === 'hall' && !techsOn(s, k));
-  const warn = hasLaw(s, 'moratorium') ? 'Moratorium' : hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs' : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : null;
+  const short = l.promised > l.served + 0.1;
+  const warn = hasLaw(s, 'moratorium') ? 'Moratorium' : hasLaw(s, 'stopWork') ? 'Stop-work order' : s.staff.strike ? 'On strike' : downAlone ? 'Floor down' : idle ? 'Hall needs techs'
+    : short ? `Short ${(l.promised - l.served).toFixed(1)} MW` : s.debt > 0 ? 'In debt' : l.strain >= 0.85 ? GRID_LABEL[gridLevel(l.strain)] : l.eff < 0.999 ? `Halls at ${Math.round(l.eff * 100)}%` : s.offers.length ? `${s.offers.length} ${s.offers.length === 1 ? 'offer' : 'offers'}` : null;
 
   let body: ReactNode;
   if (over) {
@@ -193,15 +198,16 @@ export function Row({ label, value, strong, neg, sub }: { label: string; value: 
   );
 }
 
+
 /** What a floor of this type does, in plain numbers for this site. */
 function floorEffect(s: GameState, type: Floor['type']) {
-  const L = LOCS[s.loc], K = CUSTS[s.cust];
-  const cool = COOL_MW * FOUNDS[s.found].cool * SHAPES[s.shape].cool * (1.2 / L.pue);
+  const L = LOCS[s.loc];
+  const cool = COOL_MW * FOUNDS[s.found].cool * SHAPES[s.shape].cool * (1.2 / L.pue) * (s.up.liquid ? 1.5 : 1);
   switch (type) {
-    case 'hall': return `Uses ${K.mw} MW`;
+    case 'hall': return `${CHIPS[fitGen(s)].name}, ${CHIPS[fitGen(s)].mw} MW`;
     case 'power': return `+${POWER_MW} MW power`;
     case 'cool': return `+${cool.toFixed(1)} MW cooling`;
-    case 'net': return `Halls +${Math.round(8 * K.net)}% income`;
+    case 'net': return 'Customers pay more';
     case 'break': return 'Techs +10% speed';
     case 'lobby': return 'Entrance';
   }
@@ -216,7 +222,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
     <div className="expanded">
       <div className="ex-head">
         <div>
-          <span className="day">{dateLabel(s.month)}{s.look.name.trim() ? `, ${s.look.name.trim()}` : ''}</span>
+          <span className="day">{dateLabel(s.month)} · {TIERS[s.tier].name}</span>
           <div className="money"><b><Cash value={s.cash} /></b><Cash className={l.net >= 0 ? undefined : 'neg'} value={l.net} perMonth signed /></div>
         </div>
         <div className="ex-side">
@@ -232,13 +238,16 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
       </div>
       <div className="tabs" role="tablist">
         {TABS.map(t => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onTab(t.key)}>{t.label}</button>
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onTab(t.key)}>
+            {t.label}{t.key === 'deals' && s.offers.length > 0 && <i className="badge">{s.offers.length}</i>}
+          </button>
         ))}
       </div>
 
       <div className="ex-body" key={tab}>
         {tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'floor' && <FloorTab s={s} l={l} dispatch={dispatch} />}
+        {tab === 'deals' && <DealsTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'crew' && <StaffTab s={s} l={l} dispatch={dispatch} onTab={onTab} />}
         {tab === 'money' && <MoneyTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
@@ -255,6 +264,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
             <div className="toggles">
               <Chip on={s.spin} onClick={() => dispatch({ type: 'spin', on: !s.spin })}><b>Rotate</b></Chip>
               <Chip on={s.smoke} onClick={() => dispatch({ type: 'smoke', on: !s.smoke })}><b>Steam</b></Chip>
+              <Chip on={!s.muted} onClick={() => dispatch({ type: 'mute', on: !s.muted })}><b>Sound</b></Chip>
               <Chip onClick={onResetView}><b>Reset view</b></Chip>
             </div>
             <span className="label">Stitch size</span>
@@ -278,7 +288,6 @@ function SupplyMeters({ l }: { l: Ledger }) {
     <>
       <Meter label="Power" value={l.hallMW} max={l.powerMW} text={`${l.hallMW.toFixed(1)} of ${l.powerMW.toFixed(1)} MW`} bad={l.hallMW > l.powerMW} />
       <Meter label="Cooling" value={l.hallMW} max={l.coolMW} text={`${l.hallMW.toFixed(1)} of ${l.coolMW.toFixed(1)} MW`} bad={l.hallMW > l.coolMW} />
-      <Meter label="Grid" value={l.gridMW} max={l.gridCap} text={`${l.gridMW.toFixed(1)} of ${l.gridCap} MW`} bad={l.strain >= 0.85} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
     </>
   );
 }
@@ -288,7 +297,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const up = nextFoundation(s);
   const upCost = up ? foundationUpgradeCost(s, up) : 0;
   const deltas = Object.fromEntries(BUILDABLE.map(t => [t, buildDelta(s, t)])) as Record<BuildableType, number>;
-  const after = ledger({ ...s, floors: [...s.floors, { type: s.next, fill: s.nextFill, done: true, cost }] });
+  const after = ledger({ ...s, floors: [...s.floors, { type: s.next, fill: s.nextFill, done: true, cost, gen: fitGen(s) }] });
   const short = cost - s.cash;
   const block = buildBlock(s);
 
@@ -322,24 +331,47 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         <button className="pill white wide" disabled={!!s.build || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
           {s.build ? 'Building…' : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}`}
         </button>
-      ) : null}
-      {up && zoningAllows(s, up) && n < max && (
-        <button className="pill" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
-          Zoning approved: {FOUNDS[up].name} ({FOUNDS[up].max} floors)  {money(upCost)}
-        </button>
-      )}
-      {n >= max && (
+      ) : (
         <div className="note">
-          <span>Max height</span>
-          {up && !zoningAllows(s, up) && <span>Taller needs a zoning permit</span>}
-          {up && zoningAllows(s, up) && (
-            <button className="pill white" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
-              {FOUNDS[up].name} ({FOUNDS[up].max} floors)  {money(upCost)}
-            </button>
-          )}
+          <span>Max height for this foundation</span>
+          {up && !zoningAllows(s, up) && <span>Taller needs a zoning permit (Gov tab)</span>}
         </div>
       )}
+      {up && zoningAllows(s, up) && (
+        <button className="pill" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
+          {FOUNDS[up].name}, up to {FOUNDS[up].max} floors  {money(upCost)}
+        </button>
+      )}
       <AddBuilding s={s} dispatch={dispatch} />
+      <GridPanel s={s} l={l} dispatch={dispatch} />
+      <span className="label">Projects</span>
+      <div className="ups">
+        {UPGRADES.map(u => {
+          const locked = s.tier < u.tier;
+          const building = u.key === 'smr' && s.smrAt !== null;
+          return (
+            <button key={u.key} className="up" disabled={locked || s.up[u.key] || building || s.cash < today(s, u.cost)} onClick={() => dispatch({ type: 'upgrade', key: u.key })}>
+              <b>{u.name}</b><small>{u.note}</small>
+              <span>{s.up[u.key] ? 'Done' : building ? `Online in ${Math.ceil((s.smrAt ?? 0) - s.month)} mo` : locked ? `Unlocks at ${TIERS[u.tier].name.toLowerCase()}` : money(today(s, u.cost))}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/** The town grid, your place in the utility's queue, and power made on site. */
+function GridPanel({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  const ask = gridAsk(s), block = gridBlock(s), fee = gridDeposit(s, ask);
+  return (
+    <>
+      <span className="label">Grid: {GRID_LABEL[gridLevel(l.strain)]}</span>
+      <Meter label="Town grid" value={l.gridMW} max={l.gridCap} text={`${l.gridMW.toFixed(1)} of ${l.gridCap.toFixed(0)} MW`} bad={l.strain >= 0.85} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
+      {l.onsite > 0 && <div className="stats"><span>{l.onsite} MW made on site</span></div>}
+      <button className="pill wide" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'grid', mw: ask })}>
+        {block ?? `Ask ${LOCS[s.loc].gov.utility} for ${ask} MW  ${money(fee)}, about ${gridWait(s, ask)} mo`}
+      </button>
     </>
   );
 }
@@ -349,12 +381,9 @@ function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => v
   const cost = buildingCost(s);
   const allowed = s.campus <= s.permits.campus;
   return (
-    <div className="note">
-      <span>Buildings {s.campus}/{maxBuildings(s)}</span>
-      <button className="pill" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
-        {allowed ? `New building  ${money(cost)}` : 'Needs site plan approval (Gov tab)'}
-      </button>
-    </div>
+    <button className="pill wide" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
+      {allowed ? `New building ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}` : `Building ${s.campus + 1} needs site plan approval (Gov tab)`}
+    </button>
   );
 }
 
@@ -370,7 +399,7 @@ function FloorTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
           <li key={k}>
             <button aria-pressed={k === i} onClick={() => dispatch({ type: 'select', floor: k })} className={isBroken(s, k) ? 'down' : undefined}>
               <span className="fno">{s.campus > 1 ? `${bOf(s, k) + 1}·${level(s, k) + 1}` : k + 1}</span>
-              <span className="fname">{TYPES[x.type].name}</span>
+              <span className="fname">{TYPES[x.type].name}{x.type === 'hall' && genOf(x) < s.chip ? ' ·old' : ''}</span>
               {x.type === 'hall' && <span className="ftechs">{'●'.repeat(techsOn(s, k))}{'○'.repeat(MAX_TECHS - techsOn(s, k))}</span>}
               <span className="fstat">{status(k, x)}</span>
             </button>
@@ -386,11 +415,12 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
   const broken = isBroken(s, i);
   const techs = techsOn(s, i);
   const fixing = s.broken.find(b => b.floor === i);
+  const hall = f.type === 'hall';
   return (
     <div className="fdetail">
       <div className="floorhead">
         <b>{floorLabel(s, i)}: {TYPES[f.type].name}</b>
-        <span>{floorEffect(s, f.type)}</span>
+        <span>{hall ? `${CHIPS[genOf(f)].name}, ${CHIPS[genOf(f)].mw} MW` : floorEffect(s, f.type)}</span>
       </div>
       {broken && (
         <div className="note bad">
@@ -402,12 +432,13 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
           )}
         </div>
       )}
-      {f.type === 'hall' && f.done && !techs && !broken && <p className="warn">Off until you hire a tech</p>}
-      {f.type === 'hall' && f.done && (
+      {hall && f.done && !techs && !broken && <p className="warn">Off until you hire a tech</p>}
+      {hall && f.done && (
         <>
           <div className="books">
             <Row label="Income" value={`${money(hallIncome(s, l, i))}/mo`} />
-            <Row label="In use" value={`${Math.round(utilization(s, i) * 100)}%`} />
+            <Row label="Running" value={`${Math.round(utilization(s, i) * 100)}%`} />
+            <Row label="Chips" value={genOf(f) < s.chip ? `${Math.round(chipValue(s, f) * 100)}% of new` : 'Newest'} neg={genOf(f) < s.chip} />
           </div>
           <div className="crewrow">
             <div className="dudes">
@@ -425,10 +456,95 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               </span>
             ) : <span className="muted">Full crew</span>}
           </div>
+          {genOf(f) < s.chip && (
+            <button className="pill wide" disabled={!canRefresh(s, i) || s.cash < refreshCost(s)} onClick={() => dispatch({ type: 'refresh', floor: i })}>
+              {canRefresh(s, i) ? `Refit with ${CHIPS[fitGen(s)].name}  ${money(refreshCost(s))}` : `${CHIPS[s.chip].name} need liquid cooling`}
+            </button>
+          )}
           <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
       <Threads label="Floor color" value={f.fill} onPick={fill => dispatch({ type: 'fill', fill })} />
+    </div>
+  );
+}
+
+/** MW you could run with every hall staffed and enough power, cooling and grid. */
+function potential(s: GameState, l: Ledger) {
+  const supply = Math.min(l.powerMW, l.coolMW, (l.gridCap + l.onsite) / l.pue);
+  return Math.min(l.hallMW, supply);
+}
+
+function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  const signed = signedMW(s), can = potential(s, l);
+  const waiting = s.deals.filter(d => d.start > s.month);
+  const live = s.deals.filter(d => d.start <= s.month);
+  return (
+    <>
+      <Meter label="Running" value={l.itMW} max={Math.max(signed, can, 0.1)} text={`${l.itMW.toFixed(1)} MW`} />
+      <Meter label="Signed" value={signed} max={Math.max(signed, can, 0.1)} text={`${signed.toFixed(1)} MW`} bad={signed > can + 0.05} />
+      <div className="stats">
+        <span>Could run {can.toFixed(1)} MW</span>
+        {l.spot > 0 && <span className="good">Spare sells for {money(l.spot)}/mo</span>}
+        {l.sla > 0 && <span className="bad">Credits {money(l.sla)}/mo</span>}
+      </div>
+      {s.offers.length > 0 && <span className="label">Offers</span>}
+      {s.offers.map(o => <OfferCard key={o.id} s={s} o={o} can={can} dispatch={dispatch} />)}
+      {live.length > 0 && <span className="label">Customers</span>}
+      {live.map(d => <DealCard key={d.id} s={s} d={d} l={l} />)}
+      {waiting.length > 0 && <span className="label">Moving in</span>}
+      {waiting.map(d => <DealCard key={d.id} s={s} d={d} l={l} />)}
+      {!s.offers.length && <p className="muted">New offers come in every few months. More in a boom.</p>}
+    </>
+  );
+}
+
+function Needs({ needs }: { needs: Offer['needs'] }) {
+  if (!needs.length) return null;
+  return <span className="needs">{needs.map(n => <i key={n} title={NEED_NOTE[n]}>{NEED_LABEL[n]}</i>)}</span>;
+}
+
+function OfferCard({ s, o, can, dispatch }: { s: GameState; o: Offer; can: number; dispatch: (a: Action) => void }) {
+  const tight = signedMW(s) + o.mw > can + 0.05;
+  const left = Math.max(1, Math.ceil(o.expires - s.month));
+  return (
+    <div className="deal offer">
+      <div className="deal-top">
+        <b>{o.who}</b>
+        <span>{CUSTS[o.kind].name}</span>
+      </div>
+      <div className="deal-nums">
+        <span><b>{o.mw} MW</b> for {o.months / 12} yrs</span>
+        <span><b>{money(o.mw * 1000 * o.price)}</b>/mo</span>
+        <span>Moves in {o.lead} mo</span>
+      </div>
+      <Needs needs={o.needs} />
+      {tight && <small className="bad">You can run {can.toFixed(1)} MW. Build before they move in, or pay credits.</small>}
+      <div className="deal-foot">
+        <span className="muted small">Answer within {left} mo</span>
+        <button className="pill" onClick={() => dispatch({ type: 'decline', id: o.id })}>Pass</button>
+        <button className="pill white" onClick={() => dispatch({ type: 'sign', id: o.id })}>Sign</button>
+      </div>
+    </div>
+  );
+}
+
+function DealCard({ s, d, l }: { s: GameState; d: Deal; l: Ledger }) {
+  const waiting = d.start > s.month;
+  const yrs = Math.max(0, (d.until - s.month) / 12);
+  return (
+    <div className={`deal${d.strikes ? ' hurt' : ''}`}>
+      <div className="deal-top">
+        <b>{d.who}</b>
+        <span>{waiting ? `Moves in ${Math.ceil(d.start - s.month)} mo` : `${yrs < 1 ? `${Math.ceil(yrs * 12)} mo` : `${yrs.toFixed(1)} yrs`} left`}</span>
+      </div>
+      <div className="deal-nums">
+        <span><b>{d.mw} MW</b></span>
+        <span>{money(d.mw * 1000 * dealPrice(s, d))}/mo</span>
+        {d.strikes > 0 && <span className="bad">Strikes {d.strikes}/3</span>}
+      </div>
+      <Needs needs={d.needs} />
+      {!waiting && l.chipValue < 0.99 && d.needs.includes('fresh') && <small className="bad">Paying 20% less for old chips</small>}
     </div>
   );
 }
@@ -471,10 +587,6 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
         <button className="up" aria-pressed={S.retire} onClick={() => dispatch({ type: 'benefit', key: 'retire', on: !S.retire })}>
           <b>Retirement</b><small>{money(today(s, 600))}/tech</small><span>{S.retire ? 'On' : 'Off'}</span>
         </button>
-      </div>
-
-      <span className="label">Boosts</span>
-      <div className="ups">
         <button className="up" aria-pressed={S.overtime} onClick={() => dispatch({ type: 'benefit', key: 'overtime', on: !S.overtime })}>
           <b>Overtime</b><small>Halls +10%, wages +30%</small><span>{S.overtime ? 'On' : 'Off'}</span>
         </button>
@@ -520,28 +632,26 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       {s.debt > 0 && <p className="warn">In debt {s.debt}/3 months. At 3 you go bankrupt.</p>}
       <span className="label">{s.books ? 'Last month' : 'Each month'}</span>
       <div className="books">
-        <Row label="Income" value={money(books.revenue)} />
+        <Row label="Customers" value={money(books.dealIncome)} />
+        {books.spot > 0 && <Row label="Spot market" value={money(books.spot)} sub=" spare capacity" />}
+        {books.sla > 0 && <Row label="Credits to customers" value={money(-books.sla)} neg />}
         <Row label="Power" value={money(-books.power)} neg sub={l.strain > 0.6 ? ' grid surcharge' : undefined} />
+        {books.fuel > 0 && <Row label="Fuel" value={money(-books.fuel)} neg />}
         <Row label="Water" value={money(-books.water)} neg />
         <Row label="Staff" value={money(-books.staff)} neg />
         <Row label="Upkeep" value={money(-books.upkeep)} neg />
-        {books.fund > 0 && <Row label="Community fund" value={money(-books.fund)} neg />}
         <Row label="Property tax" value={money(-books.propertyTax)} neg />
         <Row label="Profit tax" value={money(-books.incomeTax)} neg />
-        {books.lobby > 0 && <Row label="Lobbyists" value={money(-books.lobby)} neg />}
         {books.interest > 0 && <Row label="Loan interest" value={money(-books.interest)} neg />}
         {books.principal > 0 && <Row label="Loan principal" value={money(-books.principal)} neg />}
-        {s.sites.length > 0 && <Row label="Other sites" value={money(sitesNet(s))} neg={sitesNet(s) < 0} />}
         <Row label="Profit" value={money(books.net)} strong neg={books.net < 0} />
       </div>
       <FinancePanel s={s} dispatch={dispatch} />
-      <span className="label">Other sites</span>
-      <MapTab s={s} dispatch={dispatch} />
       <Why label={`Rating ${r.total}/100`}>
         <div className="books">
           <Row label="Trust" value={`${r.parts.trust}/30`} />
           <Row label="Profit margin" value={`${r.parts.profit}/25`} />
-          <Row label="Halls running" value={`${r.parts.running}/20`} />
+          <Row label="Promises kept" value={`${r.parts.running}/20`} />
           <Row label="Jobs" value={`${r.parts.jobs}/15`} />
           <Row label="Grid" value={`${r.parts.grid}/10`} />
           <Row label="Costs since opening" value={`×${inflation(s).toFixed(2)}`} />
@@ -551,25 +661,32 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   );
 }
 
+const FIX: Record<string, string> = {
+  jobs: 'Hire locals in Floors',
+  noise: 'Build a sound wall',
+  bills: 'Grow the grid, or make power on site',
+  nature: 'Plant trees, save water',
+};
+
 function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact; dispatch: (a: Action) => void }) {
   const mood = townMood(s, l, imp);
-  const dir = mood.target > s.trust + 1 ? 'rising' : mood.target < s.trust - 1 ? 'falling' : 'steady';
-  const sub = substationCost(s);
-  const lvl = gridLevel(l.strain);
+  const dir = mood.target > s.trust + 1 ? '▲' : mood.target < s.trust - 1 ? '▼' : '–';
   return (
     <>
-      <Meter label="Trust" value={s.trust} max={100} text={`${Math.round(s.trust)} ${dir === 'rising' ? '▲' : dir === 'falling' ? '▼' : '–'} ${Math.round(mood.target)}`} bad={s.trust < 40} marks={[mood.target]} />
-      <Why label="Why">
-        <div className="books">
-          <Row label="Base" value={String(mood.base)} />
-          {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
-            <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
-          ))}
-        </div>
-      </Why>
-      <Meter label="Grid" value={l.gridMW} max={l.gridCap} text={GRID_LABEL[lvl]} bad={lvl >= 2} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
-
-      <span className="label">Community</span>
+      <Meter label="Trust" value={s.trust} max={100} text={`${Math.round(s.trust)} ${dir} ${Math.round(mood.target)}`} bad={s.trust < 40} marks={[mood.target]} />
+      <div className="town">
+        {mood.parts.filter(p => p.key !== 'deeds' && p.key !== 'grudge' || p.value !== 0).map(p => (
+          <div key={p.key} className={`tfac ${p.value < -3 ? 'bad' : p.value > 0 ? 'good' : ''}`}>
+            <span className="tfac-v">{signed(p.value)}</span>
+            <div>
+              <b>{p.label}</b>
+              <small>{p.note}</small>
+              {p.value < -3 && FIX[p.key] && <small className="fix">{FIX[p.key]}</small>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <span className="label">Give back</span>
       <div className="ups">
         {GIFTS.map(g => {
           const wait = giftWait(s, g.key);
@@ -581,25 +698,9 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
             </button>
           );
         })}
-        <button className="up" disabled={s.cash < sub || hasLaw(s, 'eirgrid')} onClick={() => dispatch({ type: 'substation' })}>
-          <b>Substation</b><small>Grid +{SUBSTATION_MW} MW</small><span>{hasLaw(s, 'eirgrid') ? 'Blocked by grid moratorium' : money(sub)}</span>
-        </button>
-        <button className="up" aria-pressed={s.up.fund} onClick={() => dispatch({ type: 'fund', on: !s.up.fund })}>
-          <b>Community fund</b><small>{money(COMMUNITY_FUND)}/mo</small>
-          <span>{s.up.fund ? 'On' : 'Off'}</span>
-        </button>
-      </div>
-
-      <span className="label">Projects</span>
-      <div className="ups">
-        {UPGRADES.map(u => (
-          <button key={u.key} className="up" disabled={s.up[u.key] || s.cash < today(s, u.cost)} onClick={() => dispatch({ type: 'upgrade', key: u.key })}>
-            <b>{u.name}</b><small>{u.note}</small><span>{s.up[u.key] ? 'Done' : money(today(s, u.cost))}</span>
-          </button>
-        ))}
       </div>
       <Why label="Recent">
-        <ul className="log">{s.log.slice(0, 5).map((x, k) => <li key={k}>{x}</li>)}</ul>
+        <ul className="log">{s.log.slice(0, 6).map((x, k) => <li key={k}>{x}</li>)}</ul>
       </Why>
     </>
   );
@@ -620,7 +721,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   };
   return (
     <>
-      <BillPanel s={s} l={l} dispatch={dispatch} />
+      <BillPanel s={s} l={l} />
       <span className="label">Permits</span>
       <div className="ups">
         {keys(PERMITS).filter(k => PERMITS[k].here(s)).map(k => {
@@ -653,14 +754,14 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
       {L.gov.us && <Row label={`National election in ${Math.max(0, Math.ceil(s.nationalAt - s.month))} mo`} value={s.admin === 'build' ? 'Build-fast' : s.admin === 'green' ? 'Clean-energy' : ''} />}
 
       {laws.length > 0 && <span className="label">Laws</span>}
-      {laws.length ? (
+      {laws.length > 0 && (
         <div className="books">
           {laws.map(x => LAWS[x.id] && (
             <Row key={x.id} label={LAWS[x.id].name} sub={` ${LAWS[x.id].by(s)}`}
               value={`${LAWS[x.id].effect}${x.until < 1e8 ? `, ${Math.max(1, Math.ceil(x.until - s.month))} mo` : ''}`} />
           ))}
         </div>
-      ) : null}
+      )}
     </>
   );
 }

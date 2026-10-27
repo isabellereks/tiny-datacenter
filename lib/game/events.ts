@@ -1,9 +1,13 @@
-import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, SUBSTATION_COST, type FoundKey } from './data';
+import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, TIERS, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
 import { callMonth } from './calls';
 import { strategyMonth } from './strategy';
-import { floorLabel, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, locals, overseas, tallest, ledger, money, note, ownerName, techsOn, today, utilization, type GameState, type Ledger } from './state';
+import { dealsMonth, SMR_COST, SMR_MONTHS } from './deals';
+import {
+  floorLabel, genOf, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
+  type GameState, type Ledger, type Upgrades,
+} from './state';
 
 export interface Impact { trees: number; cleared: number; waterML: number; carbonT: number }
 
@@ -18,13 +22,11 @@ export function impact(s: GameState, l: Ledger = ledger(s)): Impact {
 export interface Choice { label: string; cost?: number | ((s: GameState) => number); trust?: number; apply: (s: GameState) => void }
 export const choiceCost = (s: GameState, ch: Choice) => (typeof ch.cost === 'function' ? ch.cost(s) : today(s, ch.cost ?? 0));
 
-/** Each substation costs more than the last. */
-export const substationCost = (s: GameState) => today(s, SUBSTATION_COST * (1 + s.substations));
 export interface Complaint {
   id: string;
   from: string;
   title: (s: GameState, i: Impact) => string;
-  body: (s: GameState) => string;
+  body: (s: GameState, i: Impact) => string;
   /** true while the problem behind the complaint is still there */
   active: (s: GameState, i: Impact, l: Ledger) => boolean;
   /** months the problem has to last before someone complains */
@@ -36,83 +38,25 @@ export interface Complaint {
 
 const siteNameOf = (s: GameState) => s.look.name.trim() || 'the datacenter';
 const addTrust = (s: GameState, d: number) => { s.trust = Math.max(0, Math.min(100, s.trust + d)); };
+const treesNow = (s: GameState) => impact(s).cleared >= 8;
 
+/** The town only ever complains about the four things it can see, plus protests when trust is low. */
 export const COMPLAINTS: Complaint[] = [
   {
-    id: 'trees', from: 'Neighbors', wait: 2, sting: 12,
-    title: (_, i) => `You cut down ${i.cleared} trees`,
-    body: s => `They want ${ownerName(s)} to replant them.`,
-    active: (_, i) => i.cleared >= 8,
+    id: 'jobs', from: 'Town council', wait: 2, sting: 10,
+    title: () => 'Where are the jobs?',
+    body: s => `You promised work, but only ${locals(s)} locals work at ${siteNameOf(s)}.`,
+    active: s => hallCount(s) >= 2 && locals(s) < hopedJobs(s) * 0.5,
     choices: [
-      { label: 'Plant trees', cost: 200_000, trust: 8, apply: s => { s.replanted += 6; addTrust(s, 8); } },
+      { label: 'Hold a job fair', cost: 300_000, trust: 6, apply: s => addTrust(s, 6) },
       { label: 'Ignore', apply: () => {} },
     ],
   },
   {
     id: 'noise', from: 'Neighbors', wait: 3, sting: 10,
-    title: () => 'Your fans are too loud',
-    body: s => `They want ${ownerName(s)} to build a sound wall.`,
-    active: s => tallest(s) >= 6 && !s.up.soundWalls,
-    choices: [
-      { label: 'Build a sound wall', cost: 1_500_000, trust: 6, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'water', from: 'Water board', wait: 2, sting: 12,
-    title: () => 'You use too much water',
-    body: s => `They want ${ownerName(s)} to switch to water-saving cooling.`,
-    active: (s, i) => i.waterML >= 4 && !s.up.closedLoop,
-    choices: [
-      { label: 'Switch cooling', cost: 4_000_000, trust: 8, apply: s => { s.up.closedLoop = true; addTrust(s, 8); } },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'grid', from: 'Power company', wait: 2, sting: 10,
-    title: () => 'You are straining the grid',
-    body: s => `${ownerName(s)} is using ${Math.round(ledger(s).strain * 100)}% of what the town grid can give. They want you to pay for a substation.`,
-    active: (_, __, l) => l.strain >= 0.85,
-    choices: [
-      { label: 'Pay for a substation', cost: substationCost, trust: 6, apply: s => { s.substations++; addTrust(s, 6); } },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'traffic', from: 'Neighbors', wait: 0, sting: 6,
-    title: () => 'Construction trucks block our road',
-    body: s => `They want ${ownerName(s)} to fix the potholes the trucks left.`,
-    active: s => !!s.build || s.month - s.stageMonth < 1.5,
-    choices: [
-      { label: 'Pay for road repairs', cost: 300_000, trust: 5, apply: s => addTrust(s, 5) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'glow', from: 'Neighbors', wait: 4, sting: 6,
-    title: () => 'Your lights keep us up at night',
-    body: s => `${siteNameOf(s)} glows all night. They want shades and dimmer lights.`,
-    active: s => s.floors.length >= 8,
-    choices: [
-      { label: 'Install shades', cost: 400_000, trust: 5, apply: s => addTrust(s, 5) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'smoke', from: 'Neighbors', wait: 5, sting: 8,
-    title: () => 'Generator tests smell like diesel',
-    body: s => `Every month ${ownerName(s)}'s backup generators run their tests and the street smells like exhaust.`,
-    active: s => s.floors.filter(f => f.done && f.type === 'power').length >= 3,
-    choices: [
-      { label: 'Switch to renewable diesel', cost: 800_000, trust: 6, apply: s => addTrust(s, 6) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'hum', from: 'Neighbors', wait: 3, sting: 10,
-    title: () => 'A low hum day and night',
-    body: s => `People can feel ${ownerName(s)}'s server fans in their walls. Some can't sleep.`,
-    active: s => hallCount(s) >= 4 && !s.up.soundWalls,
+    title: () => 'Your fans hum all night',
+    body: s => `People can hear ${siteNameOf(s)} from their bedrooms. They want a sound wall.`,
+    active: s => (s.floors.length >= 7 || s.up.turbines) && !s.up.soundWalls,
     choices: [
       { label: 'Build a sound wall', cost: 1_500_000, trust: 6, apply: s => { s.up.soundWalls = true; addTrust(s, 6); } },
       { label: 'Ignore', apply: () => {} },
@@ -129,52 +73,15 @@ export const COMPLAINTS: Complaint[] = [
     ],
   },
   {
-    id: 'overseas', from: 'Town council', wait: 2, sting: 10,
-    title: s => `${overseas(s)} of your techs were hired overseas`,
-    body: s => `They want ${ownerName(s)} to train and hire people from town.`,
-    active: s => overseas(s) >= 3 && overseas(s) > locals(s),
+    id: 'nature', from: 'Neighbors', wait: 2, sting: 10,
+    title: (s, i) => (i.cleared >= 8 ? `You cut down ${i.cleared} trees` : 'You use too much water'),
+    body: s => (treesNow(s) ? `They want ${ownerName(s)} to replant them.` : 'The creek is low. They want water-saving cooling.'),
+    active: (s, i) => i.cleared >= 8 || (i.waterML >= 4 && !s.up.closedLoop && !s.up.liquid),
     choices: [
-      { label: 'Fund a training program', cost: 600_000, trust: 6, apply: s => addTrust(s, 6) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'view', from: 'Neighbors', wait: 3, sting: 8,
-    title: s => `Your ${tallest(s)}-floor tower blocks the view`,
-    body: s => `They want ${ownerName(s)} to give something back to the street.`,
-    active: s => tallest(s) >= 14,
-    choices: [
-      { label: 'Build a park and mural', cost: 1_000_000, trust: 6, apply: s => addTrust(s, 6) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'shadow', from: 'Homeowners', wait: 2, sting: 12,
-    title: () => 'Your tower shades our homes',
-    body: s => `Gardens and solar panels are in shadow all afternoon. They want ${ownerName(s)} to pay.`,
-    active: s => tallest(s) >= 21,
-    choices: [
-      { label: 'Pay homeowners', cost: 3_000_000, trust: 8, apply: s => addTrust(s, 8) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'jobs', from: 'Town council', wait: 2, sting: 10,
-    title: () => 'Where are the jobs?',
-    body: s => `You promised work, but only ${locals(s)} locals work at ${s.look.name.trim() || 'the datacenter'}. They want ${ownerName(s)} to hire from town.`,
-    active: s => hallCount(s) >= 2 && locals(s) < hopedJobs(s) * 0.5,
-    choices: [
-      { label: 'Hold a job fair', cost: 300_000, trust: 6, apply: s => addTrust(s, 6) },
-      { label: 'Ignore', apply: () => {} },
-    ],
-  },
-  {
-    id: 'carbon', from: 'Newspaper', wait: 4, sting: 8,
-    title: s => `${ownerName(s)} named a top polluter`,
-    body: () => 'The paper is running a story about your CO₂.',
-    active: (s, i) => i.carbonT >= 1000 && !s.up.renewables,
-    choices: [
-      { label: 'Buy offsets', cost: 100_000, trust: 4, apply: s => addTrust(s, 4) },
+      {
+        label: 'Fix it', trust: 7, cost: s => today(s, treesNow(s) ? 300_000 : 4_000_000),
+        apply: s => { if (treesNow(s)) s.replanted += 8; else s.up.closedLoop = true; addTrust(s, 7); },
+      },
       { label: 'Ignore', apply: () => {} },
     ],
   },
@@ -184,28 +91,28 @@ export const COMPLAINTS: Complaint[] = [
     body: s => `Their signs say "${ownerName(s).toUpperCase()} OUT". At 0 trust the town shuts you down.`,
     active: s => s.trust < 40,
     choices: [
-      { label: 'Hold a meeting', cost: 200_000, trust: 12, apply: s => addTrust(s, 12) },
+      { label: 'Hold a town meeting', cost: 200_000, trust: 12, apply: s => addTrust(s, 12) },
       { label: 'Ignore', apply: () => {} },
     ],
   },
 ];
 
-/** One-time projects. Each one fixes a problem before anyone complains, and the town notices. */
-export const UPGRADES = [
-  { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, note: 'No more noise complaints.' },
-  { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, note: '85% less water. Uses a bit more power.' },
-  { key: 'renewables', name: 'Wind power deal', cost: 3_000_000, note: '90% less CO₂. Power costs 5% more.' },
-  { key: 'solar', name: 'Solar farm', cost: 9_000_000, note: 'Makes 3 MW. Less load on the grid.' },
-  { key: 'batteries', name: 'Batteries', cost: 6_000_000, note: 'Cuts your peak load on the grid by 15%.' },
-  { key: 'heat', name: 'Heat homes nearby', cost: 5_000_000, note: 'Server heat warms the town. Trust +1/mo.' },
-] as const;
-export const UPGRADE_TRUST = 4;
-export const REPLANT_COST = 200_000;
+/** Things you build on the site. Some quiet the town, some make power, some unlock as you grow. */
+export const UPGRADES: { key: keyof Upgrades; name: string; cost: number; tier: number; note: string }[] = [
+  { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, tier: 0, note: 'Quiets the fans.' },
+  { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, tier: 0, note: '85% less water.' },
+  { key: 'renewables', name: 'Wind power deal', cost: 3_000_000, tier: 0, note: 'Clean power. 90% less CO₂, power +5%.' },
+  { key: 'solar', name: 'Solar farm', cost: 9_000_000, tier: 0, note: 'Clean power. +3 MW on site.' },
+  { key: 'batteries', name: 'Batteries', cost: 6_000_000, tier: 0, note: 'Cuts your grid peak 15%.' },
+  { key: 'heat', name: 'Heat homes nearby', cost: 5_000_000, tier: 0, note: 'Server heat warms the town.' },
+  { key: 'turbines', name: 'Gas turbines', cost: 18_000_000, tier: 1, note: '+12 MW on site. Loud, and burns gas.' },
+  { key: 'liquid', name: 'Liquid cooling', cost: 25_000_000, tier: 2, note: 'For dense chips. Cooling +50%, less water.' },
+  { key: 'smr', name: 'Small reactor', cost: SMR_COST, tier: 3, note: `+60 MW of clean power. ${SMR_MONTHS / 12} years to build.` },
+];
 
-/** Things you can do for the town again and again, with a wait between some of them. */
+/** Things you can do for the town again and again, with a wait between them. */
 export const GIFTS = [
-  { key: 'trees', name: 'Plant trees', cost: REPLANT_COST, trust: 3, wait: 0, note: 'Replants 6 trees.' },
-  { key: 'openHouse', name: 'Open house', cost: 150_000, trust: 3, wait: 6, note: 'Show people around. Every 6 months.' },
+  { key: 'trees', name: 'Plant trees', cost: 200_000, trust: 3, wait: 0, note: 'Replants 6 trees.' },
   { key: 'school', name: 'Fund the school', cost: 1_000_000, trust: 8, wait: 12, note: 'Once a year.' },
 ] as const;
 export type GiftKey = (typeof GIFTS)[number]['key'];
@@ -215,34 +122,26 @@ export const giftWait = (s: GameState, key: GiftKey) => Math.max(0, Math.ceil((s
 /** Jobs the town expects: 2 techs per server hall. */
 export const hopedJobs = (s: GameState) => hallCount(s) * 2;
 
-export interface MoodPart { label: string; value: number; note: string }
+export interface MoodPart { key: 'jobs' | 'noise' | 'bills' | 'nature' | 'deeds' | 'grudge'; label: string; value: number; note: string }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /** What the town thinks of you and why. Trust moves toward `target` a little every month. */
 export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact(s, l)) {
   const floors = s.floors.filter(f => f.done).length;
-  const techs = locals(s);
-  // big buildings promise jobs; the town expects about 2 techs per hall plus a few more
-  const hoped = hopedJobs(s);
-  const loud = s.up.soundWalls ? 0 : Math.max(0, floors - 5);
+  const techs = locals(s), hoped = hopedJobs(s);
+  const loud = (Math.max(0, floors - 5) * 1.2 + (s.up.turbines ? 6 : 0)) * (s.up.soundWalls ? 0.4 : 1);
   const parts: MoodPart[] = [
-    { label: 'Local jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 6)), note: `${techs}/${hoped} from town` },
-    { label: 'Skyline', value: -Math.round(clamp((tallest(s) - 12) * 1.5, 0, 15)), note: `${tallest(s)} floors tall` },
-    { label: 'Noise', value: -Math.round(clamp(loud * 1.5, 0, 15)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors of fans` },
-    { label: 'Trees cut', value: -Math.round(clamp(i.cleared * 0.6, 0, 15)), note: `${i.cleared} trees` },
-    { label: 'Water', value: -Math.round(clamp(i.waterML * 2, 0, 15)), note: `${i.waterML.toFixed(1)} ML a month` },
-    { label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25)), note: `Grid ${Math.round(l.strain * 100)}% used` },
-    { label: 'Pollution', value: -Math.round(clamp(i.carbonT / 150, 0, 12)), note: `${Math.round(i.carbonT).toLocaleString()} t CO₂ a month` },
-    { label: 'Taxes paid', value: Math.round(clamp(l.propertyTax / 20_000, 0, 10)), note: `${money(l.propertyTax)} a month` },
-    { label: 'Heat for homes', value: s.up.heat ? 8 : 0, note: 'Server heat' },
-    { label: 'Community fund', value: s.up.fund ? 8 : 0, note: '$100k a month' },
-    { label: 'Gifts', value: Math.round(s.goodwill), note: 'Fades over time' },
-    { label: 'Ignored complaints', value: -Math.round(s.grudge), note: 'Fades slowly' },
+    { key: 'jobs', label: 'Jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 8)), note: `${techs} of ${hoped} hoped-for jobs went to locals` },
+    { key: 'noise', label: 'Noise', value: -Math.round(clamp(loud, 0, 18)), note: s.up.soundWalls ? 'Sound wall up' : `${floors} floors of fans${s.up.turbines ? ' and turbines' : ''}` },
+    { key: 'bills', label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25)), note: `You use ${Math.round(l.strain * 100)}% of the town grid` },
+    { key: 'nature', label: 'Nature', value: -Math.round(clamp(i.cleared * 0.5 + i.waterML * 1.5 + i.carbonT / 400, 0, 20)), note: `${i.cleared} trees cut, ${i.waterML.toFixed(1)} ML of water a month` },
+    { key: 'deeds', label: 'Good deeds', value: Math.round(s.goodwill + (s.up.heat ? 6 : 0)), note: 'Gifts fade over time' },
+    { key: 'grudge', label: 'Ignored complaints', value: -Math.round(s.grudge), note: 'Fades slowly' },
   ];
   const BASE = 60;
   const target = clamp(BASE + parts.reduce((t, p) => t + p.value, 0), 0, 100);
-  return { base: BASE, parts: parts.filter(p => p.value !== 0), target };
+  return { base: BASE, parts, target };
 }
 
 const COOLDOWN = 6;
@@ -257,37 +156,30 @@ const GRID_NEWS: ((s: GameState) => string)[] = [
 export interface Goal { text: string; hint: string; reward: number; done: (s: GameState, l: Ledger) => boolean }
 
 const doneFloors = (s: GameState) => s.floors.filter(f => f.done).length;
-const has = (s: GameState, type: string) => s.floors.some(f => f.done && f.type === type);
 
-/** The first goals double as a tutorial; later ones push you to grow without angering the town. */
+/** The first goals double as a tutorial; later ones push you through the tiers. */
 export const GOALS: Goal[] = [
   { text: 'Hire a tech', reward: 500_000, hint: 'Halls are off without techs. Tap the server hall, then Hire.', done: s => s.workers.length > 0 },
-  { text: 'Make $250k profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
-  { text: 'Build a second server hall', reward: 5_000_000, hint: 'Tap the top bar, then Build.', done: s => hallCount(s) >= 2 },
-  { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Add power and cooling until halls hit 100%.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 },
-  { text: 'Fill a hall with 3 techs', reward: 3_000_000, hint: '3 techs fill a hall.', done: s => s.floors.some((f, i) => f.type === 'hall' && techsOn(s, i) >= MAX_TECHS) },
-  { text: 'Help the community', reward: 1_000_000, hint: 'Town tab, Community.', done: s => s.goodwill > 0.5 || s.up.fund },
+  { text: 'Sign a customer', reward: 1_000_000, hint: 'Deals tab. Make sure you can supply the power before they move in.', done: s => s.deals.length >= 2 },
+  { text: 'Make $250K profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
+  { text: 'Build a second server hall', reward: 4_000_000, hint: 'Build tab.', done: s => hallCount(s) >= 2 },
+  { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Enough power, cooling and techs.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 && s.floors.every((f, i) => f.type !== 'hall' || !f.done || techsOn(s, i) >= MAX_TECHS) },
+  { text: 'Grow into colocation', reward: 6_000_000, hint: `Run ${TIERS[1].mw} MW at once.`, done: s => s.tier >= 1 },
+  { text: 'Join the grid queue', reward: 2_000_000, hint: 'Build tab, Grid. It takes a while, so start early.', done: s => !!s.gridQueue || s.gridAdded > 0 },
+  { text: 'Do something for the town', reward: 1_000_000, hint: 'Town tab.', done: s => s.goodwill > 0.5 || s.up.heat || s.up.soundWalls },
   { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab: pay, benefits, break rooms.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
-  { text: 'Build a network floor', reward: 2_000_000, hint: 'Every hall earns more.', done: s => has(s, 'net') },
-  { text: 'Fix an outage', reward: 1_500_000, hint: 'Tap a floor that is down.', done: s => s.tally.fixed >= 1 },
-  { text: 'Hire 2 locals per server hall', reward: 6_000_000, hint: 'The town wants local jobs.', done: s => hallCount(s) >= 2 && locals(s) >= hopedJobs(s) },
-  { text: 'Finish a project in Town', reward: 4_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.some(u => s.up[u.key]) },
-  { text: 'Run 4 server halls', reward: 12_000_000, hint: 'Watch the town grid.', done: s => hallCount(s) >= 4 },
-  { text: 'Make $1M profit in a month', reward: 15_000_000, hint: 'More halls and network floors.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
-  { text: 'Reach year 5 with trust above 50', reward: 10_000_000, hint: 'Check Town opinion.', done: s => s.month >= 48 && s.trust > 50 },
-  { text: 'Build a substation', reward: 5_000_000, hint: 'More grid, no brownouts.', done: s => s.substations >= 1 },
+  { text: 'Serve 3 customers at once', reward: 5_000_000, hint: 'Sign more deals than you need today, then build.', done: s => liveDeals(s).length >= 3 },
+  { text: 'Refit a hall with new chips', reward: 5_000_000, hint: 'When new chips ship, tap a hall and refit it.', done: s => s.floors.some(f => (f.gen ?? 1) >= 2) },
+  { text: 'Make $1M profit in a month', reward: 10_000_000, hint: 'Full halls, full deals.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
+  { text: 'Build 12 floors', reward: 15_000_000, hint: 'Taller needs permits. Check the Gov tab.', done: s => doneFloors(s) >= 12 },
+  { text: 'Grow into hyperscale', reward: 25_000_000, hint: `Run ${TIERS[2].mw} MW at once.`, done: s => s.tier >= 2 },
   { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab: site plan approval. Then Build.', done: s => s.campus >= 2 },
-  { text: 'Buy a datacenter in another place', reward: 10_000_000, hint: 'Map tab. It sends profit home every month.', done: s => s.sites.length >= 1 },
-  { text: 'Sign a 10-year contract', reward: 5_000_000, hint: 'Big customers call when you have 2+ halls.', done: s => !!s.contract },
-  { text: 'Upgrade your foundation', reward: 10_000_000, hint: 'Fill every floor, then upgrade in Build.', done: s => s.found !== s.startFound },
-  { text: 'Build 12 floors', reward: 25_000_000, hint: 'Taller is louder. Get a sound wall.', done: s => doneFloors(s) >= 12 },
-  { text: 'Make $3M profit in a month', reward: 40_000_000, hint: 'Full halls and a happy town.', done: s => (s.books?.net ?? 0) >= 3_000_000 },
-  { text: 'Finish every project in Town', reward: 30_000_000, hint: 'Town tab, Projects.', done: s => UPGRADES.every(u => s.up[u.key]) },
-  { text: 'Reach year 10 with trust above 70', reward: 50_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 70 },
-  { text: 'Build 20 floors', reward: 80_000_000, hint: 'Needs steel piles or bedrock.', done: s => doneFloors(s) >= 20 },
-  { text: 'Avoid a strike for 10 years', reward: 60_000_000, hint: 'Keep morale up as you grow.', done: s => s.month >= 120 && !s.fired.includes('strike') },
-  { text: 'Make it through an AI crash', reward: 40_000_000, hint: 'Keep cash or contracts for when prices fall.', done: s => s.fired.includes('glutSurvived') },
-  { text: 'Own sites in 4 places', reward: 100_000_000, hint: 'Spread out before the moratoriums do.', done: s => s.sites.length >= 3 },
+  { text: 'Install liquid cooling', reward: 10_000_000, hint: 'Build tab, Projects.', done: s => s.up.liquid },
+  { text: 'Reach year 10 with trust above 60', reward: 40_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 60 },
+  { text: 'Make $5M profit in a month', reward: 40_000_000, hint: 'Hyperscale deals and new chips.', done: s => (s.books?.net ?? 0) >= 5_000_000 },
+  { text: 'Make it through an AI crash', reward: 30_000_000, hint: 'Long deals keep paying when the market falls.', done: s => s.fired.includes('glutSurvived') },
+  { text: 'Grow into an AI factory', reward: 100_000_000, hint: `Run ${TIERS[3].mw} MW at once.`, done: s => s.tier >= 3 },
+  { text: 'Switch on your own reactor', reward: 100_000_000, hint: 'Build tab, Projects.', done: s => s.up.smr },
   { text: 'Build 40 floors', reward: 150_000_000, hint: 'Needs deep caissons and a skyscraper review.', done: s => doneFloors(s) >= 40 },
 ];
 
@@ -326,8 +218,10 @@ export function endOfMonth(s: GameState) {
   // a hall can go down; it's likelier when power, cooling or the grid is short, or nobody is watching it
   const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
   const before = s.broken.length;
-  for (const { k } of halls) {
-    const p = 0.015 + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
+  for (const { f, k } of halls) {
+    // old chips fail more often
+    const age = Math.max(0, s.chip - genOf(f)) * 0.01;
+    const p = 0.012 + age + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
     if (s.broken.length < 2 && Math.random() < p) {
       s.broken.push({ floor: k, t: 0 });
       note(s, techsOn(s, k) ? `${floorLabel(s, k)} is down. Your techs are fixing it.` : `${floorLabel(s, k)} is down`);
@@ -338,7 +232,7 @@ export function endOfMonth(s: GameState) {
   const newDown = s.broken.length - before;
   if (newDown > 0 && hasLaw(s, 'heat') && !s.fired.includes(`heat-${Math.floor(s.month / 12)}`)) {
     s.fired.push(`heat-${Math.floor(s.month / 12)}`);
-    s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `Heat wave knocks ${siteNameOf(s)} offline`, ticker: ['Chillers could not keep up', s.contract ? 'Big customer threatens penalties' : 'Customers left waiting', 'Techs work through the night'] };
+    s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `Heat wave knocks ${siteNameOf(s)} offline`, ticker: ['Chillers could not keep up', 'Customers left waiting', 'Techs work through the night'] };
   }
   if (newDown > 0 && lvl === 3) note(s, 'Blackout in town took floors down with it');
 
@@ -351,6 +245,7 @@ export function endOfMonth(s: GameState) {
   if (s.debt >= 3) { endGame(s, 'broke'); return; }
 
   // every system runs every month; the first one with a question gets to ask it
+  dealsMonth(s, l);
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
   const decision = asks.find(x => x) ?? null;
   if (Math.floor(s.month) % 12 === 0 && s.month >= 12) s.briefing = true;
@@ -362,7 +257,7 @@ export function endOfMonth(s: GameState) {
     const c = COMPLAINTS.find(x => (s.cooldown[x.id] ?? 0) <= s.month && x.active(s, i, l) && atSize >= x.wait);
     if (c) s.complaint = c.id;
   }
-  if (!s.complaint && !s.briefing && s.month >= s.calm) callMonth(s);
+  if (!s.complaint && !s.briefing && s.tierUp === null && s.month >= s.calm) callMonth(s);
 }
 
 export function resolveComplaint(s: GameState, choice: number) {
@@ -404,11 +299,13 @@ export function rating(s: GameState, l: Ledger = ledger(s)) {
   const running = halls.length
     ? (halls.reduce((t, o) => t + (isBroken(s, o.i) ? 0 : utilization(s, o.i)), 0) / halls.length) * l.eff
     : 0;
+  // keeping promises to customers counts most once you have some
+  const kept = l.promised > 0 ? l.served / l.promised : running;
   const hoped = hopedJobs(s);
   const parts = {
     trust: (s.trust / 100) * 30,
     profit: Math.max(0, Math.min(1, l.revenue ? l.net / l.revenue / 0.4 : 0)) * 25,
-    running: running * 20,
+    running: kept * 20,
     jobs: (hoped ? Math.min(1, locals(s) / hoped) : 1) * 15,
     grid: (1 - Math.max(0, Math.min(1, (l.strain - 0.6) / 0.4))) * 10,
   };

@@ -1,12 +1,13 @@
 import {
-  FOUNDS, MAX_TECHS, NAMES, REPAIR_COST, SUBSTATION_MW, SETUP, STARTER, TYPES,
+  FOUNDS, MAX_TECHS, NAMES, REPAIR_COST, SETUP, STARTER, TYPES,
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
-import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, substationCost, UPGRADE_TRUST, UPGRADES, type GiftKey } from './events';
+import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
-import { buySite, newCodename, payOff, takeLoan } from './strategy';
+import { payOff, takeLoan } from './strategy';
+import { anchorDeal, canRefresh, decline, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { buildCost, buildingCost, fitGen, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -26,8 +27,12 @@ export type Action =
   | { type: 'shape'; shape: ShapeKey }
   | { type: 'upgrade'; key: keyof Upgrades }
   | { type: 'gift'; key: GiftKey }
-  | { type: 'fund'; on: boolean }
-  | { type: 'substation' }
+  | { type: 'sign'; id: number }
+  | { type: 'decline'; id: number }
+  | { type: 'refresh'; floor: number }
+  | { type: 'grid'; mw: number }
+  | { type: 'tierSeen' }
+  | { type: 'mute'; on: boolean }
   | { type: 'permit'; key: PermitKey }
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
@@ -38,9 +43,6 @@ export type Action =
   | { type: 'speed'; speed: number }
   | { type: 'loan'; amount: number }
   | { type: 'payoff'; id: number }
-  | { type: 'lobby'; on: boolean }
-  | { type: 'buySite'; loc: LocKey }
-  | { type: 'codename'; on: boolean }
   | { type: 'briefing' }
   | { type: 'call'; act: 'answer' | 'decline' | 'missed' | 'hangup' }
   | { type: 'bld'; b: number }
@@ -107,6 +109,14 @@ export function apply(s: GameState, a: Action): Effects {
       s.spin = false;
       s.nextFill = s.floors[s.floors.length - 1].fill;
       s.sel = Math.max(0, s.floors.findIndex(f => f.type === 'hall'));
+      s.floors.forEach(f => { if (f.type === 'hall') f.gen = fitGen(s); });
+      // your first customer signs for about what your halls can run once they're staffed
+      {
+        const crew = s.floors.flatMap((f, k) => (f.type === 'hall' ? [0, 1, 2].map(j => ({ id: -k * 3 - j, name: '', floor: k, x: 0, dir: 1 as const, speed: 0, pause: 0 })) : []));
+        const mw = ledger({ ...s, workers: crew }).itMW;
+        s.deals = [anchorDeal(s, s.cust, mw * 0.7)];
+        s.offers = [makeOffer(s)];
+      }
       note(s, `${s.look.name.trim() || 'Your datacenter'} is open`);
       return { rebuild: true, layout: true, home: true };
     }
@@ -121,7 +131,7 @@ export function apply(s: GameState, a: Action): Effects {
       if (s.cash < cost || s.build || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
-      s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld });
+      s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld, gen: s.next === 'hall' ? fitGen(s) : undefined });
       startBuild(s, 1800);
       s.sel = i;
       s.stageMonth = s.month;
@@ -199,13 +209,18 @@ export function apply(s: GameState, a: Action): Effects {
       return { rebuild: true, refit: true };
     case 'upgrade': {
       const u = UPGRADES.find(x => x.key === a.key);
-      if (a.key === 'fund') return {};
-      if (!u || s.up[a.key] || s.cash < today(s, u.cost)) return {};
+      if (!u || s.phase !== 'play' || s.up[a.key] || s.tier < u.tier || s.cash < today(s, u.cost)) return {};
+      if (a.key === 'smr') {
+        if (s.smrAt !== null) return {};
+        s.cash -= today(s, u.cost);
+        s.smrAt = s.month + SMR_MONTHS;
+        note(s, `Reactor under construction. Online in ${SMR_MONTHS / 12} years`);
+        return { rebuild: true };
+      }
       s.cash -= today(s, u.cost);
       s.up[a.key] = true;
-      s.trust = Math.min(100, s.trust + UPGRADE_TRUST);
-      note(s, `Bought ${u.name.toLowerCase()}. Trust +${UPGRADE_TRUST}`);
-      return {};
+      note(s, `Built ${u.name.toLowerCase()}`);
+      return { rebuild: true };
     }
     case 'gift': {
       const g = GIFTS.find(x => x.key === a.key);
@@ -219,19 +234,34 @@ export function apply(s: GameState, a: Action): Effects {
       note(s, `${g.name}. Trust +${g.trust}`);
       return { rebuild: g.key === 'trees' };
     }
-    case 'fund':
+    case 'sign':
       if (s.phase !== 'play') return {};
-      s.up.fund = a.on;
-      note(s, a.on ? 'Paying the town $100k a month' : 'Stopped paying the town');
+      sign(s, a.id);
       return {};
-    case 'substation': {
-      const cost = substationCost(s);
-      if (s.phase !== 'play' || s.cash < cost || hasLaw(s, 'eirgrid')) return {};
+    case 'decline':
+      decline(s, a.id);
+      return {};
+    case 'refresh': {
+      const cost = refreshCost(s);
+      if (s.phase !== 'play' || !canRefresh(s, a.floor) || s.cash < cost) return {};
       s.cash -= cost;
-      s.substations++;
-      note(s, `Paid for a substation. Grid +${SUBSTATION_MW} MW`);
-      return {};
+      const f = s.floors[a.floor];
+      f.gen = fitGen(s);
+      f.done = false;
+      s.build = { idx: a.floor, t0: Date.now(), dur: 1800 };
+      note(s, `Refitting ${floorLabel(s, a.floor).toLowerCase()} with new chips`);
+      return { rebuild: true };
     }
+    case 'grid':
+      if (s.phase !== 'play') return {};
+      requestGrid(s, a.mw);
+      return {};
+    case 'tierSeen':
+      s.tierUp = null;
+      return {};
+    case 'mute':
+      s.muted = a.on;
+      return {};
     case 'permit':
       if (s.phase !== 'play') return {};
       applyPermit(s, a.key);
@@ -276,7 +306,7 @@ export function apply(s: GameState, a: Action): Effects {
       if (s.phase !== 'play' || s.build || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
-      s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus });
+      s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus, gen: fitGen(s) });
       s.bld = s.campus;
       s.campus++;
       startBuild(s, 1800);
@@ -291,20 +321,6 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'payoff':
       payOff(s, a.id);
-      return {};
-    case 'lobby':
-      if (s.phase !== 'play') return {};
-      s.lobby = a.on;
-      note(s, a.on ? 'Hired lobbyists. They might get caught.' : 'Let the lobbyists go');
-      return {};
-    case 'buySite':
-      if (s.phase !== 'play') return {};
-      buySite(s, a.loc);
-      return {};
-    case 'codename':
-      // only before you open: once the permit is filed, the name is public record
-      if (s.phase !== 'setup') return {};
-      s.codename = a.on ? newCodename() : null;
       return {};
     case 'briefing':
       s.briefing = false;

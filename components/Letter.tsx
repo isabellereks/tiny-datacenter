@@ -35,7 +35,7 @@ export function Letter({ s, imp, dispatch, font }: { s: GameState; imp: Impact; 
   if (!complaint && !decision) return null;
   const from = complaint ? complaint.from : decision!.from(s);
   const title = complaint ? complaint.title(s, imp) : decision!.title(s);
-  const body = complaint ? complaint.body(s) : decision!.body(s);
+  const body = complaint ? complaint.body(s, imp) : decision!.body(s);
   const options: Option[] = complaint
     ? complaint.choices.map(c => {
       const cost = choiceCost(s, c);

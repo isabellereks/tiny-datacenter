@@ -141,7 +141,7 @@ export function staffMonth(s: GameState): string | null {
       s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Local news', headline: `Strike at ${siteName(s)} enters month three`, ticker: ['Picket line grows outside the gate', `Families ask ${ownerName(s)} to settle`] };
     } else if (n >= 6 && n % 6 === 0) {
       addTrust(s, -6);
-      s.notoriety = clamp(s.notoriety + 8, 0, 100);
+      if (s.bill) s.bill.progress = clamp(s.bill.progress + 5, 0, 100);
       s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `${n}-month strike at ${siteName(s)} goes national`, ticker: ['Other unions join the picket', `Senators question ${ownerName(s)}`, 'Customers ask about outages'] };
     }
   }

@@ -1,5 +1,5 @@
 import {
-  BUDGET, COOL_MW, CUSTS, FH, FOUND_ORDER, FOUNDS, FW, HOURS_PER_MONTH, LOCS, COMMUNITY_FUND, HIRE_FEE, POWER_MW, SHAPES, SOLAR_MW, SUBSTATION_MW, TECH_SALARY, TYPES,
+  BUDGET, CHIPS, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LIQUID_GEN, LOCS, HIRE_FEE, POWER_MW, SHAPES, SOLAR_MW, TECH_SALARY, TIERS, TYPES,
   type BuildableType, type CustKey, type Fill, type FloorType, type FoundKey,
   type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
@@ -10,7 +10,15 @@ import type { Call } from './calls';
 /** A bank loan, paid back in equal monthly payments. */
 export interface Loan { id: number; balance: number; rate: number; payment: number }
 
-export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number; b?: number }
+/** `gen` is the chip generation a server hall was fitted with. */
+export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: number; b?: number; gen?: number }
+
+/** What a customer asks for: the power they want, what they pay per kW a month, for how long,
+ *  how many months until they move in, and anything special they need. */
+export type Need = 'green' | 'uptime' | 'fresh';
+export interface Offer { id: number; who: string; kind: CustKey; mw: number; price: number; months: number; lead: number; needs: Need[]; expires: number }
+/** A signed deal. Months you can't supply their power cost you credits and strikes; three strikes and they leave. */
+export interface Deal extends Offer { start: number; until: number; strikes: number }
 
 export interface Worker {
   id: number; name: string; floor: number;
@@ -56,8 +64,8 @@ export interface Staff {
 export interface Upgrades {
   soundWalls: boolean; closedLoop: boolean; renewables: boolean;
   solar: boolean; batteries: boolean; heat: boolean;
-  /** paying the town every month */
-  fund: boolean;
+  /** on-site gas turbines, liquid cooling for dense chips, and a small nuclear reactor */
+  turbines: boolean; liquid: boolean; smr: boolean;
 }
 
 export interface Tally { profit: number; fixed: number; ignored: number; goals: number; best: number }
@@ -93,8 +101,25 @@ export interface GameState {
   replanted: number;
   /** lingering good feeling from gifts, and anger from ignored complaints; both fade */
   goodwill: number; grudge: number;
-  /** substations you paid the utility for; each adds grid capacity */
-  substations: number;
+  /** grid the utility has connected for you beyond what the town could spare */
+  gridAdded: number;
+  /** your place in the utility's interconnection queue */
+  gridQueue: { mw: number; done: number } | null;
+  /** customers: signed deals, and offers waiting on an answer */
+  deals: Deal[];
+  offers: Offer[];
+  /** the newest chip generation on the market, and when the next one ships */
+  chip: number;
+  chipAt: number;
+  /** size tier, and the most IT power you've run */
+  tier: number;
+  peakMW: number;
+  /** month the reactor comes online, while it's being built */
+  smrAt: number | null;
+  /** a tier you just reached, until you've seen what it unlocks */
+  tierUp: number | null;
+  /** sound off */
+  muted: boolean;
   /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
   gridLevel: number;
   up: Upgrades;
@@ -139,26 +164,18 @@ export interface GameState {
   /** someone from town on the phone */
   call: Call | null;
 
-  // ---------- strategy: see strategy.ts ----------
-  /** how much attention you draw, 0 to 100: brings customers, and backlash */
-  notoriety: number;
-  /** filed under a shell company code name; null once exposed or never used */
-  codename: string | null;
+  // ---------- the long game: see strategy.ts ----------
   /** the state's moratorium bill: 0 to 100, passes at 100 */
   bill: { progress: number; stage: number; name: string } | null;
-  lobby: boolean;
   loans: Loan[];
   market: { phase: 'normal' | 'boom' | 'glut'; until: number };
   /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
   econ: { phase: EconPhase; until: number; cost: number; price: number };
-  contract: { share: number; mult: number; until: number; misses: number } | null;
   /** things you did that come back later */
   seeds: { id: string; at: number }[];
   /** megalitres of water used since opening */
   waterUsed: number;
   briefing: boolean;
-  /** other datacenters you bought elsewhere */
-  sites: { loc: LocKey; since: number; copycat: boolean }[];
   /** halls running hot for a while */
   boosts: { floor: number; until: number }[];
 }
@@ -166,14 +183,19 @@ export interface GameState {
 /** One month of the datacenter's books, plus the physical numbers behind them. */
 export interface Ledger {
   revenue: number;
+  /** income from deals, and from spare capacity sold on the spot market */
+  dealIncome: number; spot: number;
+  /** credits paid to customers you couldn't supply */
+  sla: number;
+  /** MW promised to customers who've moved in, and how much of it you delivered */
+  promised: number; served: number;
+  /** fuel for on-site turbines and the reactor */
+  fuel: number;
   power: number;
   water: number;
   staff: number;
   /** repairs and parts, about 1.5% of what you've built each year */
   upkeep: number;
-  fund: number;
-  /** lobbyists on retainer */
-  lobby: number;
   /** loan interest (tax-deductible) and the principal paid down */
   interest: number; principal: number;
   propertyTax: number;
@@ -188,9 +210,11 @@ export interface Ledger {
   gridMW: number; gridCap: number; strain: number;
   /** megalitres of water and tonnes of CO2 per month */
   waterML: number; carbonT: number;
+  /** MW made on site, and how much the chips' age cuts what customers pay (1 is all current) */
+  onsite: number; chipValue: number;
 }
 
-const KEY = 'tiny-datacenter-v4';
+const KEY = 'tiny-datacenter-v5';
 
 /** Price of a floor: taller floors cost a little more to build. */
 export const floorPrice = (loc: LocKey, type: FloorType, index: number) =>
@@ -206,8 +230,9 @@ export function fresh(): GameState {
     workers: [],
     log: [],
     look: { stitch: 'S', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
-    month: 0, stageMonth: 0, trust: 70, replanted: 0, substations: 0, gridLevel: 0, goodwill: 0, grudge: 0,
-    up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, fund: false },
+    month: 0, stageMonth: 0, trust: 70, replanted: 0, gridAdded: 0, gridQueue: null, gridLevel: 0, goodwill: 0, grudge: 0,
+    deals: [], offers: [], chip: 1, chipAt: 24, tier: 0, peakMW: 0, smrAt: null, tierUp: null, muted: false,
+    up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, turbines: false, liquid: false, smr: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
     books: null, over: null,
@@ -215,9 +240,9 @@ export function fresh(): GameState {
     inspectAt: 10, electionAt: 24, board: 'neutral', nationalAt: 34, admin: 'none', fired: [], strikes: 0, calm: 0, news: null,
     staff: { morale: 50, pay: 0, health: false, retire: false, overtime: false, union: false, strike: false, struck: 0, cheer: 0, low: 0, cuts: 0 },
     boosts: [], campus: 1, bld: 0, speed: 1, call: null,
-    notoriety: 0, codename: null, bill: null, lobby: false, loans: [], market: { phase: 'normal', until: 30 },
+    bill: null, loans: [], market: { phase: 'normal', until: 30 },
     econ: { phase: 'steady', until: 48, cost: 1, price: 1 },
-    contract: null, seeds: [], waterUsed: 0, briefing: false, sites: [],
+    seeds: [], waterUsed: 0, briefing: false,
   };
 }
 
@@ -227,26 +252,11 @@ export function load(): GameState {
     if (raw) {
       const saved = JSON.parse(raw) as Partial<GameState>;
       const base = fresh();
-      // saves from before permits existed keep what they already built
-      if (saved.phase === 'play' && !saved.permits && saved.floors) {
-        const n = saved.floors.length, power = saved.floors.filter(f => f.type === 'power').length;
-        saved.permits = {
-          zoning: FOUND_ORDER.indexOf(saved.found ?? 'slab'),
-          height: n > 20 ? 2 : n > 12 ? 1 : 0, air: Math.max(0, Math.ceil((power - 2) / 2)), water: 99, campus: 0,
-        };
-        saved.inspectAt = (saved.month ?? 0) + 6;
-        saved.electionAt = (saved.month ?? 0) + 18;
-        saved.nationalAt = (saved.month ?? 0) + 30;
-      }
       return {
         ...base, ...saved,
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
         permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
-        // older saves grew costs on a fixed curve; start the economy from where that curve had got to
-        econ: saved.econ ?? (() => {
-          const y = (saved.month ?? 0) / 12, cost = 1.03 ** y;
-          return { phase: 'steady' as const, until: (saved.month ?? 0) + 24, cost, price: cost / Math.min(SQUEEZE_MAX, 1.015 ** y) };
-        })(),
+        econ: { ...base.econ, ...saved.econ },
         build: null,
       };
     }
@@ -284,14 +294,11 @@ export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 
 export const MARKET_MULT = { normal: 1, boom: 1.3, glut: 0.65 } as const;
 /** Interest rates move with the market. */
 export const MARKET_RATE = { normal: 0.06, boom: 0.05, glut: 0.085 } as const;
-export const LOBBY_COST = 400_000;
-/** Customer prices: contracted capacity at its locked price, the rest at today's market, plus a little for fame. */
-export const priceMult = (s: GameState) => {
-  const m = MARKET_MULT[s.market.phase];
-  const c = s.contract && s.contract.until > s.month ? s.contract : null;
-  const base = c ? c.share * c.mult + (1 - c.share) * m : m;
-  return base * (1 + Math.min(0.2, s.notoriety / 500));
-};
+/** What a kW a month goes for today, for a kind of customer here. Deals lock this in when signed. */
+export const marketPrice = (s: GameState, kind: CustKey) =>
+  CUSTS[kind].price * LOCS[s.loc].demand * priceGrowth(s) * MARKET_MULT[s.market.phase];
+/** Spare capacity sold by the hour on the spot market: cheap, and it swings with the market. */
+export const spotPrice = (s: GameState) => 0.6 * marketPrice(s, 'games');
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -322,6 +329,36 @@ export function setupCost(s: GameState) {
   const floors = s.floors.reduce((t, f, i) => t + floorPrice(s.loc, f.type, i), 0);
   return { land, found, shape, floors, total: land + found + shape + floors, left: BUDGET - (land + found + shape + floors) };
 }
+
+/** Deals customers have moved into and that haven't ended. */
+export const liveDeals = (s: GameState) => s.deals.filter(d => d.start <= s.month && d.until > s.month);
+/** MW you've promised, now and once everyone signed has moved in. */
+export const promisedMW = (s: GameState) => liveDeals(s).reduce((t, d) => t + d.mw, 0);
+export const signedMW = (s: GameState) => s.deals.filter(d => d.until > s.month).reduce((t, d) => t + d.mw, 0);
+/** Deals rise 2.5% a year from when the customer moved in, like real colocation contracts. */
+export const dealPrice = (s: GameState, d: Deal) => d.price * 1.025 ** (Math.max(0, s.month - d.start) / 12);
+/** Customers are served in the order they signed. Returns what each live deal gets. */
+export function allocate(s: GameState, itMW: number) {
+  let left = itMW;
+  return liveDeals(s).map(d => { const got = Math.min(d.mw, left); left -= got; return { d, got }; });
+}
+
+/** Your size tier, from the most IT power you've run. */
+export const tierOf = (mw: number) => TIERS.reduce((k, t, i) => (mw >= t.mw ? i : k), 0);
+/** A hall's chip generation; halls from older saves have the first GPUs. */
+export const genOf = (f: Floor) => f.gen ?? 1;
+/** MW a hall draws when it's full. */
+export const hallMWOf = (f: Floor) => CHIPS[Math.min(CHIPS.length - 1, genOf(f))].mw;
+/** What customers pay for a hall's chips compared to the newest ones. */
+export const chipValue = (s: GameState, f: Floor) => 0.85 ** Math.max(0, s.chip - genOf(f));
+/** The newest chips you can fit: without liquid cooling, only the best air-cooled ones. */
+export const fitGen = (s: GameState) => (s.up.liquid ? s.chip : Math.min(s.chip, LIQUID_GEN - 1));
+/** Halls with chips that need liquid cooling run at half without it. */
+export const needsLiquid = (s: GameState, f: Floor) => genOf(f) >= LIQUID_GEN && !s.up.liquid;
+/** On-site power: solar, turbines and the reactor. */
+export const onsiteMW = (s: GameState) => (s.up.solar ? SOLAR_MW : 0) + (s.up.turbines ? TURBINE_MW : 0) + (s.up.smr ? SMR_MW : 0);
+export const TURBINE_MW = 12;
+export const SMR_MW = 60;
 
 /** What you've built, for property tax. */
 export const assets = (s: GameState) =>
@@ -386,71 +423,95 @@ export const techsOn = (s: GameState, i: number) => s.workers.filter(w => w.floo
 export const isBroken = (s: GameState, i: number) => s.broken.some(b => b.floor === i);
 export const hallCount = (s: GameState) => s.floors.filter(f => f.done && f.type === 'hall').length;
 
-/** Share of a hall in use: customers fill it as the crew can keep up. A hall with no techs can't run. */
+/** Share of a hall running: it takes techs to keep racks up. A hall with no techs can't run. */
 export function utilization(s: GameState, i: number) {
-  const K = CUSTS[s.cust], Sh = SHAPES[s.shape];
-  if (!techsOn(s, i)) return 0;
+  const Sh = SHAPES[s.shape], f = s.floors[i];
+  if (!techsOn(s, i) || !f) return 0;
   // overtime squeezes more out of a hall, a boost runs it hot, a strike nearly stops it
-  const push = (s.staff.overtime ? 1.1 : 1) * (isBoosted(s, i) ? 1.25 : 1) * (s.staff.strike ? 0.3 : 1);
-  const breaks = s.floors.filter(f => f.done && f.type === 'break').length;
-  return Math.min(1, K.base + K.per * techsOn(s, i) * Sh.crew * (1 + 0.1 * breaks)) * push;
+  const push = (s.staff.overtime ? 1.1 : 1) * (isBoosted(s, i) ? 1.25 : 1) * (s.staff.strike ? 0.3 : 1) * (needsLiquid(s, f) ? 0.5 : 1);
+  const breaks = s.floors.filter(x => x.done && x.type === 'break').length;
+  return Math.min(1, 0.35 + 0.22 * techsOn(s, i) * Sh.crew * (1 + 0.1 * breaks)) * push;
 }
 
 export function ledger(s: GameState): Ledger {
-  const L = LOCS[s.loc], F = FOUNDS[s.found], K = CUSTS[s.cust], Sh = SHAPES[s.shape];
+  const L = LOCS[s.loc], F = FOUNDS[s.found], Sh = SHAPES[s.shape];
   const done = s.floors.map((f, i) => ({ f, i })).filter(o => o.f.done);
   const count = (t: FloorType) => done.filter(o => o.f.type === t).length;
   const halls = done.filter(o => o.f.type === 'hall');
   const working = halls.filter(o => !isBroken(s, o.i));
 
-  const hallMW = halls.length * K.mw;
+  const hallMW = halls.reduce((t, o) => t + hallMWOf(o.f), 0);
   const powerMW = count('power') * POWER_MW;
-  // hot climates make chillers work harder
-  const coolMW = count('cool') * COOL_MW * F.cool * Sh.cool * (1.2 / L.pue) * (hasLaw(s, 'heat') ? 0.8 : 1);
+  // hot climates make chillers work harder; liquid cooling carries far more heat
+  const coolMW = count('cool') * COOL_MW * F.cool * Sh.cool * (1.2 / L.pue) * (hasLaw(s, 'heat') ? 0.8 : 1) * (s.up.liquid ? 1.5 : 1);
   const pe = hallMW ? Math.min(1, powerMW / hallMW) : 1;
   const ce = hallMW ? Math.min(1, coolMW / hallMW) : 1;
   const eff = pe * ce;
 
-  const pue = L.pue + (s.up.closedLoop ? 0.05 : 0);
+  const pue = L.pue + (s.up.closedLoop ? 0.05 : 0) - (s.up.liquid ? 0.05 : 0);
   // in a dry winter the utility caps big users
-  const wanted = working.reduce((t, o) => t + K.mw * utilization(s, o.i), 0) * eff * (hasLaw(s, 'dry') ? 0.7 : 1);
+  const load = working.map(o => ({ mw: hallMWOf(o.f) * utilization(s, o.i), v: chipValue(s, o.f) }));
+  const wanted = load.reduce((t, x) => t + x.mw, 0) * eff * (hasLaw(s, 'dry') ? 0.7 : 1);
+  const value = wanted ? load.reduce((t, x) => t + x.mw * x.v, 0) / Math.max(1e-9, load.reduce((t, x) => t + x.mw, 0)) : 1;
   // the town grid can only give so much; past that the utility cuts you back
-  // solar covers part of the load; batteries shave the peaks
-  const gridCap = (L.grid + s.substations * SUBSTATION_MW) * (hasLaw(s, 'curtail') ? 0.9 : 1);
-  const onsite = s.up.solar ? SOLAR_MW : 0;
+  // on-site power covers part of the load; batteries shave the peaks
+  const gridCap = (L.grid + s.gridAdded) * (hasLaw(s, 'curtail') ? 0.9 : 1);
+  const onsite = onsiteMW(s);
   const peak = s.up.batteries ? 0.85 : 1;
   const gridMW = Math.max(0, wanted * pue - onsite);
   const strain = (gridMW * peak) / gridCap;
   // a stop-work order after a failed inspection: servers idle, no income, the bills keep coming
   const stopped = hasLaw(s, 'stopWork');
   const itMW = Math.min(wanted, (gridCap / peak + onsite) / pue) * (stopped ? 0.3 : 1);
-  const trustPay = 0.85 + 0.15 * (s.trust / 100);
-  const infl = inflation(s);
-  const revenue = (stopped ? 0 : 1) * priceGrowth(s) * priceMult(s) * itMW * 1000 * K.price * L.demand * Sh.rev * (1 + 0.08 * count('net') * K.net) * trustPay;
 
-  const mwh = Math.max(0, itMW * pue - onsite) * HOURS_PER_MONTH;
+  // customers are served in the order they signed; what's left goes to the spot market
+  const net = count('net');
+  let dealIncome = 0, sla = 0, served = 0, promised = 0;
+  for (const { d, got } of allocate(s, stopped ? 0 : itMW)) {
+    // picky customers pay less when you don't meet what they asked for
+    const green = d.needs.includes('green') && !s.up.renewables && !s.up.solar && !s.up.smr ? 0.8 : 1;
+    const fresh = d.needs.includes('fresh') && value < 0.99 ? 0.8 : 1;
+    const mult = (1 + 0.08 * net * CUSTS[d.kind].net) * Sh.rev * green * fresh;
+    dealIncome += got * 1000 * dealPrice(s, d) * value * mult;
+    // credits for what you promised and couldn't deliver; strict customers want more back
+    sla += (d.mw - got) * 1000 * d.price * (d.needs.includes('uptime') ? 1.5 : 0.5);
+    served += got;
+    promised += d.mw;
+  }
+  const spare = stopped ? 0 : Math.max(0, itMW - served);
+  const spot = spare * 1000 * spotPrice(s) * value * Sh.rev;
+  const revenue = dealIncome + spot;
+
+  const infl = inflation(s);
+  // on-site power comes first: solar is free, the reactor is cheap, turbines burn gas
+  let need = itMW * pue;
+  const sun = Math.min(need, s.up.solar ? SOLAR_MW : 0); need -= sun;
+  const nuke = Math.min(need, s.up.smr ? SMR_MW : 0); need -= nuke;
+  const gas = Math.min(need, s.up.turbines ? TURBINE_MW : 0); need -= gas;
+  const fuel = infl * HOURS_PER_MONTH * (gas * 65 + nuke * 25);
+  const mwh = need * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
   const surcharge = 1 + 0.5 * Math.max(0, Math.min(strain, 1.2) - 0.6);
   const rate = L.power * surcharge * (s.up.renewables ? 1.05 : 1) * (hasLaw(s, 'priority') ? 1.15 : 1) * (hasLaw(s, 'aepTariff') ? 1.1 : 1)
     + (hasLaw(s, 'vaKwh') ? 11 : 0) + (hasLaw(s, 'seTax') ? 35 : 0);
   const power = infl * mwh * rate * ECON[s.econ.phase].power;
-  const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop ? 0.15 : 1);
+  const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop || s.up.liquid ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
   const staff = infl * payroll(s);
   const upkeep = (infl * assets(s) * 0.015) / 12;
-  const fund = s.up.fund ? COMMUNITY_FUND : 0;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves
   const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1) * (hasLaw(s, 'txAbate') || hasLaw(s, 'ohAbate') ? 0.4 : 1);
-  const lobby = s.lobby ? LOBBY_COST * infl : 0;
   const interest = s.loans.reduce((t, x) => t + x.balance * x.rate / 12, 0);
   const principal = s.loans.reduce((t, x) => t + Math.min(x.balance, x.payment - x.balance * x.rate / 12), 0);
-  const pre = revenue - power - water - staff - upkeep - fund - lobby - interest - propertyTax;
+  const pre = revenue - sla - power - fuel - water - staff - upkeep - interest - propertyTax;
   const incomeTax = Math.max(0, pre) * (hasLaw(s, 'pillar2') ? 0.15 : L.incomeTax);
 
   return {
-    revenue, power, water, staff, upkeep, fund, lobby, interest, principal, propertyTax, incomeTax, net: pre - incomeTax - principal,
+    revenue, dealIncome, spot, sla, promised, served, fuel,
+    power, water, staff, upkeep, interest, principal, propertyTax, incomeTax, net: pre - incomeTax - principal,
     itMW, hallMW, powerMW, coolMW, pe, ce, eff, pue, gridMW, gridCap, strain,
-    waterML: litres / 1e6, carbonT: mwh * L.carbon * (s.up.renewables ? 0.1 : 1),
+    waterML: litres / 1e6, carbonT: mwh * L.carbon * (s.up.renewables ? 0.1 : 1) + gas * HOURS_PER_MONTH * 0.45,
+    onsite, chipValue: value,
   };
 }
 

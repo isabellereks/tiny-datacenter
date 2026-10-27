@@ -116,7 +116,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
         {s.step === 'cust' && (
           <div className="opts four">
             {keys<CustKey>(CUSTS).map(k => (
-              <Option key={k} title={CUSTS[k].name} price={`$${CUSTS[k].price}/kW/mo`} sub={CUSTS[k].note} on={s.cust === k} onClick={() => dispatch({ type: 'cust', cust: k })} />
+              <Option key={k} title={CUSTS[k].name} price={`$${CUSTS[k].price}/kW`} sub={CUSTS[k].note} on={s.cust === k} onClick={() => dispatch({ type: 'cust', cust: k })} />
             ))}
           </div>
         )}
@@ -152,13 +152,6 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
                 onChange={e => dispatch({ type: 'owner', text: e.target.value })} />
             </label>
             </div>
-            <label className="permit-code">
-              <input type="checkbox" checked={!!s.codename} onChange={e => dispatch({ type: 'codename', on: e.target.checked })} />
-              <span>
-                File under a shell company{s.codename ? `: ${s.codename}` : ''}.
-                <small> Fewer people notice you, so backlash grows slower. If it leaks, it&apos;s a scandal.</small>
-              </span>
-            </label>
             <div className="permit-rows">
               <div><span>Floors</span><b>{s.floors.length}</b></div>
               <div><span>Land</span><b>{FOUNDS[s.found].acres} acres</b></div>

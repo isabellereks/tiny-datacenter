@@ -1,6 +1,6 @@
 'use client';
 
-import { IBM_Plex_Mono, Nunito, Pixelify_Sans, Silkscreen } from 'next/font/google';
+import { Nunito, Pixelify_Sans, Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
 import { Engine } from '@/lib/game/engine';
@@ -16,6 +16,7 @@ import { HoverLabel } from './HoverLabel';
 import { Call } from './Call';
 import { Briefing } from './Briefing';
 import { Letter } from './Letter';
+import { TierUp } from './TierUp';
 import { Meta } from './Meta';
 import { Ticks } from './Ticks';
 import type { FoundKey } from '@/lib/game/data';
@@ -25,8 +26,6 @@ const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 /** Small text: a rounded sans that stays readable where the pixel face blurs. */
 const body = Nunito({ subsets: ['latin'], variable: '--body', weight: ['400', '600', '700'] });
-/** Labels and readouts, like annotations on a map. */
-const mono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--mono', weight: ['400', '500'] });
 const ISLAND_SPACE = 76;
 
 export default function Game() {
@@ -179,11 +178,11 @@ export default function Game() {
 
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 
-  if (!s) return <main className={`app ${ui.variable} ${body.variable} ${mono.variable}`}><div className="stage" ref={hostRef} /></main>;
+  if (!s) return <main className={`app ${ui.variable} ${body.variable}`}><div className="stage" ref={hostRef} /></main>;
   const l = ledger(s);
   const imp = impact(s, l);
   return (
-    <main className={`app ${ui.variable} ${body.variable} ${mono.variable}`}>
+    <main className={`app ${ui.variable} ${body.variable}`}>
       <div className="stage" ref={hostRef} />
       {phase === 'play' && <Ticks month={Math.floor(s.month)} net={(s.books ?? l).net} roof={() => engineRef.current?.roofOnScreen(0) ?? null} />}
       {phase === 'play' && !open && <Meta s={s} />}
@@ -198,7 +197,8 @@ export default function Game() {
         />
       )}
       {phase === 'play' && !open && !flash && !s.complaint && <GoalCard s={s} onHeight={setGoalH} dispatch={dispatch} font={pixel.className} />}
-      {phase === 'play' && s.complaint && !s.call && !s.briefing && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
+      {phase === 'play' && s.tierUp !== null && !s.briefing && <TierUp s={s} dispatch={dispatch} font={pixel.className} />}
+      {phase === 'play' && s.complaint && !s.call && !s.briefing && s.tierUp === null && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
       {hovered && <HoverLabel s={s} what={hovered} />}
       {phase === 'play' && s.briefing && <Briefing s={s} dispatch={dispatch} />}
