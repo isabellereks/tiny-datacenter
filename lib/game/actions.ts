@@ -7,7 +7,7 @@ import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
 import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, buildMonths, busy, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { buildCost, buildingCost, buildMonths, noCrew, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -38,6 +38,7 @@ export type Action =
   | { type: 'endDeal'; id: number }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
   | { type: 'gridFast'; how: 'pay' | 'flex' }
+  | { type: 'crews'; n: number }
   | { type: 'permit'; key: PermitKey }
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
@@ -133,7 +134,7 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'build': {
       const cost = buildCost(s);
-      if (s.cash < cost || busy(s, s.bld) || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
+      if (s.cash < cost || noCrew(s) || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
       s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld, gen: s.next === 'hall' ? fitGen(s) : undefined });
@@ -325,7 +326,7 @@ export function apply(s: GameState, a: Action): Effects {
     }
     case 'addBuilding': {
       const cost = buildingCost(s);
-      if (s.phase !== 'play' || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
+      if (s.phase !== 'play' || noCrew(s) || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
       s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus, gen: fitGen(s) });
@@ -350,6 +351,11 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'report':
       s.report = null;
+      return {};
+    case 'crews':
+      if (s.phase !== 'play') return {};
+      s.crews = Math.max(Math.max(2, (s.jobs ?? []).length), Math.min(6, a.n));
+      note(s, `${s.crews} construction crews on contract`);
       return {};
     case 'gridFast':
       if (s.phase !== 'play') return {};

@@ -1,6 +1,6 @@
-import { CHIPS, CHIP_EVERY, CUSTS, GRID_ASK, HYPERSCALERS, LIQUID_GEN, LOCS, TIERS, TYPES, type CustKey } from './data';
+import { CHIPS, CHIP_EVERY, CUSTS, GRID_ASK, HYPERSCALERS, LIQUID_GEN, LOCS, TIERS, type CustKey } from './data';
 import {
-  allocate, bOf, busy, chipValue, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
+  allocate, chipValue, noCrew, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
   type Deal, type GameState, type Ledger, type Need, type Offer,
 } from './state';
 
@@ -102,10 +102,11 @@ export function anchorDeal(s: GameState, kind: CustKey, mw: number): Deal {
 /** Halls fitted with chips older than the newest. */
 export const staleHalls = (s: GameState) => s.floors.filter(f => f.done && f.type === 'hall' && genOf(f) < s.chip).length;
 /** Refitting a hall with today's chips costs most of a new hall. */
-export const refreshCost = (s: GameState) => today(s, TYPES.hall.cost * 0.7 * (1 + 0.25 * (s.chip - 1)));
+/** Refitting a hall for denser chips: new busways, cooling loops and racks, about $1.5M per MW it will hold. */
+export const refreshCost = (s: GameState) => today(s, 1_500_000 * CHIPS[fitGen(s)].mw);
 export const canRefresh = (s: GameState, i: number) => {
   const f = s.floors[i];
-  return !!f && f.done && f.type === 'hall' && genOf(f) < fitGen(s) && !busy(s, bOf(s, i));
+  return !!f && f.done && f.type === 'hall' && genOf(f) < fitGen(s) && !noCrew(s);
 };
 
 // ---------- the grid queue ----------

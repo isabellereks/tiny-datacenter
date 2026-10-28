@@ -70,7 +70,7 @@ export interface Customer {
 }
 
 /** Money for land and the first build. Whatever is left is your starting cash. */
-export const BUDGET = 100_000_000;
+export const BUDGET = 250_000_000;
 export const MONTH_SECONDS = 8;
 /** Game speeds, like a sim game's pause and fast-forward buttons. */
 export const SPEEDS = [0, 1, 2, 4];
@@ -107,7 +107,7 @@ export const LOCS: Record<LocKey, Location> = {
   },
   phoenix: {
     name: 'Phoenix, Arizona', short: 'Arizona', note: 'Hot and thirsty. Big market.',
-    land: 600_000, power: 75, pue: 1.4, water: 2.5, waterPrice: 2.5,
+    land: 600_000, power: 70, pue: 1.4, water: 2.5, waterPrice: 2.5,
     propertyTax: 0.01, incomeTax: 0.259, demand: 1.1, carbon: 0.4, coolCost: 1.4, grid: 20, queue: 24, trees: 14,
     taxNote: 'Normal taxes.',
     gov: { local: 'Phoenix City Council', state: 'Arizona Legislature', utility: 'APS', air: 'Maricopa County Air Quality', us: true },
@@ -185,10 +185,10 @@ export const SHAPES: Record<ShapeKey, Shape> = {
 };
 
 export const CUSTS: Record<CustKey, Customer> = {
-  ai: { name: 'AI lab', note: 'Pays the most. Wants new chips and big deals.', price: 280, net: 1, names: ['OpenEye', 'Anthropoid', 'DeepMined', 'Mistrial AI', 'Perplexed', 'xAIdan'] },
-  stream: { name: 'Streaming', note: 'Pays more for network floors.', price: 215, net: 2, names: ['Netflux', 'YouTubby', 'Twitchy', 'Spotifried'] },
-  bank: { name: 'Bank', note: 'Pays well. Very strict about outages.', price: 250, net: 1, names: ['J.P. Morgain', 'Goldman Snacks', 'Wells Fargone', 'Stripey'] },
-  games: { name: 'Game servers', note: 'Pays the least. Easygoing.', price: 190, net: 1.5, names: ['Roblocks', 'Epik Games', 'Valv', 'Ninetendo Online'] },
+  ai: { name: 'AI lab', note: 'Pays the most. Wants new chips and big deals.', price: 220, net: 1, names: ['OpenEye', 'Anthropoid', 'DeepMined', 'Mistrial AI', 'Perplexed', 'xAIdan'] },
+  stream: { name: 'Streaming', note: 'Pays more for network floors.', price: 165, net: 2, names: ['Netflux', 'YouTubby', 'Twitchy', 'Spotifried'] },
+  bank: { name: 'Bank', note: 'Pays well. Very strict about outages.', price: 190, net: 1, names: ['J.P. Morgain', 'Goldman Snacks', 'Wells Fargone', 'Stripey'] },
+  games: { name: 'Game servers', note: 'Pays the least. Easygoing.', price: 140, net: 1.5, names: ['Roblocks', 'Epik Games', 'Valv', 'Ninetendo Online'] },
 };
 /** Cloud companies that sign the biggest deals once you're big enough. */
 export const HYPERSCALERS = ['Amazin Web Services', 'Macrohard Azul', 'Gaggle Cloud', 'Orakle Cloud', 'Meta-ish'];
@@ -218,14 +218,15 @@ export const TIERS: { name: string; mw: number; unlock: string }[] = [
 /** Grid you can ask the utility for at each tier. */
 export const GRID_ASK = [10, 25, 50, 100];
 
-/** Build prices for the shell, power and cooling, like a colocation provider pays; customers bring their own servers. */
+/** Build prices at the low end of real ones: about $8M per MW all in. A hall's shell and fit-out run about
+ *  $2.5M per MW it holds, power gear about $3.5M per MW, cooling about $2M. Customers bring their own servers. */
 export const TYPES: Record<FloorType, { name: string; short: string; cost: number; note: string }> = {
-  hall: { name: 'Server hall', short: 'Server hall', cost: 6_000_000, note: 'Earns money.' },
-  power: { name: 'Power', short: 'Power', cost: 10_000_000, note: '+10 MW power.' },
-  cool: { name: 'Cooling', short: 'Cooling', cost: 6_000_000, note: '+10 MW cooling.' },
-  net: { name: 'Network', short: 'Network', cost: 3_000_000, note: 'Halls earn more.' },
-  break: { name: 'Break room', short: 'Break room', cost: 500_000, note: 'Techs work faster.' },
-  lobby: { name: 'Lobby', short: 'Lobby', cost: 2_000_000, note: 'Where staff and visitors come in.' },
+  hall: { name: 'Server hall', short: 'Server hall', cost: 2_500_000, note: 'Earns money. Priced per MW it holds.' },
+  power: { name: 'Power', short: 'Power', cost: 35_000_000, note: '+10 MW power.' },
+  cool: { name: 'Cooling', short: 'Cooling', cost: 20_000_000, note: '+10 MW cooling.' },
+  net: { name: 'Network', short: 'Network', cost: 4_000_000, note: 'Halls earn more.' },
+  break: { name: 'Break room', short: 'Break room', cost: 600_000, note: 'Techs work faster.' },
+  lobby: { name: 'Lobby', short: 'Lobby', cost: 3_000_000, note: 'Where staff and visitors come in.' },
 };
 export const BUILDABLE: BuildableType[] = ['hall', 'power', 'cool', 'net', 'break'];
 

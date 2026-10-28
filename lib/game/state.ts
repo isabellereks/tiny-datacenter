@@ -104,6 +104,8 @@ export interface GameState {
   jobs?: { idx: number; from: number; to: number; what: 'build' | 'refit' }[];
   /** a transformer shortage stretches power floor builds until this month */
   shortageUntil?: number;
+  /** construction crews on contract */
+  crews?: number;
   /** how many gas turbines and solar farms you've built */
   units?: { turbines: number; solar: number };
   nid: number;
@@ -229,7 +231,7 @@ export interface Ledger {
   power: number;
   water: number;
   staff: number;
-  /** repairs and parts, about 1.5% of what you've built each year */
+  /** repairs and parts, about 1% of what you've built each year */
   upkeep: number;
   /** loan interest (tax-deductible) and the principal paid down */
   interest: number; principal: number;
@@ -252,8 +254,9 @@ export interface Ledger {
 const KEY = 'tiny-datacenter-v5';
 
 /** Price of a floor: taller floors cost a little more to build. */
-export const floorPrice = (loc: LocKey, type: FloorType, index: number) =>
-  Math.round(TYPES[type].cost * (type === 'cool' ? LOCS[loc].coolCost : 1) * (1 + 0.05 * index));
+/** A floor's price: halls by the MW they hold, cooling dearer in hot places, and higher floors cost a little more. */
+export const floorPrice = (loc: LocKey, type: FloorType, index: number, hallMW = CHIPS[1].mw) =>
+  Math.round(TYPES[type].cost * (type === 'hall' ? hallMW : 1) * (type === 'cool' ? LOCS[loc].coolCost : 1) * (1 + 0.03 * index));
 
 export function fresh(): GameState {
   const floors: Floor[] = (['lobby', 'hall', 'power', 'cool'] as FloorType[]).map((type, i) => ({ type, fill: 'cloth', done: true, cost: floorPrice('dalles', type, i) }));
@@ -363,7 +366,7 @@ export const MARKET_RATE = { normal: 0.06, boom: 0.05, glut: 0.085 } as const;
 export const marketPrice = (s: GameState, kind: CustKey) =>
   CUSTS[kind].price * LOCS[s.loc].demand * priceGrowth(s) * MARKET_MULT[s.market.phase];
 /** Spare capacity sold by the hour on the spot market: cheap, and it swings with the market. */
-export const spotPrice = (s: GameState) => 0.6 * marketPrice(s, 'games');
+export const spotPrice = (s: GameState) => 0.85 * marketPrice(s, 'games');
 
 export const hasLaw = (s: GameState, id: string) => s.laws.some(x => x.id === id && x.until > s.month);
 
@@ -415,7 +418,7 @@ export const genOf = (f: Floor) => f.gen ?? 1;
 /** MW a hall draws when it's full. */
 export const hallMWOf = (f: Floor) => CHIPS[Math.min(CHIPS.length - 1, genOf(f))].mw;
 /** What customers pay for a hall's chips compared to the newest ones. */
-export const chipValue = (s: GameState, f: Floor) => 0.85 ** Math.max(0, s.chip - genOf(f));
+export const chipValue = (s: GameState, f: Floor) => 0.9 ** Math.max(0, s.chip - genOf(f));
 /** The newest chips you can fit: without liquid cooling, only the best air-cooled ones. */
 export const fitGen = (s: GameState) => (s.up.liquid ? s.chip : Math.min(s.chip, LIQUID_GEN - 1));
 /** Halls with chips that need liquid cooling run at half without it. */
@@ -462,7 +465,7 @@ export const today = (s: GameState, base: number) => Math.round(base * inflation
 
 /** Sales tax breaks on equipment knock about 5% off new floors. */
 export const taxBreak = (s: GameState) => (hasLaw(s, 'vaExempt') || hasLaw(s, 'azExempt') ? 0.95 : 1);
-export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld))) * taxBreak(s));
+export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld), CHIPS[fitGen(s)].mw)) * taxBreak(s));
 // ---------- the campus: several buildings side by side, each with its own stack of floors ----------
 
 /** Buildings that fit on this location's lot (never more than 3). */
@@ -518,7 +521,8 @@ export function ledger(s: GameState): Ledger {
   const coolMW = count('cool') * COOL_MW * F.cool * Sh.cool * (1.2 / L.pue) * (hasLaw(s, 'heat') ? 0.8 : 1) * (s.up.liquid ? 1.5 : 1);
   const pe = hallMW ? Math.min(1, powerMW / hallMW) : 1;
   const ce = hallMW ? Math.min(1, coolMW / hallMW) : 1;
-  const eff = pe * ce;
+  // halls run as far as the tighter of power and cooling allows
+  const eff = Math.min(pe, ce);
 
   const pue = L.pue + (s.up.closedLoop ? 0.05 : 0) - (s.up.liquid ? 0.05 : 0);
   // in a dry winter the utility caps big users
@@ -570,8 +574,10 @@ export function ledger(s: GameState): Ledger {
   const power = infl * mwh * rate * ECON[s.econ.phase].power;
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop || s.up.liquid ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
-  const staff = infl * payroll(s);
-  const upkeep = (infl * assets(s) * 0.015) / 12;
+  // extra construction crews on contract are paid with the staff
+  const staff = infl * (payroll(s) + Math.max(0, crews(s) - 2) * CREW_COST);
+  // maintenance runs about 1% of what you've built each year
+  const upkeep = (infl * assets(s) * 0.01) / 12;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves
   const propertyTax = ((assets(s) * L.propertyTax) / 12) * (hasLaw(s, 'orAbate') ? 0.475 : 1) * (hasLaw(s, 'txAbate') || hasLaw(s, 'ohAbate') ? 0.4 : 1);
   const interest = s.loans.reduce((t, x) => t + x.balance * x.rate / 12, 0);
@@ -594,7 +600,7 @@ export const GRID_LABEL = ['Fine', 'Tight', 'Brownouts', 'Blackouts'];
 
 /** Monthly profit change from adding a finished floor of this type on top. */
 export function buildDelta(s: GameState, type: FloorType) {
-  const extra: Floor = { type, fill: 'cloth', done: true, cost: floorPrice(s.loc, type, heightOf(s, s.bld)), b: s.bld };
+  const extra: Floor = { type, fill: 'cloth', done: true, cost: floorPrice(s.loc, type, heightOf(s, s.bld), CHIPS[fitGen(s)].mw), b: s.bld, gen: type === 'hall' ? fitGen(s) : undefined };
   return ledger({ ...s, floors: [...s.floors, extra] }).net - ledger(s).net;
 }
 
@@ -616,6 +622,10 @@ export const BUILD_MONTHS: Record<FloorType, number> = { hall: 3, power: 6, cool
 export const buildMonths = (s: GameState, type: FloorType) => BUILD_MONTHS[type] * (type === 'power' && (s.shortageUntil ?? 0) > s.month ? 2 : 1);
 /** A building with a crew already on it. */
 export const busy = (s: GameState, b: number) => (s.jobs ?? []).some(j => bOf(s, j.idx) === b);
+/** Construction crews: two to start, more on contract for a monthly fee. */
+export const crews = (s: GameState) => s.crews ?? 2;
+export const CREW_COST = 150_000;
+export const noCrew = (s: GameState) => (s.jobs ?? []).length >= crews(s);
 export const jobOn = (s: GameState, i: number) => (s.jobs ?? []).find(j => j.idx === i);
 
 /** Advances money, the calendar, workers, repairs and construction. */

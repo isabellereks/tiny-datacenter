@@ -47,6 +47,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; dispatch: (a: Action) => void; onHeight: (h: number) => void; stampFont: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [approved, setApproved] = useState(false);
+  // what a place is like shows once you've tapped it
+  const [looked, setLooked] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -88,10 +90,10 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
           <>
             <div className="opts four">
               {keys<LocKey>(LOCS).map(k => (
-                <Option key={k} title={LOCS[k].short} price={`${money(LOCS[k].land)}/acre`} sub={LOCS[k].note.split('.')[0]} on={s.loc === k} onClick={() => dispatch({ type: 'loc', loc: k })} />
+                <Option key={k} title={LOCS[k].short} price={`${money(LOCS[k].land)}/acre`} sub="" on={looked && s.loc === k} onClick={() => { setLooked(true); dispatch({ type: 'loc', loc: k }); }} />
               ))}
             </div>
-            <div className="spec">
+            {looked && <div className="spec">
               <div className="spec-head"><b>{L.name}</b><span>{L.note}</span></div>
               <div className="spec-cols">
                 <div>
@@ -109,7 +111,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
                   <Spec label="Permits" value={L.space.permitSpeed <= 0.7 ? 'Fast' : L.space.permitSpeed >= 1.3 ? 'Slow' : 'Normal'} />
                 </div>
               </div>
-            </div>
+            </div>}
           </>
         )}
         {s.step === 'found' && (

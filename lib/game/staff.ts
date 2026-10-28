@@ -20,11 +20,12 @@ export function moraleMood(s: GameState): MoraleParts {
   const need = breaksNeeded(s), have = breakRooms(s);
   const parts = [
     { label: 'Pay', value: [-5, 3, 10][S.pay], note: ['Below market', '+10%', '+20%'][S.pay] },
-    { label: 'Health insurance', value: S.health ? 10 : -12, note: S.health ? 'Covered' : 'None' },
+    { label: 'Health insurance', value: S.health ? 10 : -6, note: S.health ? 'Covered' : 'None' },
     { label: 'Retirement plan', value: S.retire ? 5 : 0, note: S.retire ? 'Yes' : 'None' },
     {
       label: 'Break rooms', note: `${have}/${need} needed`,
-      value: !s.workers.length ? 0 : have === 0 ? -15 : have < need ? -8 : 5,
+      // a few techs share the lobby kitchen; a real crew needs its own rooms
+      value: s.workers.length < 6 ? 0 : have === 0 ? -12 : have < need ? -6 : 5,
     },
     { label: 'Overtime', value: S.overtime ? -12 : 0, note: 'Long shifts' },
     // fewer than 2 techs per hall means everyone covers too much
@@ -34,7 +35,7 @@ export function moraleMood(s: GameState): MoraleParts {
     { label: 'Union contract', value: S.union ? 8 : 0, note: 'Protected' },
     { label: 'Team events and layoffs', value: Math.round(S.cheer), note: 'Fades over time' },
   ].filter(p => p.value !== 0);
-  const BASE = 45;
+  const BASE = 58;
   return { base: BASE, parts, target: clamp(BASE + parts.reduce((t, p) => t + p.value, 0), 0, 100) };
 }
 
@@ -98,7 +99,8 @@ export const STAFF_DECISIONS: Decision[] = [
 export function staffMonth(s: GameState): string | null {
   const S = s.staff;
   const mood = moraleMood(s);
-  S.morale = clamp(S.morale + (mood.target - S.morale) * 0.25, 0, 100);
+  // morale moves slowly: people put up with a lot before they organize
+  S.morale = clamp(S.morale + (mood.target - S.morale) * 0.1, 0, 100);
   S.cheer *= 0.9;
   S.cuts *= 0.6;
   S.low = S.morale < 45 ? S.low + 1 : 0;
@@ -123,7 +125,8 @@ export function staffMonth(s: GameState): string | null {
   }
 
   // walkouts
-  if (!S.strike && S.morale < 20 && s.workers.length >= 3) {
+  // strikes come from a union that isn't being heard
+  if (!S.strike && S.union && S.morale < 25 && S.low >= 6 && s.workers.length >= 6) {
     S.strike = true;
     if (!s.fired.includes('strike')) s.fired.push('strike');
     s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Breaking news', headline: `Techs walk out at ${siteName(s)}`, ticker: [`Workers say ${ownerName(s)} ignored them`, 'Halls slow to a crawl'] };
@@ -149,7 +152,7 @@ export function staffMonth(s: GameState): string | null {
   if (s.complaint || s.month < s.calm) return null;
   const ready = (id: string) => (s.cooldown[id] ?? 0) <= s.month;
   if (S.strike && ready('strike')) return 'strike';
-  if (S.morale < 35 && !S.union && s.workers.length >= 4 && ready('union')) return 'union';
-  if (S.low >= 3 && !S.health && ready('staffAsk')) return 'staffAsk';
+  if (S.morale < 40 && !S.union && s.workers.length >= 8 && s.month >= 12 && S.low >= 6 && ready('union')) return 'union';
+  if (S.low >= 4 && !S.health && s.workers.length >= 4 && ready('staffAsk')) return 'staffAsk';
   return null;
 }

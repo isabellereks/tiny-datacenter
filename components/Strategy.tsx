@@ -58,7 +58,7 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
         {LOAN_SIZES.map(a => (
           <button key={a} className="chip" disabled={a > limit} onClick={() => dispatch({ type: 'loan', amount: a })}>
             <b>Borrow {money(a)}</b>
-            <small>{(rate * 100).toFixed(1)}%, 10 yrs</small>
+            <small>{(rate * 100).toFixed(1)}%, interest only</small>
           </button>
         ))}
       </div>

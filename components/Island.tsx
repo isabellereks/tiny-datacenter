@@ -13,7 +13,7 @@ import {
 import {
   GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
   gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
-  allocate, buildMonths, busy, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
+  allocate, buildMonths, crews, CREW_COST, noCrew, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, buildBlock, checklist, heightLimit, hallLimit,
@@ -317,7 +317,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {BUILDABLE.map(t => (
           <Chip key={t} on={s.next === t} onClick={() => dispatch({ type: 'next', floor: t })}>
             <b>{TYPES[t].name}</b>
-            <small className="chip-price">{money(today(s, floorPrice(s.loc, t, n)))}</small>
+            <small className="chip-price">{money(today(s, floorPrice(s.loc, t, n, CHIPS[fitGen(s)].mw)))}</small>
             {s.hints && <Delta n={deltas[t]} />}
           </Chip>
         ))}
@@ -328,11 +328,16 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {s.hints && after.eff > l.eff + 0.001 && <span className="good">Halls {Math.round(l.eff * 100)}% → {Math.round(after.eff * 100)}%</span>}
         {s.hints && gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
       </div>
-      {n < max ? (
-        <button className="pill white wide" disabled={busy(s, s.bld) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
-          {busy(s, s.bld) ? `Crew busy: ${Math.max(1, Math.ceil(((s.jobs ?? []).find(j => bOf(s, j.idx) === s.bld)?.to ?? s.month) - s.month))} mo left` : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
+      {n < max ? (<>
+        <button className="pill white wide" disabled={noCrew(s) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
+          {noCrew(s) ? `All crews busy, next free in ${Math.max(1, Math.ceil(Math.min(...(s.jobs ?? []).map(j => j.to)) - s.month))} mo` : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
         </button>
-      ) : (
+        <div className="crews">
+          <span>Crews {(s.jobs ?? []).length} of {crews(s)} working</span>
+          {crews(s) > 2 && <button className="link-btn" onClick={() => dispatch({ type: 'crews', n: crews(s) - 1 })}>Let one go</button>}
+          {crews(s) < 6 && <button className="link-btn" onClick={() => dispatch({ type: 'crews', n: crews(s) + 1 })}>Hire a crew, {money(today(s, CREW_COST))}/mo</button>}
+        </div>
+      </>) : (
         <div className="note">
           <span>Max height for this foundation</span>
           {up && !zoningAllows(s, up) && <span>Taller needs a zoning permit (Gov tab)</span>}

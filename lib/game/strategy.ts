@@ -69,19 +69,20 @@ export function billOdds(s: GameState, l: Ledger) {
 // ---------- loans ----------
 
 export const LOAN_SIZES = [10_000_000, 25_000_000, 50_000_000, 150_000_000];
-const LOAN_MONTHS = 120;
 export const debt = (s: GameState) => s.loans.reduce((t, x) => t + x.balance, 0);
-/** Banks lend up to 80% of what you've built and the land under it, plus a share of signed deals. */
+/** Banks lend up to 65% of what you've built and the land under it, and finance most of the build for signed leases. */
 export const borrowLimit = (s: GameState) =>
-  Math.max(0, (assets(s) + landCost(s.loc, s.found) * s.campus) * 0.8 + signedMW(s) * 2_000_000 - debt(s));
+  Math.max(0, (assets(s) + landCost(s.loc, s.found) * s.campus) * 0.65 + signedMW(s) * 7_000_000 - debt(s));
 /** The rate a bank offers now: the market rate, plus more the deeper in debt you are. */
-export const loanRate = (s: GameState) => MARKET_RATE[s.market.phase] + ECON[s.econ.phase].rate + 0.02 + Math.min(0.06, (debt(s) / Math.max(1, assets(s))) * 0.08);
+/** Close to real datacenter debt: about 6.5% in normal times, more in a crash, more again the deeper in debt you are. */
+export const loanRate = (s: GameState) => MARKET_RATE[s.market.phase] + ECON[s.econ.phase].rate + 0.005 + Math.min(0.03, (debt(s) / Math.max(1, assets(s))) * 0.04);
 
-const paymentFor = (amount: number, rate: number, months: number) => (amount * (rate / 12)) / (1 - Math.pow(1 + rate / 12, -months));
+/** Datacenter construction loans are interest only: you pay the interest every month and the loan itself when you choose. */
+const paymentFor = (amount: number, rate: number) => amount * (rate / 12);
 
 /** A loan outside the normal limit, for when the bank steps in. */
-function lend(s: GameState, amount: number, rate: number, months: number) {
-  s.loans.push({ id: Date.now() + Math.random(), balance: amount, rate, payment: paymentFor(amount, rate, months) });
+function lend(s: GameState, amount: number, rate: number) {
+  s.loans.push({ id: Date.now() + Math.random(), balance: amount, rate, payment: paymentFor(amount, rate) });
   s.cash += amount;
   if (s.q) s.q.borrowed += amount;
 }
@@ -89,11 +90,11 @@ function lend(s: GameState, amount: number, rate: number, months: number) {
 export function takeLoan(s: GameState, amount: number) {
   if (amount > borrowLimit(s)) return false;
   const rate = loanRate(s);
-  const payment = paymentFor(amount, rate, LOAN_MONTHS);
+  const payment = paymentFor(amount, rate);
   s.loans.push({ id: Date.now(), balance: amount, rate, payment });
   s.cash += amount;
   if (s.q) s.q.borrowed += amount;
-  note(s, `Borrowed ${money(amount)} at ${(rate * 100).toFixed(1)}%. ${money(payment)} a month for 10 years`);
+  note(s, `Borrowed ${money(amount)} at ${(rate * 100).toFixed(1)}%. ${money(payment)} a month in interest`);
   return true;
 }
 
@@ -115,18 +116,17 @@ export const STRAT_DECISIONS: Decision[] = [
     body: s => `${siteName(s)} is ${money(Math.max(0, -s.cash))} in the red. Three months like this and the bank takes the site.`,
     choices: [
       {
-        label: 'Refinance', note: 'Loans spread over 20 years at +1.5%, plus a bridge loan to get back to zero',
+        label: 'Bridge loan', note: 'Enough to get back above zero, at a higher rate',
         apply: s => {
-          for (const x of s.loans) { x.rate += 0.015; x.payment = paymentFor(x.balance, x.rate, 240); }
-          lend(s, Math.max(5_000_000, -s.cash + 5_000_000), loanRate(s) + 0.03, 120);
+          lend(s, Math.max(5_000_000, -s.cash + 5_000_000), loanRate(s) + 0.03);
           s.debt = 0;
-          note(s, 'Refinanced with the bank. Back in the black.');
+          note(s, 'Took a bridge loan from the bank. Back in the black.');
         },
       },
       {
         label: 'Emergency loan', note: '5 years at 14%. Costly, but fast',
         apply: s => {
-          lend(s, Math.max(5_000_000, -s.cash + 10_000_000), 0.14, 60);
+          lend(s, Math.max(5_000_000, -s.cash + 10_000_000), 0.14);
           s.debt = 0;
           note(s, 'Took an emergency loan at 14%.');
         },
