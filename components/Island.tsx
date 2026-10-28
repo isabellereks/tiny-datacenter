@@ -121,13 +121,24 @@ function Delta({ n }: { n: number }) {
   return <span className={`delta${n > 500 ? ' pos' : n < -500 ? ' neg' : ''}`}>{Math.abs(n) < 500 ? '$0/mo' : perMonth(n)}</span>;
 }
 
-export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen, onClose, onTab, onResetView, onShare }: {
+export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen, onClose, onTab, onResetView, onShare, onPanel }: {
   s: GameState; l: Ledger; imp: Impact; open: boolean; tab: Tab; activity: string | null; armed: boolean;
   dispatch: (a: Action) => void; onOpen: () => void; onClose: () => void; onTab: (t: Tab) => void; onResetView: () => void; onShare: () => void;
+  onPanel?: (w: number, h: number) => void;
 }) {
-  // complaints and decisions arrive as letters (Letter.tsx), so the island stays out of the way
+  // the bar at the top only ever shows status; the controls open in a panel at the side (or a sheet on phones)
   const over = s.phase === 'over';
-  const mode = over ? 'activity' : open ? 'expanded' : activity ? 'activity' : 'compact';
+  const mode = over ? 'activity' : activity ? 'activity' : 'compact';
+  const panel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!el || !onPanel) { onPanel?.(0, 0); return; }
+    const measure = () => onPanel(el.offsetWidth, el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => { ro.disconnect(); onPanel(0, 0); };
+  }, [open, onPanel]);
   const inner = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 260, h: 44 });
 
@@ -159,7 +170,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
   } else if (mode === 'compact') {
     body = (
       <div className="compact-row">
-      <button className="compact" onClick={onOpen} aria-label="Open controls">
+      <button className="compact" onClick={open ? onClose : onOpen} aria-label={open ? 'Close controls' : 'Open controls'}>
         <MonthRing month={s.month} />
         <span className="day">{dateLabel(s.month)}</span>
         <Cash className="cash" value={s.cash} />
@@ -178,14 +189,19 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <span className="msg">{activity}</span>
       </button>
     );
-  } else {
-    body = <Expanded {...{ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView, onShare }} />;
   }
 
   return (
-    <div className={`island ${mode}`} style={{ width: size.w, height: size.h }}>
-      <div className="island-in" ref={inner} key={mode}>{body}</div>
-    </div>
+    <>
+      <div className={`island ${mode}${open ? ' opened' : ''}`} style={{ width: size.w, height: size.h }}>
+        <div className="island-in" ref={inner} key={mode}>{body}</div>
+      </div>
+      {open && !over && (
+        <aside className="panel" ref={panel} aria-label="Controls">
+          <Expanded {...{ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView, onShare }} />
+        </aside>
+      )}
+    </>
   );
 }
 

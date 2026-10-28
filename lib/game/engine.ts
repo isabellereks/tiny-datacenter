@@ -109,7 +109,7 @@ export class Engine {
   private rtRole: THREE.WebGLRenderTarget | null = null;
   private textTex: THREE.CanvasTexture | null = null;
   private grid = { n: 200, m: 150, cell: 5, vn: 200, vm: 150, textBottom: 0, textRows: 0 };
-  private insets = { top: 80, bottom: 40 };
+  private insets = { top: 80, bottom: 40, right: 0 };
   private anim: Animated = { leds: [], fans: [], rotors: [], alarms: [], vent: new THREE.Vector3() };
   private floorGroups: THREE.Group[] = [];
   private crowd = new THREE.Group();
@@ -230,9 +230,9 @@ export class Engine {
   }
 
   /** Space the UI covers at the top and bottom of the window, in CSS pixels. */
-  setInsets(top: number, bottom: number) {
-    if (Math.abs(top - this.insets.top) < 2 && Math.abs(bottom - this.insets.bottom) < 2) return;
-    this.insets = { top, bottom };
+  setInsets(top: number, bottom: number, right = 0) {
+    if (Math.abs(top - this.insets.top) < 2 && Math.abs(bottom - this.insets.bottom) < 2 && Math.abs(right - this.insets.right) < 2) return;
+    this.insets = { top, bottom, right };
     this.layout();
     this.fit(true);
   }
@@ -269,7 +269,8 @@ export class Engine {
     canvas.style.height = `${(m * cell) / dpr}px`;
     this.grid = { ...this.grid, n, m, cell, vn, vm };
 
-    const letters = this.drawLettering(vn);
+    // centre the name in the strip the controls panel leaves free
+    const letters = this.drawLettering(Math.max(30, vn - (this.insets.right * dpr) / cell));
     this.textTex?.dispose();
     this.textTex = null;
     if (letters) {
@@ -521,7 +522,9 @@ export class Engine {
     const b0 = textBottom + textRows + (textRows ? 2 : 0);
     const b1 = vm - (this.insets.top * dpr) / this.grid.cell;
     const band = Math.max(20, b1 - b0);
-    const want = Math.max(((max.x - min.x) * 1.08) / vn, ((max.y - min.y) * 1.08) / band);
+    // a panel on the right leaves a narrower strip to frame the datacenter in
+    const wide = Math.max(30, vn - (this.insets.right * dpr) / this.grid.cell);
+    const want = Math.max(((max.x - min.x) * 1.08) / wide, ((max.y - min.y) * 1.08) / band);
     const toU = picking ? want : Math.min(want, MAX_UPC);
     // too tall to fit: scroll to the selected floor, but never past the ground or the roof
     let cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2;
@@ -534,7 +537,7 @@ export class Engine {
       const lv = this.look === null ? level(s, sel) : Math.max(0, Math.min(top, this.look));
       this.look = this.look === null ? null : lv;
       const focus = new THREE.Vector3(buildingX(bOf(s, sel)), levelY(s, lv) + FH / 2, 0).applyMatrix4(view);
-      const halfH = (band * toU) / 2 / 1.04, halfW = (vn * toU) / 2 / 1.04;
+      const halfH = (band * toU) / 2 / 1.04, halfW = (wide * toU) / 2 / 1.04;
       // keep the view inside the scene; if the scene is narrower than the view, just center it
       const keep = (lo: number, hi: number, v: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
       cy = keep(min.y + halfH, max.y - halfH, focus.y);
@@ -544,7 +547,7 @@ export class Engine {
     // the name sits under the ground; a scrolled view would put it on the building
     this.textHidden = scrolled;
     this.post.uniforms.uTextRows.value = this.textHidden ? 0 : this.grid.textRows;
-    const dx = vn / 2 - n / 2, dy = (b0 + b1) / 2 - m / 2;
+    const dx = wide / 2 - n / 2, dy = (b0 + b1) / 2 - m / 2;
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
     const center = this.controls.target.clone()

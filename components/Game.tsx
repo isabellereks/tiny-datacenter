@@ -143,10 +143,15 @@ export default function Game() {
   const phase = s?.phase;
   const ended = phase === 'over' && !!s?.over?.done;
 
+  // the controls panel sits on the right on wide screens and along the bottom on phones; the scene frames around it
+  const [panel, setPanel] = useState({ w: 0, h: 0 });
+  const onPanel = useCallback((w: number, h: number) => setPanel(p => (Math.abs(p.w - w) < 2 && Math.abs(p.h - h) < 2 ? p : { w, h })), []);
   useEffect(() => {
-    const bottom = phase === 'setup' || ended ? cardH + 24 : phase === 'play' && goalH ? goalH + 24 : 16;
-    engineRef.current?.setInsets(phase === 'setup' ? 24 : ISLAND_SPACE, bottom);
-  }, [phase, ended, cardH, goalH]);
+    const side = panel.w > 0 && window.innerWidth >= 900;
+    const sheet = panel.h > 0 && !side;
+    const bottom = phase === 'setup' || ended ? cardH + 24 : sheet ? panel.h + 12 : phase === 'play' && goalH ? goalH + 24 : 16;
+    engineRef.current?.setInsets(phase === 'setup' ? 24 : ISLAND_SPACE, bottom, side ? panel.w + 28 : 0);
+  }, [phase, ended, cardH, goalH, panel]);
 
   // The news plays one story at a time, long enough to read. New stories wait their turn;
   // if a lot happens at once, only the latest few are kept.
@@ -235,7 +240,7 @@ export default function Game() {
         <Island
           s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
           dispatch={dispatch} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} onTab={setTab}
-          onResetView={() => engineRef.current?.resetView()} onShare={() => setSharing(true)}
+          onResetView={() => engineRef.current?.resetView()} onShare={() => setSharing(true)} onPanel={onPanel}
         />
       )}
       {phase === 'play' && !open && !flash && !s.complaint && <GoalCard s={s} onHeight={setGoalH} dispatch={dispatch} font={pixel.className} />}

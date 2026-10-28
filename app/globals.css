@@ -649,3 +649,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 
 .crews { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
 .crews .link-btn { color: var(--thread); font-weight: 700; }
+
+/* ---------- the controls panel: docked right on wide screens, a sheet from the bottom on phones ---------- */
+.panel {
+  position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: 14px; bottom: 14px; z-index: 11;
+  width: min(460px, 42vw); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--weave), var(--card); color: var(--ink); border-radius: 12px;
+  box-shadow: var(--patch-shadow), 0 16px 40px -20px rgba(60, 45, 20, .45);
+  outline: 1.5px dashed color-mix(in oklab, var(--thread), transparent 30%); outline-offset: -7px;
+  animation: panel-in .35s var(--ease) both;
+}
+@keyframes panel-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.panel .expanded { height: 100%; min-height: 0; }
+.panel .ex-head, .panel .tabs { flex-shrink: 0; }
+.panel .ex-body { max-height: none; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.island.opened { box-shadow: var(--patch-shadow); }
+@media (max-width: 899px) {
+  .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 64vh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation-name: sheet-in; }
+  @keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
