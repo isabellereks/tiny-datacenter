@@ -401,7 +401,7 @@ function FloorTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
             <button aria-pressed={k === i} onClick={() => dispatch({ type: 'select', floor: k })} className={isBroken(s, k) ? 'down' : undefined}>
               <span className="fno">{s.campus > 1 ? `${bOf(s, k) + 1}·${level(s, k) + 1}` : k + 1}</span>
               <span className="fname">{TYPES[x.type].name}</span>
-              {x.type === 'hall' && <span className="ftechs">{'●'.repeat(techsOn(s, k))}{'○'.repeat(MAX_TECHS - techsOn(s, k))}</span>}
+              {x.type === 'hall' && <span className="ftechs">{'●'.repeat(Math.min(MAX_TECHS, techsOn(s, k)))}{'○'.repeat(Math.max(0, MAX_TECHS - techsOn(s, k)))}</span>}
               <span className="fstat">{status(k, x)}</span>
             </button>
           </li>

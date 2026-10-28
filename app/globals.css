@@ -619,3 +619,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .st-total.loss b { color: var(--red); }
 .st-total small { font-size: 12px; color: var(--ink-2); }
 @media (max-width: 720px) { .statement { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- milestone party: stitched confetti ---------- */
+.party { position: fixed; inset: 0; z-index: 35; pointer-events: none; overflow: hidden; }
+.party i { position: absolute; top: -20px; animation: confetti linear both; }
+.party i::before, .party i::after { content: ''; position: absolute; left: 50%; top: 0; width: 28%; height: 100%; margin-left: -14%; background: currentColor; border-radius: 1px; }
+.party i::before { transform: rotate(45deg); }
+.party i::after { transform: rotate(-45deg); }
+@keyframes confetti { from { transform: translateY(0) rotate(var(--r)); opacity: 1; } 85% { opacity: 1; } to { transform: translateY(105vh) rotate(calc(var(--r) + 540deg)); opacity: 0; } }
+.party-banner { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); padding: 14px 26px; background: var(--thread); color: #fff; font-size: clamp(22px, 4vw, 40px); text-transform: uppercase; white-space: nowrap; outline: 2px dashed rgba(255, 255, 255, .7); outline-offset: -7px; box-shadow: 0 16px 40px rgba(0, 0, 0, .25); animation: banner 3.6s var(--ease) both; }
+@keyframes banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 18% { transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
+
+/* ---------- a word from someone in town ---------- */
+.bubble { position: fixed; z-index: 16; pointer-events: none; transform: translate(-50%, calc(-100% - 22px)); max-width: 220px; padding: 8px 12px; border-radius: 10px; background: #fff; color: var(--ink); font-size: 13.5px; line-height: 1.35; box-shadow: 0 8px 20px rgba(0, 0, 0, .18); animation: pop .2s cubic-bezier(.2, 1.4, .4, 1) both; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: #fff; }

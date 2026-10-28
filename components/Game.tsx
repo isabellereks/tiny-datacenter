@@ -16,12 +16,14 @@ import { HoverLabel } from './HoverLabel';
 import { Call } from './Call';
 import { Briefing } from './Briefing';
 import { Report } from './Report';
+import { Party } from './Party';
 import { Letter } from './Letter';
 import { TierUp } from './TierUp';
 import { Meta } from './Meta';
 import { Ticks } from './Ticks';
 import type { FoundKey } from '@/lib/game/data';
 import { armSound, setHum, setMuted, sfx } from '@/lib/game/sound';
+import { remark } from '@/lib/game/calls';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 /** UI text: a pixel face that stays readable at small sizes. */
@@ -45,6 +47,8 @@ export default function Game() {
   const [goalH, setGoalH] = useState(0);
   const [flash, setFlash] = useState<Story | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [bubble, setBubble] = useState<{ x: number; y: number; text: string; id: number } | null>(null);
+  useEffect(() => { if (!bubble) return; const t = window.setTimeout(() => setBubble(null), 3500); return () => window.clearTimeout(t); }, [bubble]);
   const [hovered, setHovered] = useState<{ found?: FoundKey; floor?: number } | null>(null);
   const lastComplaint = useRef<string | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
@@ -111,8 +115,10 @@ export default function Game() {
       },
       onSave: () => save(stateRef.current!),
       onHover: setHovered,
+      onPickPerson: (x, y) => { const st = stateRef.current; if (st) setBubble({ x, y, text: remark(st), id: Date.now() }); },
     }, pixel.style.fontFamily);
     engineRef.current = engine;
+    if (process.env.NODE_ENV !== 'production') (window as unknown as { __people?: () => unknown }).__people = () => engine.peopleOnScreen();
     redraw();
     const id = window.setInterval(redraw, 250);
     const onKey = (e: KeyboardEvent) => {
@@ -237,6 +243,8 @@ export default function Game() {
       {phase === 'play' && s.complaint && !s.call && !s.briefing && !s.report && s.tierUp === null && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
       {hovered && <HoverLabel s={s} what={hovered} />}
+      {bubble && <div key={bubble.id} className="bubble" style={{ left: bubble.x, top: bubble.y }}>{bubble.text}</div>}
+      {phase === 'play' && s.party && <Party key={s.party.id} id={s.party.id} text={s.party.text} font={pixel.className} />}
       {phase === 'play' && s.briefing && <Briefing s={s} dispatch={dispatch} />}
       {phase === 'play' && !s.briefing && s.report && <Report s={s} dispatch={dispatch} />}
       {phase === 'play' && s.call && <Call key={s.call.id} call={s.call} dispatch={dispatch} font={pixel.className} />}

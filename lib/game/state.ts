@@ -143,6 +143,12 @@ export interface GameState {
   report?: QuarterReport | null;
   /** last quarter's profit or loss, to compare against */
   lastQuarter?: number | null;
+  /** the details of a one-off event on screen: a rush order, a poaching attempt */
+  event?: { who: string; mw: number; price: number; months: number } | null;
+  /** a competing datacenter across town */
+  rival?: { name: string; mw: number; since: number } | null;
+  /** a milestone you just hit, for the celebration */
+  party?: { id: number; text: string } | null;
   /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
   gridLevel: number;
   up: Upgrades;

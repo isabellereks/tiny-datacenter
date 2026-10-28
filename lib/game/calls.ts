@@ -158,5 +158,26 @@ export function callMonth(s: GameState) {
   s.call = { id: Date.now(), who, line, mood: GLAD.includes(topic) ? 'glad' : 'mad', t0: Date.now(), answered: false };
 }
 
+/** What someone says when you stop them on the street: calmer than a phone call. */
+const REMARKS: Record<Topic, string[]> = {
+  trees: ['I miss the woods out back.', 'Where did all the trees go?'],
+  water: ['My water pressure is awful lately.', 'The creek is so low this year.'],
+  noise: ['Do you hear that hum? It never stops.', 'I sleep with a fan on now, just to drown it out.'],
+  bills: ['Have you seen your power bill this month?', 'Everything costs more since that place opened.'],
+  blackout: ['Lost power again last night.', 'I bought a generator. Can you believe it?'],
+  jobs: ['They promised jobs. I haven\'t seen any.', 'My kid applied there. Nothing.'],
+  overseas: ['Why not hire from here?', 'Nobody I know works there.'],
+  angry: ['I signed the petition.', 'Going to the meeting Tuesday? You should.'],
+  strike: ['Did you see the picket line?', 'I hope they get what they\'re asking for.'],
+  heat: ['My heating bill is half what it was!', 'Warm house, cheap bill. Not bad.'],
+  fan: ['My neighbor works there. Loves it.', 'Honestly? Good for the town.'],
+  school: ['The school got new computers!', 'Did you hear about the robotics club?'],
+};
+const SMALL_TALK = ['Nice day for a walk.', 'Have you tried the diner on Main?', 'Is that datacenter getting bigger?', 'Morning!'];
+export function remark(s: GameState) {
+  const t = topics(s);
+  return t.length && Math.random() < 0.85 ? pick(REMARKS[pick(t)]) : pick(SMALL_TALK);
+}
+
 /** How long a call rings before it goes to voicemail. */
 export const RING_MS = 9000;

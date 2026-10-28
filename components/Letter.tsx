@@ -11,7 +11,7 @@ import { sfx } from '@/lib/game/sound';
 function sender(from: string) {
   if (/union|techs/i.test(from)) return 'staff';
   if (/lawyer|class action|court|firm/i.test(from)) return 'law';
-  if (/hyperscaler|bank/i.test(from)) return 'biz';
+  if (/hyperscaler|bank|rush|cloud|services|azul|meta-ish/i.test(from)) return 'biz';
   if (/neighbor|resident|homeowner|protest|newspaper/i.test(from)) return 'town';
   return 'gov';
 }

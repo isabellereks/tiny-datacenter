@@ -292,6 +292,7 @@ export function briefing(s: GameState): Brief[] {
       value: hasLaw(s, 'moratorium') ? 'In force, no new halls' : s.bill ? `${Math.round(s.bill.progress)}%, ${billStageName(s).toLowerCase()}${s.hints ? (eta ? `, passes in about ${eta} mo` : ', stalled') : ''}` : 'None yet',
       bad: !!s.bill && billOdds(s, l) > 40,
     },
+    { label: 'Rival', value: s.rival ? `${s.rival.name}, ${Math.round(s.rival.mw)} MW vs your ${l.itMW.toFixed(0)}` : s.fired.includes('rivalBeaten') ? 'Gone. You won the town' : 'None yet', bad: !!s.rival && s.rival.mw > l.itMW },
     { label: 'Debt', value: s.loans.length ? `${money(debt(s))}, ${money(s.loans.reduce((t, x) => t + x.payment, 0))}/mo` : 'None', bad: debt(s) > assets(s) * 0.5 },
     { label: 'Lawsuit risk', value: s.seeds.length ? 'Something is brewing' : 'Quiet', bad: s.seeds.length > 0 },
   ];

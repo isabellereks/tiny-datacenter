@@ -45,7 +45,9 @@ export function makeOffer(s: GameState, kind?: CustKey, mw?: number): Offer {
   if (k === 'bank' || Math.random() < 0.1) needs.push('uptime');
   if (k === 'ai' && tier >= 1 && Math.random() < 0.4) needs.push('fresh');
   // longer deals and bigger customers get a discount; picky ones pay a little more
-  const price = marketPrice(s, k) * rnd(0.92, 1.12) * (months >= 60 ? 0.92 : 1) * (big ? 0.9 : 1) * (1 + 0.04 * needs.length);
+  // a bigger rival across town wins the best customers
+  const rivalCut = s.rival && s.rival.mw > s.peakMW ? 0.93 : 1;
+  const price = rivalCut * marketPrice(s, k) * rnd(0.92, 1.12) * (months >= 60 ? 0.92 : 1) * (big ? 0.9 : 1) * (1 + 0.04 * needs.length);
   return {
     id: s.nid++, who: big ? pick(HYPERSCALERS) : pick(CUSTS[k].names), kind: k, mw: size,
     price: Math.round(price), months, lead: Math.round(rnd(2, 6)), needs, expires: s.month + Math.round(rnd(3, 6)),
@@ -151,7 +153,8 @@ export function dealsMonth(s: GameState, l: Ledger) {
   // deals that end may come back as a renewal at today's price
   for (const d of s.deals.filter(x => x.until <= s.month && x.until > s.month - 1 && x.strikes < 3)) {
     note(s, `${d.who}'s deal ended`);
-    if (Math.random() < 0.7) s.offers.push({ ...makeOffer(s, d.kind, d.mw), who: d.who, lead: 0 });
+    if (Math.random() < (s.rival && s.rival.mw > l.itMW ? 0.45 : 0.7)) s.offers.push({ ...makeOffer(s, d.kind, d.mw), who: d.who, lead: 0 });
+    else if (s.rival) note(s, `${d.who} moved to ${s.rival.name}`);
   }
   s.deals = s.deals.filter(d => d.until > s.month);
 
@@ -160,7 +163,7 @@ export function dealsMonth(s: GameState, l: Ledger) {
   if (gone.length) note(s, `${gone.map(o => o.who).join(', ')} went elsewhere`);
   s.offers = s.offers.filter(o => o.expires > s.month);
   const p = { normal: 0.45, boom: 0.7, glut: 0.2 }[s.market.phase];
-  if (s.offers.length < 4 && Math.random() < p) s.offers.push(makeOffer(s));
+  if (s.offers.length < 4 && Math.random() < p * (s.rival && s.rival.mw > l.itMW ? 0.7 : 1)) s.offers.push(makeOffer(s));
 
   // new chips ship now and then; your halls get older without changing
   if (s.month >= s.chipAt && s.chip < CHIPS.length - 1) {

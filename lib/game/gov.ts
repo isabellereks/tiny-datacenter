@@ -1,6 +1,7 @@
 import { EU, FOUND_ORDER, FOUNDS, LOCS, type FoundKey, type LocKey } from './data';
 import { breakRooms, breaksNeeded, STAFF_DECISIONS } from './staff';
 import { STRAT_DECISIONS } from './strategy';
+import { EVENT_DECISIONS } from './rival';
 import {
   dateLabel, hallCount, hasLaw, heightOf, ledger, locals, maxBuildings, tallest, money, note, ownerName, siteName, techsOn, today,
   type Board, type GameState, type Ledger, type PermitKey,
@@ -371,7 +372,7 @@ export const DECISIONS: Decision[] = [
 ];
 
 /** Every decision that can pop up: government, utilities and your own staff. */
-export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS, ...STRAT_DECISIONS];
+export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS, ...STRAT_DECISIONS, ...EVENT_DECISIONS];
 
 export const decisionCost = (s: GameState, c: GovChoice) => (c.cost ? c.cost(s) : 0);
 
@@ -384,7 +385,7 @@ export function resolveDecision(s: GameState, choice: number) {
   s.cash -= cost;
   c.apply(s);
   note(s, `${c.label}. ${c.note}`);
-  s.cooldown[d.id] = s.month + 12;
+  s.cooldown[d.id] = s.month + (d.id === 'rush' ? 4 : 12);
   s.seeds = s.seeds.filter(x => x.id !== d.id);
   s.complaint = null;
   s.calm = s.month + 2;

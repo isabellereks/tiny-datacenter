@@ -26,6 +26,8 @@ export interface EngineHooks {
   onPickFoundation: (key: FoundKey) => void;
   onFirstInteraction: () => void;
   onSave: () => void;
+  /** a townsperson you tapped, and where on screen */
+  onPickPerson?: (x: number, y: number) => void;
   /** what the pointer is over, for a label at the bottom of the screen */
   onHover: (what: { found?: FoundKey; floor?: number } | null) => void;
 }
@@ -544,6 +546,15 @@ export class Engine {
     this.fitTween = { t0: performance.now(), fromU: this.upc, toU, fromT: this.controls.target.clone(), toT: center };
   }
 
+  /** Where each walker is on screen, for tests. */
+  peopleOnScreen() {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return this.walkers.map(w => {
+      const p = w.group.position.clone().add(new THREE.Vector3(0, 1.2, 0)).project(this.camera);
+      return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+    });
+  }
+
   /** Where the top of a building is on screen, in CSS pixels, for things that float off the roof. */
   roofOnScreen(b = 0): { x: number; y: number } | null {
     const s = this.s;
@@ -585,6 +596,12 @@ export class Engine {
 
   private onUp = (e: PointerEvent) => {
     if (!this.down || Math.hypot(e.clientX - this.down[0], e.clientY - this.down[1]) > 6) return;
+    // people walking around the lot can be stopped for a word
+    if (!this.picking && this.walkers.length) {
+      const r = this.renderer.domElement.getBoundingClientRect();
+      this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
+      if (this.raycaster.intersectObjects(this.walkers.map(w => w.group), true).length) { this.hooks.onPickPerson?.(e.clientX, e.clientY); return; }
+    }
     const d = this.pick(e);
     if (!d) return;
     if (this.picking && d.found) this.hooks.onPickFoundation(d.found);

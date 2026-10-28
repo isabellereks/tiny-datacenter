@@ -4,6 +4,7 @@ import { staffMonth } from './staff';
 import { callMonth } from './calls';
 import { strategyMonth } from './strategy';
 import { dealsMonth, SMR_COST, SMR_MONTHS } from './deals';
+import { eventsMonth } from './rival';
 import {
   floorLabel, genOf, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
   type GameState, type Ledger, type Upgrades,
@@ -178,6 +179,7 @@ export const GOALS: Goal[] = [
   { text: 'Reach year 10 with trust above 60', reward: 40_000_000, hint: '', done: s => s.month >= 108 && s.trust > 60 },
   { text: 'Make $5M profit in a month', reward: 40_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 5_000_000 },
   { text: 'Make it through an AI crash', reward: 30_000_000, hint: '', done: s => s.fired.includes('glutSurvived') },
+  { text: 'Outgrow your rival', reward: 50_000_000, hint: '', done: s => s.fired.includes('rivalBeaten') },
   { text: 'Grow into an AI factory', reward: 100_000_000, hint: '', done: s => s.tier >= 3 },
   { text: 'Switch on your own reactor', reward: 100_000_000, hint: 'Build tab.', done: s => s.up.smr },
   { text: 'Build 40 floors', reward: 150_000_000, hint: '', done: s => doneFloors(s) >= 40 },
@@ -248,7 +250,8 @@ export function endOfMonth(s: GameState) {
   // every system runs every month; the first one with a question gets to ask it
   dealsMonth(s, l);
   quarterMonth(s, l);
-  const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
+  milestones(s, l);
+  const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l), eventsMonth(s, l)];
   // the bank calls the first month you're in the red, before anything else
   const rescue = s.debt === 1 && (s.cooldown.rescue ?? 0) <= s.month ? 'rescue' : null;
   const decision = rescue ?? asks.find(x => x) ?? null;
@@ -262,6 +265,30 @@ export function endOfMonth(s: GameState) {
     if (c) s.complaint = c.id;
   }
   if (!s.complaint && !s.briefing && !s.report && s.tierUp === null && s.month >= s.calm) callMonth(s);
+}
+
+/** Big moments, once each: the game throws a little party. */
+const MILESTONES: { id: string; text: string; hit: (s: GameState, l: Ledger) => boolean }[] = [
+  { id: 'm1m', text: 'First $1M month', hit: (_, l) => l.net >= 1_000_000 },
+  { id: 'm5m', text: 'A $5M month', hit: (_, l) => l.net >= 5_000_000 },
+  { id: 'mw10', text: '10 MW running', hit: (_, l) => l.itMW >= 10 },
+  { id: 'mw25', text: '25 MW running', hit: (_, l) => l.itMW >= 25 },
+  { id: 'mw50', text: '50 MW running', hit: (_, l) => l.itMW >= 50 },
+  { id: 'mw100', text: '100 MW running', hit: (_, l) => l.itMW >= 100 },
+  { id: 'f10', text: '10 floors', hit: s => s.floors.length >= 10 },
+  { id: 'f20', text: '20 floors', hit: s => s.floors.length >= 20 },
+  { id: 'f30', text: '30 floors', hit: s => s.floors.length >= 30 },
+  { id: 'f40', text: '40 floors', hit: s => s.floors.length >= 40 },
+  { id: 'c100', text: '$100M in the bank', hit: s => s.cash >= 100_000_000 },
+  { id: 'c1b', text: 'A billion in the bank', hit: s => s.cash >= 1_000_000_000 },
+];
+
+function milestones(s: GameState, l: Ledger) {
+  const m = MILESTONES.find(x => !s.fired.includes(x.id) && x.hit(s, l));
+  if (!m) return;
+  s.fired.push(m.id);
+  s.party = { id: (s.party?.id ?? 0) + 1, text: m.text };
+  note(s, m.text);
 }
 
 const Q_LINES: { key: keyof Ledger; label: string; income?: boolean }[] = [
