@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
-import { bake, clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
-import { baseY, bOf, buildingX, heightOf, isBroken, ledger, level, levelY, simulate, tallest, type GameState } from './state';
+import { bake, clear, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
+import { baseY, bOf, busy, buildingX, heightOf, isBroken, jobOn, ledger, level, levelY, simulate, tallest, type GameState } from './state';
 import { createStitchMaterial, createWeaveMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
@@ -129,6 +129,9 @@ export class Engine {
   private thread = '';
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
+  private cranes: THREE.Group[] = [];
+  /** floors under construction for months, by index */
+  private jobFloors = new Map<number, THREE.Group>();
   private roofs: THREE.Group[] = [];
   private spots: TreeSpot[] = [];
   private lastCleared = -1;
@@ -318,6 +321,7 @@ export class Engine {
     this.anim = { leds: [], fans: [], rotors: [], alarms: [], vent: new THREE.Vector3() };
     this.workers.clear();
     this.buildFloor = null;
+    this.jobFloors.clear();
     this.floorGroups = [];
     for (let b = 0; b < s.campus; b++) {
       const fg = makeFoundation(s.found);
@@ -333,6 +337,7 @@ export class Engine {
         this.building.add(g);
         this.floorGroups.push(g);
         if (s.build?.idx === i) this.buildFloor = g;
+        if (jobOn(s, i)) this.jobFloors.set(i, g);
       });
       // building 0 last, so the steam comes off the main roof
       this.roofs = [];
@@ -344,6 +349,15 @@ export class Engine {
         this.roofs.push(r);
       }
     } else this.roofs = [];
+    // a crane beside every building with a crew on it
+    this.cranes = [];
+    for (let b = 0; b < s.campus; b++) {
+      if (s.phase !== 'play' || !busy(s, b)) continue;
+      const c = makeCrane(levelY(s, heightOf(s, b)));
+      c.position.set(buildingX(b) + FW / 2 + 1.6, 0, -FD / 2 - 1.2);
+      this.building.add(c);
+      this.cranes.push(c);
+    }
     // merge what never moves; blinking lights, fans and alarms stay separate
     // rack lights blink in two groups per floor instead of one by one: two merged meshes, not dozens
     const lights = new Set(this.anim.leds);
@@ -856,6 +870,7 @@ export class Engine {
       p.sign.rotation.z = Math.sin(t * 4 + p.phase) * 0.25;
     }
     this.animateWeather(dt);
+    for (const [k, c] of this.cranes.entries()) (c.userData.jib as THREE.Group).rotation.y = Math.sin(t * 0.25 + k) * 1.1 - 0.6;
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
     for (const f of this.anim.rotors) f.rotation.z -= dt * 4;
     const blink = Math.floor(t * 3) % 2 === 0;
@@ -898,6 +913,17 @@ export class Engine {
       return true;
     });
 
+    // months-long jobs: the floor rises as the work goes on, and the roof waits on top
+    for (const j of s.jobs ?? []) {
+      const g = this.jobFloors.get(j.idx);
+      const k = Math.max(0, Math.min(1, (s.month - j.from) / Math.max(0.01, j.to - j.from)));
+      this.lastBuild = j.idx;
+      if (j.what === 'refit') continue;
+      if (g) g.scale.y = Math.max(0.04, k);
+      const top = s.floors.findLastIndex((f, i) => bOf(s, i) === bOf(s, j.idx));
+      const r = this.roofs.find(x => x.userData.b === bOf(s, j.idx));
+      if (r && top === j.idx) r.position.y = -(1 - k) * FH;
+    }
     if (s.build) {
       // the floor drops in and settles with a little bounce
       const k = Math.min(1, (Date.now() - s.build.t0) / s.build.dur), c = 1.70158, e = 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2);

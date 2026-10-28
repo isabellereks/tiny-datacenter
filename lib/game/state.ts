@@ -100,6 +100,12 @@ export interface GameState {
   next: BuildableType;
   nextFill: Fill;
   build: { idx: number; t0: number; dur: number } | null;
+  /** construction in play takes months: each job is a floor going up (or being refitted), one per building */
+  jobs?: { idx: number; from: number; to: number; what: 'build' | 'refit' }[];
+  /** a transformer shortage stretches power floor builds until this month */
+  shortageUntil?: number;
+  /** how many gas turbines and solar farms you've built */
+  units?: { turbines: number; solar: number };
   nid: number;
   floors: Floor[];
   workers: Worker[];
@@ -117,7 +123,7 @@ export interface GameState {
   /** grid the utility has connected for you beyond what the town could spare */
   gridAdded: number;
   /** your place in the utility's interconnection queue */
-  gridQueue: { mw: number; done: number } | null;
+  gridQueue: { mw: number; done: number; from?: number; paid?: boolean; flex?: boolean } | null;
   /** customers: signed deals, and offers waiting on an answer */
   deals: Deal[];
   offers: Offer[];
@@ -415,7 +421,14 @@ export const fitGen = (s: GameState) => (s.up.liquid ? s.chip : Math.min(s.chip,
 /** Halls with chips that need liquid cooling run at half without it. */
 export const needsLiquid = (s: GameState, f: Floor) => genOf(f) >= LIQUID_GEN && !s.up.liquid;
 /** On-site power: solar, turbines and the reactor. */
-export const onsiteMW = (s: GameState) => (s.up.solar ? SOLAR_MW : 0) + (s.up.turbines ? TURBINE_MW : 0) + (s.up.smr ? SMR_MW : 0);
+export const onsiteMW = (s: GameState) => solarCount(s) * SOLAR_MW + turbineCount(s) * TURBINE_MW + (s.up.smr ? SMR_MW : 0);
+/** Turbines and solar farms can be added again and again; older saves had at most one of each. */
+export const turbineCount = (s: GameState) => s.units?.turbines ?? (s.up.turbines ? 1 : 0);
+export const solarCount = (s: GameState) => s.units?.solar ?? (s.up.solar ? 1 : 0);
+/** Things you can build more of, a few months apart. */
+export const REPEATABLE = ['turbines', 'solar'] as const;
+export const REPEAT_WAIT = 4;
+export const unitCost = (s: GameState, key: 'turbines' | 'solar', n: number) => today(s, (key === 'turbines' ? 18_000_000 : 9_000_000) * (1 + 0.2 * n));
 export const TURBINE_MW = 12;
 export const SMR_MW = 60;
 
@@ -545,9 +558,9 @@ export function ledger(s: GameState): Ledger {
   const infl = inflation(s);
   // on-site power comes first: solar is free, the reactor is cheap, turbines burn gas
   let need = itMW * pue;
-  const sun = Math.min(need, s.up.solar ? SOLAR_MW : 0); need -= sun;
+  const sun = Math.min(need, solarCount(s) * SOLAR_MW); need -= sun;
   const nuke = Math.min(need, s.up.smr ? SMR_MW : 0); need -= nuke;
-  const gas = Math.min(need, s.up.turbines ? TURBINE_MW : 0); need -= gas;
+  const gas = Math.min(need, turbineCount(s) * TURBINE_MW); need -= gas;
   const fuel = infl * HOURS_PER_MONTH * (gas * 65 + nuke * 25);
   const mwh = need * HOURS_PER_MONTH;
   // a strained grid charges more for peak power
@@ -598,6 +611,13 @@ export function hallIncome(s: GameState, l: Ledger, i: number) {
   return used ? (l.revenue * utilization(s, i)) / used : 0;
 }
 
+/** Months each kind of floor takes to build. Power gear waits on transformers. */
+export const BUILD_MONTHS: Record<FloorType, number> = { hall: 3, power: 6, cool: 3, net: 2, break: 1, lobby: 2 };
+export const buildMonths = (s: GameState, type: FloorType) => BUILD_MONTHS[type] * (type === 'power' && (s.shortageUntil ?? 0) > s.month ? 2 : 1);
+/** A building with a crew already on it. */
+export const busy = (s: GameState, b: number) => (s.jobs ?? []).some(j => bOf(s, j.idx) === b);
+export const jobOn = (s: GameState, i: number) => (s.jobs ?? []).find(j => j.idx === i);
+
 /** Advances money, the calendar, workers, repairs and construction. */
 export function simulate(s: GameState, realDt: number, monthSeconds: number, speed = 1): { built: boolean; newMonth: boolean; fixed: boolean } {
   let newMonth = false, fixed = false;
@@ -637,8 +657,19 @@ export function simulate(s: GameState, realDt: number, monthSeconds: number, spe
   if (s.build && Date.now() - s.build.t0 >= s.build.dur) {
     const f = s.floors[s.build.idx];
     f.done = true;
-    if (s.phase === 'play') note(s, `${TYPES[f.type].name} built`);
     s.build = null;
+    return { built: true, newMonth, fixed };
+  }
+  // construction crews finish when the months are up
+  const due = (s.jobs ?? []).filter(j => s.month >= j.to);
+  if (due.length) {
+    for (const j of due) {
+      const f = s.floors[j.idx];
+      if (!f) continue;
+      f.done = true;
+      note(s, j.what === 'refit' ? `${floorLabel(s, j.idx)} refitted` : `${TYPES[f.type].name} finished on ${floorLabel(s, j.idx).toLowerCase()}`);
+    }
+    s.jobs = (s.jobs ?? []).filter(j => s.month < j.to);
     return { built: true, newMonth, fixed };
   }
   return { built: false, newMonth, fixed };

@@ -6,7 +6,7 @@ import { strategyMonth } from './strategy';
 import { dealsMonth, SMR_COST, SMR_MONTHS } from './deals';
 import { eventsMonth } from './rival';
 import {
-  floorLabel, genOf, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
+  floorLabel, genOf, turbineCount, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
   type GameState, type Ledger, type Upgrades,
 } from './state';
 
@@ -103,10 +103,10 @@ export const UPGRADES: { key: keyof Upgrades; name: string; cost: number; tier: 
   { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, tier: 0, note: 'Quiets the fans.' },
   { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, tier: 0, note: '85% less water.' },
   { key: 'renewables', name: 'Wind power deal', cost: 3_000_000, tier: 0, note: 'Clean power. 90% less CO₂, power +5%.' },
-  { key: 'solar', name: 'Solar farm', cost: 9_000_000, tier: 0, note: 'Clean power. +3 MW on site.' },
+  { key: 'solar', name: 'Solar farm', cost: 9_000_000, tier: 0, note: 'Clean power. +3 MW on site each.' },
   { key: 'batteries', name: 'Batteries', cost: 6_000_000, tier: 0, note: 'Cuts your grid peak 15%.' },
   { key: 'heat', name: 'Heat homes nearby', cost: 5_000_000, tier: 0, note: 'Server heat warms the town.' },
-  { key: 'turbines', name: 'Gas turbines', cost: 18_000_000, tier: 1, note: '+12 MW on site. Loud, and burns gas.' },
+  { key: 'turbines', name: 'Gas turbines', cost: 18_000_000, tier: 1, note: '+12 MW on site each. Loud, and burns gas.' },
   { key: 'liquid', name: 'Liquid cooling', cost: 25_000_000, tier: 2, note: 'For dense chips. Cooling +50%, less water.' },
   { key: 'smr', name: 'Small reactor', cost: SMR_COST, tier: 3, note: `+60 MW of clean power. ${SMR_MONTHS / 12} years to build.` },
 ];
@@ -131,7 +131,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact(s, l)) {
   const floors = s.floors.filter(f => f.done).length;
   const techs = locals(s), hoped = hopedJobs(s);
-  const loud = (Math.max(0, floors - 5) * 1.2 + (s.up.turbines ? 6 : 0)) * (s.up.soundWalls ? 0.4 : 1);
+  const loud = (Math.max(0, floors - 5) * 1.2 + Math.min(12, turbineCount(s) * 5)) * (s.up.soundWalls ? 0.4 : 1);
   const parts: MoodPart[] = [
     { key: 'jobs', label: 'Jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 8)), note: `${techs} of ${hoped} hoped-for jobs went to locals` },
     { key: 'noise', label: 'Noise', value: -Math.round(clamp(loud, 0, 18)), note: s.up.soundWalls ? 'Sound wall up' : `${floors} floors of fans${s.up.turbines ? ' and turbines' : ''}` },

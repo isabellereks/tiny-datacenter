@@ -1,6 +1,6 @@
 import { CHIPS, CHIP_EVERY, CUSTS, GRID_ASK, HYPERSCALERS, LIQUID_GEN, LOCS, TIERS, TYPES, type CustKey } from './data';
 import {
-  allocate, chipValue, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
+  allocate, bOf, busy, chipValue, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
   type Deal, type GameState, type Ledger, type Need, type Offer,
 } from './state';
 
@@ -105,7 +105,7 @@ export const staleHalls = (s: GameState) => s.floors.filter(f => f.done && f.typ
 export const refreshCost = (s: GameState) => today(s, TYPES.hall.cost * 0.7 * (1 + 0.25 * (s.chip - 1)));
 export const canRefresh = (s: GameState, i: number) => {
   const f = s.floors[i];
-  return !!f && f.done && f.type === 'hall' && genOf(f) < fitGen(s) && !s.build;
+  return !!f && f.done && f.type === 'hall' && genOf(f) < fitGen(s) && !busy(s, bOf(s, i));
 };
 
 // ---------- the grid queue ----------
@@ -124,8 +124,38 @@ export function requestGrid(s: GameState, mw: number) {
   if (gridBlock(s) || mw > gridAsk(s) || s.cash < fee) return false;
   s.cash -= fee;
   const wait = gridWait(s, mw);
-  s.gridQueue = { mw, done: s.month + wait };
+  s.gridQueue = { mw, done: s.month + wait, from: s.month };
   note(s, `Joined the ${LOCS[s.loc].gov.utility} queue for ${mw} MW. About ${wait} months`);
+  return true;
+}
+
+/** The utility's real steps for a new connection, and where you are in them. */
+const STAGES = ['Feasibility study', 'System impact study', 'Facilities study', 'Building the substation', 'Energizing'];
+export function gridStage(s: GameState) {
+  const q = s.gridQueue;
+  if (!q) return null;
+  const from = q.from ?? q.done - 24;
+  const k = Math.max(0, Math.min(0.999, (s.month - from) / Math.max(1, q.done - from)));
+  return { name: STAGES[Math.floor(k * STAGES.length)], step: Math.floor(k * STAGES.length) + 1, of: STAGES.length, left: Math.max(1, Math.ceil(q.done - s.month)) };
+}
+/** Paying for the substation and lines yourself: the utility moves you up. */
+export const fastTrackCost = (s: GameState) => (s.gridQueue ? today(s, 1_500_000 * s.gridQueue.mw) : 0);
+export function fastTrack(s: GameState) {
+  const q = s.gridQueue, cost = fastTrackCost(s);
+  if (!q || q.paid || q.flex || s.cash < cost) return false;
+  s.cash -= cost;
+  q.paid = true;
+  q.done = s.month + Math.max(2, Math.round((q.done - s.month) * 0.6));
+  note(s, `Paid for your own substation. Connected in about ${Math.ceil(q.done - s.month)} months`);
+  return true;
+}
+/** A flexible connection: power in months, not years, but the utility can cut you at peak times. */
+export function flexConnect(s: GameState) {
+  const q = s.gridQueue;
+  if (!q || q.flex) return false;
+  q.flex = true;
+  q.done = Math.min(q.done, s.month + 6);
+  note(s, `Took a flexible connection. ${q.mw} MW in about ${Math.ceil(q.done - s.month)} months, cut back at peaks`);
   return true;
 }
 
@@ -179,6 +209,8 @@ export function dealsMonth(s: GameState, l: Ledger) {
   // the utility connects you when your turn comes
   if (s.gridQueue && s.month >= s.gridQueue.done) {
     s.gridAdded += s.gridQueue.mw;
+    // a flexible connection means the grid operator can curtail you at peaks, for good
+    if (s.gridQueue.flex && !hasLaw(s, 'curtail')) s.laws.push({ id: 'curtail', until: 1e9 });
     headline(s, 'Local news', `${LOCS[s.loc].gov.utility} connects ${s.gridQueue.mw} MW to ${siteName(s)}`, ['New lines and a substation are live', 'Neighbors ask who pays for it']);
     s.gridQueue = null;
   }

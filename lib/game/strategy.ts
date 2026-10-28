@@ -252,6 +252,12 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
     }
   }
 
+  // supply chains: big transformers can be backordered for a year or more
+  if (m >= 18 && (s.shortageUntil ?? 0) <= s.month && Math.random() < 0.02) {
+    s.shortageUntil = s.month + 12 + Math.round(Math.random() * 12);
+    headline(s, 'Business news', 'Transformer shortage hits datacenters', ['Lead times for big transformers double', 'Power floors take twice as long to build', 'Utilities blame the AI boom']);
+  }
+
   // things that come back years later
   if (s.strikes > 0 && !s.fired.includes('seed-diesel')) { s.fired.push('seed-diesel'); s.seeds.push({ id: 'dieselSuit', at: s.month + 36 + Math.random() * 24 }); }
   if (i.cleared >= 15 && !s.fired.includes('seed-flood')) { s.fired.push('seed-flood'); s.seeds.push({ id: 'flood', at: s.month + 24 + Math.random() * 18 }); }
@@ -294,6 +300,10 @@ export function briefing(s: GameState): Brief[] {
     },
     { label: 'Rival', value: s.rival ? `${s.rival.name}, ${Math.round(s.rival.mw)} MW vs your ${l.itMW.toFixed(0)}` : s.fired.includes('rivalBeaten') ? 'Gone. You won the town' : 'None yet', bad: !!s.rival && s.rival.mw > l.itMW },
     { label: 'Debt', value: s.loans.length ? `${money(debt(s))}, ${money(s.loans.reduce((t, x) => t + x.payment, 0))}/mo` : 'None', bad: debt(s) > assets(s) * 0.5 },
-    { label: 'Lawsuit risk', value: s.seeds.length ? 'Something is brewing' : 'Quiet', bad: s.seeds.length > 0 },
+    {
+      label: 'Lawyers',
+      value: s.seeds.length ? s.seeds.map(x => ({ dieselSuit: 'Neighbors are logging your generator runs', flood: 'Downhill homeowners are counting the trees you cut', sleepStudy: 'A university is studying the hum' }[x.id] ?? 'Someone is asking questions')).join('. ') : 'Quiet',
+      bad: s.seeds.length > 0,
+    },
   ];
 }

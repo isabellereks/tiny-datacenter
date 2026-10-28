@@ -5,9 +5,9 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
-import { anchorDeal, canRefresh, decline, endDeal, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
+import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, fitGen, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { buildCost, buildingCost, buildMonths, busy, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -36,6 +36,8 @@ export type Action =
   | { type: 'hints'; on: boolean }
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
+  | { type: 'addUnit'; key: 'turbines' | 'solar' }
+  | { type: 'gridFast'; how: 'pay' | 'flex' }
   | { type: 'permit'; key: PermitKey }
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
@@ -131,14 +133,14 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'build': {
       const cost = buildCost(s);
-      if (s.cash < cost || s.build || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
+      if (s.cash < cost || busy(s, s.bld) || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
       s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld, gen: s.next === 'hall' ? fitGen(s) : undefined });
-      startBuild(s, 1800);
+      s.jobs = [...(s.jobs ?? []), { idx: i, from: s.month, to: s.month + buildMonths(s, s.next), what: 'build' }];
       s.sel = i;
       s.stageMonth = s.month;
-      note(s, `Building a ${TYPES[s.next].name.toLowerCase()}`);
+      note(s, `Building a ${TYPES[s.next].name.toLowerCase()}: ${buildMonths(s, s.next)} months`);
       return { rebuild: true, refit: true };
     }
     case 'fill':
@@ -199,7 +201,7 @@ export function apply(s: GameState, a: Action): Effects {
         return { rebuild: true };
       }
       const cost = foundationUpgradeCost(s, a.found);
-      if (s.phase !== 'play' || F.max <= FOUNDS[s.found].max || s.cash < cost || s.build || !zoningAllows(s, a.found)) return {};
+      if (s.phase !== 'play' || F.max <= FOUNDS[s.found].max || s.cash < cost || (s.jobs ?? []).length || !zoningAllows(s, a.found)) return {};
       s.cash -= cost;
       s.found = a.found;
       s.stageMonth = s.month;
@@ -223,6 +225,20 @@ export function apply(s: GameState, a: Action): Effects {
       s.cash -= today(s, u.cost);
       s.up[a.key] = true;
       note(s, `Built ${u.name.toLowerCase()}`);
+      return { rebuild: true };
+    }
+    case 'addUnit': {
+      // turbines and solar farms: as many as you like, a few months apart, each a little dearer
+      const u = UPGRADES.find(x => x.key === a.key);
+      const n = a.key === 'turbines' ? turbineCount(s) : solarCount(s);
+      const cost = unitCost(s, a.key, n);
+      if (!u || s.phase !== 'play' || s.tier < u.tier || s.cash < cost || (s.cooldown[`unit-${a.key}`] ?? 0) > s.month) return {};
+      s.cash -= cost;
+      s.units = { turbines: turbineCount(s), solar: solarCount(s) };
+      s.units[a.key] = n + 1;
+      s.up[a.key] = true;
+      s.cooldown[`unit-${a.key}`] = s.month + REPEAT_WAIT;
+      note(s, `${u.name}: now ${n + 1}`);
       return { rebuild: true };
     }
     case 'gift': {
@@ -251,7 +267,7 @@ export function apply(s: GameState, a: Action): Effects {
       const f = s.floors[a.floor];
       f.gen = fitGen(s);
       f.done = false;
-      s.build = { idx: a.floor, t0: Date.now(), dur: 1800 };
+      s.jobs = [...(s.jobs ?? []), { idx: a.floor, from: s.month, to: s.month + 2, what: 'refit' }];
       note(s, `Refitting ${floorLabel(s, a.floor).toLowerCase()} with new chips`);
       return { rebuild: true };
     }
@@ -309,13 +325,13 @@ export function apply(s: GameState, a: Action): Effects {
     }
     case 'addBuilding': {
       const cost = buildingCost(s);
-      if (s.phase !== 'play' || s.build || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
+      if (s.phase !== 'play' || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
       s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus, gen: fitGen(s) });
       s.bld = s.campus;
       s.campus++;
-      startBuild(s, 1800);
+      s.jobs = [...(s.jobs ?? []), { idx: s.floors.length - 1, from: s.month, to: s.month + 6, what: 'build' }];
       s.sel = s.floors.length - 1;
       s.stageMonth = s.month;
       note(s, `Building ${s.campus} started`);
@@ -334,6 +350,10 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'report':
       s.report = null;
+      return {};
+    case 'gridFast':
+      if (s.phase !== 'play') return {};
+      if (a.how === 'pay') fastTrack(s); else flexConnect(s);
       return {};
     case 'endDeal':
       if (s.phase !== 'play') return {};

@@ -367,6 +367,25 @@ export function makeRoof(s: GameState, anim: Animated, b = 0) {
   return g;
 }
 
+/** A tower crane for a building under construction: a lattice mast, and a jib the engine swings. */
+export function makeCrane(height: number) {
+  const g = new THREE.Group();
+  const h = height + 4;
+  box(g, 1.6, 0.4, 1.6, 'dark', 0, 0.2, 0);
+  for (const [a, b] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]]) box(g, 0.12, h, 0.12, MARIGOLD, a, h / 2, b);
+  for (let y = 1; y < h; y += 1.4) { box(g, 0.8, 0.08, 0.08, MARIGOLD, 0, y, -0.35); box(g, 0.8, 0.08, 0.08, MARIGOLD, 0, y, 0.35); }
+  box(g, 1, 0.9, 1, 'surf', 0, h + 0.45, 0);
+  const jib = new THREE.Group();
+  jib.position.set(0, h + 0.9, 0);
+  g.add(jib);
+  box(jib, 11, 0.35, 0.45, MARIGOLD, 3, 0.2, 0);
+  box(jib, 2, 0.8, 0.9, 'dark', -3.3, 0.1, 0);
+  cyl(jib, 0.04, 3.2, 'dark', 7, -1.6, 0, 4);
+  box(jib, 0.5, 0.3, 0.5, 'dark', 7, -3.3, 0);
+  g.userData.jib = jib;
+  return g;
+}
+
 /** A townsperson, holding a sign unless they're just out for a walk. */
 export function makePerson(shirt: string, withSign = true) {
   const g = new THREE.Group();

@@ -13,7 +13,7 @@ import {
 import {
   GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
   gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
-  hallMWOf, signedMW, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
+  allocate, buildMonths, busy, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, buildBlock, checklist, heightLimit, hallLimit,
@@ -21,7 +21,7 @@ import {
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
 import {
-  canRefresh, exitFee, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
+  canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
@@ -329,8 +329,8 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {s.hints && gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
       </div>
       {n < max ? (
-        <button className="pill white wide" disabled={!!s.build || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
-          {s.build ? 'Building…' : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}`}
+        <button className="pill white wide" disabled={busy(s, s.bld) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
+          {busy(s, s.bld) ? `Crew busy: ${Math.max(1, Math.ceil(((s.jobs ?? []).find(j => bOf(s, j.idx) === s.bld)?.to ?? s.month) - s.month))} mo left` : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
         </button>
       ) : (
         <div className="note">
@@ -339,7 +339,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         </div>
       )}
       {up && zoningAllows(s, up) && (
-        <button className="pill" disabled={s.cash < upCost || !!s.build} onClick={() => dispatch({ type: 'found', found: up })}>
+        <button className="pill" disabled={s.cash < upCost || !!(s.jobs ?? []).length} onClick={() => dispatch({ type: 'found', found: up })}>
           {FOUNDS[up].name}, up to {FOUNDS[up].max} floors  {money(upCost)}
         </button>
       )}
@@ -349,6 +349,17 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       <div className="ups">
         {UPGRADES.map(u => {
           const locked = s.tier < u.tier;
+          if (u.key === 'turbines' || u.key === 'solar') {
+            const n = u.key === 'turbines' ? turbineCount(s) : solarCount(s);
+            const cost = unitCost(s, u.key, n);
+            const wait = Math.max(0, Math.ceil((s.cooldown[`unit-${u.key}`] ?? 0) - s.month));
+            return (
+              <button key={u.key} className="up" disabled={locked || wait > 0 || s.cash < cost} onClick={() => dispatch({ type: 'addUnit', key: u.key as 'turbines' | 'solar' })}>
+                <b>{u.name}{n ? ` ×${n}` : ''}</b><small>{u.note}</small>
+                <span>{locked ? `Unlocks at ${TIERS[u.tier].name.toLowerCase()}` : wait ? `Next in ${wait} mo` : money(cost)}</span>
+              </button>
+            );
+          }
           const building = u.key === 'smr' && s.smrAt !== null;
           return (
             <button key={u.key} className="up" disabled={locked || s.up[u.key] || building || s.cash < today(s, u.cost)} onClick={() => dispatch({ type: 'upgrade', key: u.key })}>
@@ -364,15 +375,29 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
 
 /** The town grid, your place in the utility's queue, and power made on site. */
 function GridPanel({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
-  const ask = gridAsk(s), block = gridBlock(s), fee = gridDeposit(s, ask);
+  const ask = gridAsk(s), block = gridBlock(s), fee = gridDeposit(s, ask), stage = gridStage(s);
   return (
     <>
       <span className="label">Grid: {GRID_LABEL[gridLevel(l.strain)]}</span>
       <Meter label="Town grid" value={l.gridMW} max={l.gridCap} text={`${l.gridMW.toFixed(1)} of ${l.gridCap.toFixed(0)} MW`} bad={l.strain >= 0.85} marks={[l.gridCap * 0.6, l.gridCap * 0.85]} />
       {l.onsite > 0 && <div className="stats"><span>{l.onsite} MW made on site</span></div>}
-      <button className="pill wide" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'grid', mw: ask })}>
-        {block ?? `Ask ${LOCS[s.loc].gov.utility} for ${ask} MW  ${money(fee)}, about ${gridWait(s, ask)} mo`}
-      </button>
+      {s.gridQueue ? (
+        <div className="queue">
+          <div className="queue-top"><b>{s.gridQueue.mw} MW from {LOCS[s.loc].gov.utility}</b><span>{stage?.left} mo</span></div>
+          <div className="queue-steps">{Array.from({ length: stage?.of ?? 5 }, (_, k) => <i key={k} className={k < (stage?.step ?? 0) ? 'on' : ''} />)}</div>
+          <small>Step {stage?.step} of {stage?.of}: {stage?.name}{s.gridQueue.flex ? '. Flexible connection' : s.gridQueue.paid ? '. You paid for the substation' : ''}</small>
+          {!s.gridQueue.paid && !s.gridQueue.flex && (
+            <div className="queue-acts">
+              <button className="pill" disabled={s.cash < fastTrackCost(s)} onClick={() => dispatch({ type: 'gridFast', how: 'pay' })}>Pay for the substation  {money(fastTrackCost(s))}</button>
+              <button className="pill" onClick={() => dispatch({ type: 'gridFast', how: 'flex' })} title="The grid operator can cut you back at peak times, for good">Flexible connection</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <button className="pill wide" disabled={!!block || s.cash < fee} onClick={() => dispatch({ type: 'grid', mw: ask })}>
+          {block ?? `Ask ${LOCS[s.loc].gov.utility} for ${ask} MW  ${money(fee)}, about ${gridWait(s, ask)} mo`}
+        </button>
+      )}
     </>
   );
 }
@@ -382,7 +407,7 @@ function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => v
   const cost = buildingCost(s);
   const allowed = s.campus <= s.permits.campus;
   return (
-    <button className="pill wide" disabled={!allowed || !!s.build || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
+    <button className="pill wide" disabled={!allowed || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
       {allowed ? `New building ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}` : `Building ${s.campus + 1} needs site plan approval (Gov tab)`}
     </button>
   );
@@ -392,7 +417,7 @@ function FloorTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const i = Math.min(s.sel, s.floors.length - 1);
   const f = s.floors[i];
   const status = (k: number, x: Floor) =>
-    !x.done ? 'Building' : isBroken(s, k) ? 'Down' : x.type === 'hall' ? (techsOn(s, k) ? `${Math.round(utilization(s, k) * 100)}%` : 'Off') : '';
+    !x.done ? `${Math.max(1, Math.ceil((jobOn(s, k)?.to ?? s.month) - s.month))} mo` : isBroken(s, k) ? 'Down' : x.type === 'hall' ? (techsOn(s, k) ? `${Math.round(utilization(s, k) * 100)}%` : 'Off') : '';
   return (
     <div className="fgrid">
       <ol className="flist" aria-label="Floors">
@@ -560,6 +585,8 @@ function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dis
   const [sure, setSure] = useState(false);
   const fee = exitFee(s, d);
   const waiting = d.start > s.month;
+  // customers pay for the power you deliver, served in the order they signed
+  const got = allocate(s, l.itMW).find(x => x.d.id === d.id)?.got ?? 0;
   const yrs = Math.max(0, (d.until - s.month) / 12);
   return (
     <div className={`deal${d.strikes ? ' hurt' : ''}`}>
@@ -568,8 +595,8 @@ function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dis
         <span>{waiting ? `Moves in ${Math.ceil(d.start - s.month)} mo` : `${yrs < 1 ? `${Math.ceil(yrs * 12)} mo` : `${yrs.toFixed(1)} yrs`} left`}</span>
       </div>
       <div className="deal-nums">
-        <span><b>{d.mw} MW</b></span>
-        <span>{money(d.mw * 1000 * dealPrice(s, d))}/mo</span>
+        <span><b>{waiting ? d.mw : got.toFixed(1)}</b>{waiting ? ' MW' : ` of ${d.mw} MW`}</span>
+        <span>{waiting ? `${money(d.mw * 1000 * dealPrice(s, d))}/mo` : <><b>{money(got * 1000 * dealPrice(s, d) * l.chipValue)}</b>/mo of {money(d.mw * 1000 * dealPrice(s, d))}</>}</span>
         {d.strikes > 0 && <span className="bad">Strikes {d.strikes}/3</span>}
       </div>
       <Needs needs={d.needs} />

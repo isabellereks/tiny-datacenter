@@ -195,12 +195,13 @@ export const HYPERSCALERS = ['Amazin Web Services', 'Macrohard Azul', 'Gaggle Cl
 
 /** Chip generations. Each one packs more power into a hall; customers pay less for older chips. */
 export const CHIPS: { name: string; mw: number }[] = [
-  { name: 'CPU racks', mw: 2 },
-  { name: 'GPU racks', mw: 3 },
-  { name: 'Dense GPU racks', mw: 4.5 },
-  { name: 'Liquid-cooled GPUs', mw: 6.5 },
-  { name: 'Rack-scale AI', mw: 9 },
-  { name: 'Wafer-scale AI', mw: 12 },
+  // rack power roughly follows real hardware: CPU servers about 8 kW a rack, the newest AI racks over 100 kW
+  { name: 'CPU servers', mw: 2 },
+  { name: 'A100-class GPUs', mw: 3 },
+  { name: 'H100-class GPUs', mw: 4.5 },
+  { name: 'B200-class GPUs', mw: 6.5 },
+  { name: 'GB300-class racks', mw: 9 },
+  { name: 'Next-gen AI racks', mw: 12 },
 ];
 /** Chips from this generation on need liquid cooling. */
 export const LIQUID_GEN = 3;
