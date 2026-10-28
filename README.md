@@ -4,19 +4,30 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 
 ## How to play
 
-**Set up.** You get a $250M budget. Pick a location, a foundation, a shape, your first floors, your first customer and colors, then apply for a building permit with your datacenter's name and yours. The forecast shows profit, power, cooling and trees cut as you go. Whatever you don't spend is your starting cash.
+**Set up.** You get a $250M budget. Pick a location (tap one to see what it's like), a foundation, a shape, your first floors, your first customer and colors, then apply for a building permit with your datacenter's name and yours. Whatever you don't spend is your starting cash.
 
-**Run it.** The bar at the top shows the month, your cash, profit per month and trust. The button on its right pauses and fast-forwards (space pauses, 1 to 3 pick a speed); a month takes 8 seconds at normal speed. Tap the bar for the controls. A goal card at the bottom tells you what to do next. Letters, calls, briefings and new tiers pause the game, and only one comes at a time.
+**Run it.** The bar at the top shows the month, your cash, profit per month and trust. The button on its right pauses and fast-forwards (space pauses, 1 to 3 pick a speed); a month takes 8 seconds at normal speed. Tap the bar for the controls: a panel on the right on a computer, a sheet from the bottom on a phone. A goal card says what to aim for next and where to look. Letters, calls, reports, briefings and new tiers pause the game, and only one comes at a time.
+
+**Hints.** The game shows prices and results, like a real business. Turn on Hints in settings to also see predictions: what a floor or hire does to your monthly profit, where trust and morale are heading and why, and when the moratorium bill will pass.
+
+**Money is close to real.** A datacenter costs about $8M per MW to build. Customers pay about $140 to $220 per kW a month. Banks lend interest-only construction loans against what you've built and the leases you've signed, about 6.5% in normal times. Every three months you get a statement: income, every cost, what you spent building, and the quarter's profit or loss.
 
 ### The loop
 
 1. **Customers.** Your first customer signs a 3-year deal at opening. New offers arrive every few months in the Deals tab: who they are, how many MW, what they pay, for how long, and when they move in. Some need clean power, no outages or the newest chips. Sign the ones you can supply by their move-in date. If you can't deliver the power you promised, you pay credits (never more than they paid that month) and get a strike; three strikes and they leave. Spare capacity sells on the spot market, cheaply. Deal prices rise 2.5% a year, like real contracts.
-2. **Build.** Server halls hold the chips. Power and cooling floors each support 10 MW of halls. Techs keep halls running: a hall with no techs is off, and three fill it. Network floors make customers pay more; break rooms make techs faster.
+2. **Build.** Server halls hold the chips. Power and cooling floors each support 10 MW of halls. Building takes months: a hall 3, cooling 3, power 6 (longer in a transformer shortage). You have two construction crews and can hire more. A crane stands on site while they work. Techs keep halls running: a hall with no techs is off, and three fill it. Network floors make customers pay more; break rooms make techs faster.
 3. **Chips.** A new chip generation ships every couple of years. Halls keep the chips they were fitted with, so customers pay less for older halls (10% less per generation) and old chips fail more. Refit a hall with new chips from the Floors tab. From the fourth generation on, chips need liquid cooling.
-4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait, from 9 months in Texas to 5 years in Dublin. In the meantime you can make power on site: solar, batteries, gas turbines, and at the top a small nuclear reactor.
+4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait through its studies, from 9 months in Texas to 5 years in Dublin. Pay for the substation yourself to go faster, or take a flexible connection that arrives in months but can be cut at peaks. Meanwhile you can make power on site: solar farms and gas turbines (as many as you like, a few months apart), batteries, and at the top a small nuclear reactor.
 5. **Grow.** Run more IT power to move up the tiers: edge room, colocation (6 MW), hyperscale (18 MW) and AI factory (45 MW). Each tier brings bigger customers and bigger grid requests, and unlocks gas turbines, liquid cooling and the reactor.
 
-Every month you pay for power, fuel, water, staff, upkeep, property tax, profit tax and loans. The first month you're in the red, your bank writes: refinance, take an expensive emergency loan, or go it alone. Three months in the red and you go bankrupt.
+Every month you pay for power, fuel, water, staff, upkeep, property tax, profit tax and loan interest. You can end a deal early for an exit fee. The first month you're in the red, your bank writes: a bridge loan, an expensive emergency loan, or go it alone. Three months in the red and you go bankrupt.
+
+### Surprises
+
+- **Rush orders:** when you have spare capacity, someone who needs power right now offers a lot for a few months.
+- **A rival** opens across town, wins customers while it's bigger than you, and tries to hire your techs away. Outgrow it and it leaves.
+- **Milestones** get a party: your first $1M month, 10 MW, $100M in the bank.
+- **People in town:** tap someone walking by to hear what they think.
 
 ### The town
 
