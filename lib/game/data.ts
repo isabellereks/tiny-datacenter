@@ -263,7 +263,7 @@ export const SETUP: { key: SetupStep; title: string; sub: string }[] = [
   { key: 'loc', title: 'Pick a location', sub: 'Land, power, water and taxes cost different amounts in each place.' },
   { key: 'found', title: 'Pick a foundation', sub: 'Bigger foundations hold more floors but need more land.' },
   { key: 'shape', title: 'Pick a shape', sub: 'Each shape gives a small bonus.' },
-  { key: 'height', title: 'Add floors', sub: 'To earn money you need a server hall, plus power and cooling for it.' },
+  { key: 'height', title: 'Add floors', sub: 'Stack your first floors. Each one costs a little more than the last.' },
   { key: 'cust', title: 'Pick your first customer', sub: 'They sign a 3-year deal for what your halls can run. More customers come once you open.' },
   { key: 'color', title: 'Pick colors', sub: 'Tap a floor, then pick a thread color.' },
   { key: 'name', title: 'Apply for a permit', sub: 'Name your datacenter and sign as the owner.' },

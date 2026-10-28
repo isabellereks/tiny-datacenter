@@ -55,7 +55,7 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
         <>
           <span className="goal-no">Goal {s.goal + 1}/{GOALS.length}</span>
           <b>{g.text}</b>
-          {s.goal < 4 && <p>{g.hint}</p>}
+          {s.goal < 1 && <p>{g.hint}</p>}
           <span className="reward">Reward: {money(g.reward)}</span>
         </>
       )}

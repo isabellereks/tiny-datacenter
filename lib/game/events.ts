@@ -159,7 +159,7 @@ const doneFloors = (s: GameState) => s.floors.filter(f => f.done).length;
 
 /** The first goals double as a tutorial; later ones push you through the tiers. */
 export const GOALS: Goal[] = [
-  { text: 'Hire a tech', reward: 500_000, hint: 'Halls are off without techs. Tap the server hall, then Hire.', done: s => s.workers.length > 0 },
+  { text: 'Hire a tech', reward: 500_000, hint: 'Tap a server hall.', done: s => s.workers.length > 0 },
   { text: 'Sign a customer', reward: 1_000_000, hint: 'Deals tab. Make sure you can supply the power before they move in.', done: s => s.deals.length >= 2 },
   { text: 'Make $250K profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
   { text: 'Build a second server hall', reward: 4_000_000, hint: 'Build tab.', done: s => hallCount(s) >= 2 },
