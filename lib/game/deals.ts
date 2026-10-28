@@ -62,6 +62,25 @@ export function sign(s: GameState, id: number) {
   return true;
 }
 
+/** Walking away from a deal: half of up to a year of their fees, or a month's worth if they haven't moved in yet. */
+export function exitFee(s: GameState, d: Deal) {
+  const monthly = d.mw * 1000 * d.price;
+  if (d.start > s.month) return Math.round(monthly);
+  return Math.round(monthly * 0.5 * Math.min(12, Math.max(1, d.until - s.month)));
+}
+
+export function endDeal(s: GameState, id: number) {
+  const d = s.deals.find(x => x.id === id);
+  if (!d) return false;
+  const fee = exitFee(s, d);
+  if (s.cash < fee) return false;
+  s.cash -= fee;
+  s.deals = s.deals.filter(x => x.id !== id);
+  note(s, `Ended the deal with ${d.who}: −${money(fee)}`);
+  if (d.mw >= 15) headline(s, 'Business news', `${siteName(s)} drops ${d.who}`, [`${d.mw} MW contract ended early`, `${money(fee)} paid to walk away`]);
+  return true;
+}
+
 export function decline(s: GameState, id: number) {
   const o = s.offers.find(x => x.id === id);
   if (!o) return false;

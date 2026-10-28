@@ -83,6 +83,7 @@ const paymentFor = (amount: number, rate: number, months: number) => (amount * (
 function lend(s: GameState, amount: number, rate: number, months: number) {
   s.loans.push({ id: Date.now() + Math.random(), balance: amount, rate, payment: paymentFor(amount, rate, months) });
   s.cash += amount;
+  if (s.q) s.q.borrowed += amount;
 }
 
 export function takeLoan(s: GameState, amount: number) {
@@ -91,6 +92,7 @@ export function takeLoan(s: GameState, amount: number) {
   const payment = paymentFor(amount, rate, LOAN_MONTHS);
   s.loans.push({ id: Date.now(), balance: amount, rate, payment });
   s.cash += amount;
+  if (s.q) s.q.borrowed += amount;
   note(s, `Borrowed ${money(amount)} at ${(rate * 100).toFixed(1)}%. ${money(payment)} a month for 10 years`);
   return true;
 }

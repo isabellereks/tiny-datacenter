@@ -1,4 +1,4 @@
-import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, TIERS, type FoundKey } from './data';
+import { FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, SHAPES, type FoundKey } from './data';
 import { govMonth, resolveDecision } from './gov';
 import { staffMonth } from './staff';
 import { callMonth } from './calls';
@@ -160,27 +160,27 @@ const doneFloors = (s: GameState) => s.floors.filter(f => f.done).length;
 /** The first goals double as a tutorial; later ones push you through the tiers. */
 export const GOALS: Goal[] = [
   { text: 'Hire a tech', reward: 500_000, hint: 'Tap a server hall.', done: s => s.workers.length > 0 },
-  { text: 'Sign a customer', reward: 1_000_000, hint: 'Deals tab. Make sure you can supply the power before they move in.', done: s => s.deals.length >= 2 },
-  { text: 'Make $250K profit in a month', reward: 2_000_000, hint: 'More techs, more customers.', done: s => (s.books?.net ?? 0) >= 250_000 },
+  { text: 'Sign a customer', reward: 1_000_000, hint: 'Deals tab.', done: s => s.deals.length >= 2 },
+  { text: 'Join the grid queue', reward: 2_000_000, hint: 'Build tab.', done: s => !!s.gridQueue || s.gridAdded > 0 },
+  { text: 'Make $250K profit in a month', reward: 2_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 250_000 },
   { text: 'Build a second server hall', reward: 4_000_000, hint: 'Build tab.', done: s => hallCount(s) >= 2 },
-  { text: 'Run every hall at 100%', reward: 3_000_000, hint: 'Enough power, cooling and techs.', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 && s.floors.every((f, i) => f.type !== 'hall' || !f.done || techsOn(s, i) >= MAX_TECHS) },
-  { text: 'Grow into colocation', reward: 6_000_000, hint: `Run ${TIERS[1].mw} MW at once.`, done: s => s.tier >= 1 },
-  { text: 'Join the grid queue', reward: 2_000_000, hint: 'Build tab, Grid. It takes a while, so start early.', done: s => !!s.gridQueue || s.gridAdded > 0 },
+  { text: 'Run every hall at 100%', reward: 3_000_000, hint: '', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 && s.floors.every((f, i) => f.type !== 'hall' || !f.done || techsOn(s, i) >= MAX_TECHS) },
+  { text: 'Grow into colocation', reward: 6_000_000, hint: '', done: s => s.tier >= 1 },
   { text: 'Do something for the town', reward: 1_000_000, hint: 'Town tab.', done: s => s.goodwill > 0.5 || s.up.heat || s.up.soundWalls },
-  { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab: pay, benefits, break rooms.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
-  { text: 'Serve 3 customers at once', reward: 5_000_000, hint: 'Sign more deals than you need today, then build.', done: s => liveDeals(s).length >= 3 },
-  { text: 'Refit a hall with new chips', reward: 5_000_000, hint: 'When new chips ship, tap a hall and refit it.', done: s => s.floors.some(f => (f.gen ?? 1) >= 2) },
-  { text: 'Make $1M profit in a month', reward: 10_000_000, hint: 'Full halls, full deals.', done: s => (s.books?.net ?? 0) >= 1_000_000 },
-  { text: 'Build 12 floors', reward: 15_000_000, hint: 'Taller needs permits. Check the Gov tab.', done: s => doneFloors(s) >= 12 },
-  { text: 'Grow into hyperscale', reward: 25_000_000, hint: `Run ${TIERS[2].mw} MW at once.`, done: s => s.tier >= 2 },
-  { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab: site plan approval. Then Build.', done: s => s.campus >= 2 },
-  { text: 'Install liquid cooling', reward: 10_000_000, hint: 'Build tab, Projects.', done: s => s.up.liquid },
-  { text: 'Reach year 10 with trust above 60', reward: 40_000_000, hint: 'Grow without losing the town.', done: s => s.month >= 108 && s.trust > 60 },
-  { text: 'Make $5M profit in a month', reward: 40_000_000, hint: 'Hyperscale deals and new chips.', done: s => (s.books?.net ?? 0) >= 5_000_000 },
-  { text: 'Make it through an AI crash', reward: 30_000_000, hint: 'Long deals keep paying when the market falls.', done: s => s.fired.includes('glutSurvived') },
-  { text: 'Grow into an AI factory', reward: 100_000_000, hint: `Run ${TIERS[3].mw} MW at once.`, done: s => s.tier >= 3 },
-  { text: 'Switch on your own reactor', reward: 100_000_000, hint: 'Build tab, Projects.', done: s => s.up.smr },
-  { text: 'Build 40 floors', reward: 150_000_000, hint: 'Needs deep caissons and a skyscraper review.', done: s => doneFloors(s) >= 40 },
+  { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
+  { text: 'Serve 3 customers at once', reward: 5_000_000, hint: 'Deals tab.', done: s => liveDeals(s).length >= 3 },
+  { text: 'Refit a hall with new chips', reward: 5_000_000, hint: 'Floors tab.', done: s => s.floors.some(f => (f.gen ?? 1) >= 2) },
+  { text: 'Make $1M profit in a month', reward: 10_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 1_000_000 },
+  { text: 'Build 12 floors', reward: 15_000_000, hint: '', done: s => doneFloors(s) >= 12 },
+  { text: 'Grow into hyperscale', reward: 25_000_000, hint: '', done: s => s.tier >= 2 },
+  { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab, then Build.', done: s => s.campus >= 2 },
+  { text: 'Install liquid cooling', reward: 10_000_000, hint: 'Build tab.', done: s => s.up.liquid },
+  { text: 'Reach year 10 with trust above 60', reward: 40_000_000, hint: '', done: s => s.month >= 108 && s.trust > 60 },
+  { text: 'Make $5M profit in a month', reward: 40_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 5_000_000 },
+  { text: 'Make it through an AI crash', reward: 30_000_000, hint: '', done: s => s.fired.includes('glutSurvived') },
+  { text: 'Grow into an AI factory', reward: 100_000_000, hint: '', done: s => s.tier >= 3 },
+  { text: 'Switch on your own reactor', reward: 100_000_000, hint: 'Build tab.', done: s => s.up.smr },
+  { text: 'Build 40 floors', reward: 150_000_000, hint: '', done: s => doneFloors(s) >= 40 },
 ];
 
 /** Checks the current goal and pays out when it's met. */
@@ -188,6 +188,7 @@ export function checkGoal(s: GameState, l: Ledger) {
   const g = GOALS[s.goal];
   if (!g || !g.done(s, l)) return false;
   s.cash += g.reward;
+  if (s.q) s.q.rewards += g.reward;
   s.goal++;
   s.tally.goals++;
   note(s, `Goal complete: +${money(g.reward)}`);
@@ -246,6 +247,7 @@ export function endOfMonth(s: GameState) {
 
   // every system runs every month; the first one with a question gets to ask it
   dealsMonth(s, l);
+  quarterMonth(s, l);
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l)];
   // the bank calls the first month you're in the red, before anything else
   const rescue = s.debt === 1 && (s.cooldown.rescue ?? 0) <= s.month ? 'rescue' : null;
@@ -259,7 +261,43 @@ export function endOfMonth(s: GameState) {
     const c = COMPLAINTS.find(x => (s.cooldown[x.id] ?? 0) <= s.month && x.active(s, i, l) && atSize >= x.wait);
     if (c) s.complaint = c.id;
   }
-  if (!s.complaint && !s.briefing && s.tierUp === null && s.month >= s.calm) callMonth(s);
+  if (!s.complaint && !s.briefing && !s.report && s.tierUp === null && s.month >= s.calm) callMonth(s);
+}
+
+const Q_LINES: { key: keyof Ledger; label: string; income?: boolean }[] = [
+  { key: 'dealIncome', label: 'Customers', income: true },
+  { key: 'spot', label: 'Spot market', income: true },
+  { key: 'sla', label: 'Credits to customers' },
+  { key: 'power', label: 'Power' },
+  { key: 'fuel', label: 'Fuel' },
+  { key: 'water', label: 'Water' },
+  { key: 'staff', label: 'Staff' },
+  { key: 'upkeep', label: 'Upkeep' },
+  { key: 'propertyTax', label: 'Property tax' },
+  { key: 'incomeTax', label: 'Profit tax' },
+  { key: 'interest', label: 'Loan interest' },
+  { key: 'principal', label: 'Loan principal' },
+];
+
+/** Adds the month to the quarter, and every three months writes up the statement. */
+function quarterMonth(s: GameState, l: Ledger) {
+  s.q ??= { cash0: s.cash, sums: {}, rewards: 0, borrowed: 0 };
+  for (const x of Q_LINES) s.q.sums[x.key] = (s.q.sums[x.key] ?? 0) + Number(l[x.key]);
+  const m = Math.floor(s.month);
+  if (m % 3 !== 0 || m === 0) return;
+  const q = s.q;
+  const income = Q_LINES.filter(x => x.income && q.sums[x.key] > 0).map(x => ({ label: x.label, value: q.sums[x.key] }));
+  const costs = Q_LINES.filter(x => !x.income && q.sums[x.key] > 0).map(x => ({ label: x.label, value: q.sums[x.key] }));
+  const operating = income.reduce((t, x) => t + x.value, 0) - costs.reduce((t, x) => t + x.value, 0);
+  const change = s.cash - q.cash0;
+  const spent = Math.min(0, change - operating - q.rewards - q.borrowed);
+  const qn = Math.floor(((m - 1) % 12) / 3) + 1;
+  s.report = {
+    label: `Q${qn}, year ${Math.floor((m - 1) / 12) + 1}`, income, costs, operating, spent: -spent, rewards: q.rewards, borrowed: q.borrowed,
+    change, prev: s.lastQuarter ?? null,
+  };
+  s.lastQuarter = change;
+  s.q = { cash0: s.cash, sums: {}, rewards: 0, borrowed: 0 };
 }
 
 export function resolveComplaint(s: GameState, choice: number) {

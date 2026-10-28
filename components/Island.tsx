@@ -21,7 +21,7 @@ import {
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
 import {
-  canRefresh, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
+  canRefresh, exitFee, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
@@ -519,9 +519,9 @@ function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       {s.offers.length > 0 && <span className="label">Offers</span>}
       {s.offers.map(o => <OfferCard key={o.id} s={s} o={o} can={can} dispatch={dispatch} />)}
       {live.length > 0 && <span className="label">Customers</span>}
-      {live.map(d => <DealCard key={d.id} s={s} d={d} l={l} />)}
+      {live.map(d => <DealCard key={d.id} s={s} d={d} l={l} dispatch={dispatch} />)}
       {waiting.length > 0 && <span className="label">Moving in</span>}
-      {waiting.map(d => <DealCard key={d.id} s={s} d={d} l={l} />)}
+      {waiting.map(d => <DealCard key={d.id} s={s} d={d} l={l} dispatch={dispatch} />)}
     </>
   );
 }
@@ -556,7 +556,9 @@ function OfferCard({ s, o, can, dispatch }: { s: GameState; o: Offer; can: numbe
   );
 }
 
-function DealCard({ s, d, l }: { s: GameState; d: Deal; l: Ledger }) {
+function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dispatch: (a: Action) => void }) {
+  const [sure, setSure] = useState(false);
+  const fee = exitFee(s, d);
   const waiting = d.start > s.month;
   const yrs = Math.max(0, (d.until - s.month) / 12);
   return (
@@ -572,6 +574,13 @@ function DealCard({ s, d, l }: { s: GameState; d: Deal; l: Ledger }) {
       </div>
       <Needs needs={d.needs} />
       {!waiting && l.chipValue < 0.99 && d.needs.includes('fresh') && <small className="bad">Paying 20% less for old chips</small>}
+      <div className="deal-foot">
+        <span />
+        <button className={`pill${sure ? ' danger' : ''}`} disabled={s.cash < fee}
+          onClick={() => { if (sure) dispatch({ type: 'endDeal', id: d.id }); else { setSure(true); window.setTimeout(() => setSure(false), 3000); } }}>
+          {sure ? `Tap again to pay ${money(fee)}` : `End deal  ${money(fee)}`}
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
-import { anchorDeal, canRefresh, decline, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
+import { anchorDeal, canRefresh, decline, endDeal, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
 import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { buildCost, buildingCost, fitGen, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
@@ -34,6 +34,8 @@ export type Action =
   | { type: 'tierSeen' }
   | { type: 'mute'; on: boolean }
   | { type: 'hints'; on: boolean }
+  | { type: 'report' }
+  | { type: 'endDeal'; id: number }
   | { type: 'permit'; key: PermitKey }
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
@@ -328,6 +330,14 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'briefing':
       s.briefing = false;
+      s.report = null;
+      return {};
+    case 'report':
+      s.report = null;
+      return {};
+    case 'endDeal':
+      if (s.phase !== 'play') return {};
+      endDeal(s, a.id);
       return {};
     case 'call': {
       const c = s.call;

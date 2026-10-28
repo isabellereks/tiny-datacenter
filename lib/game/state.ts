@@ -7,6 +7,19 @@ import {
 /** `b` is which building on the campus the floor is in (older saves: 0). */
 import type { Call } from './calls';
 
+/** A quarter's statement: what came in, what went out, and the change in cash. */
+export interface QuarterReport {
+  label: string;
+  income: { label: string; value: number }[];
+  costs: { label: string; value: number }[];
+  operating: number;
+  /** building, refits, hires, projects, permits, fines and gifts */
+  spent: number;
+  rewards: number; borrowed: number;
+  change: number;
+  prev: number | null;
+}
+
 /** A bank loan, paid back in equal monthly payments. */
 export interface Loan { id: number; balance: number; rate: number; payment: number }
 
@@ -124,6 +137,12 @@ export interface GameState {
   heard?: string[];
   /** hints on: show predictions (profit changes, targets, forecasts), not just prices and results */
   hints?: boolean;
+  /** this quarter so far: cash at the start, the books added up, and money from rewards and loans */
+  q?: { cash0: number; sums: Record<string, number>; rewards: number; borrowed: number };
+  /** the last quarter's statement, while it's on screen */
+  report?: QuarterReport | null;
+  /** last quarter's profit or loss, to compare against */
+  lastQuarter?: number | null;
   /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
   gridLevel: number;
   up: Upgrades;
