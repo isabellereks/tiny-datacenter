@@ -122,6 +122,8 @@ export interface GameState {
   muted: boolean;
   /** recent calls: topics, callers and lines, so the phone doesn't repeat itself */
   heard?: string[];
+  /** hints on: show predictions (profit changes, targets, forecasts), not just prices and results */
+  hints?: boolean;
   /** how hard you push the town grid: 0 fine, 1 tight, 2 brownouts, 3 blackouts */
   gridLevel: number;
   up: Upgrades;
@@ -319,7 +321,8 @@ export const payroll = (s: GameState) =>
 /** A work visa: filing and legal fees when you hire, then again every year. */
 export const VISA_FEE = 10_000;
 /** Recruiting gets harder as you hire more; overseas hires also pay the first year's visa. */
-export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) + (abroad ? VISA_FEE : 0));
+// an overseas agency recruits for less than a local search; the visa is on top
+export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) * (abroad ? 0.35 : 1) + (abroad ? VISA_FEE : 0));
 
 /** What the AI market pays compared to normal. */
 export const MARKET_MULT = { normal: 1, boom: 1.3, glut: 0.65 } as const;

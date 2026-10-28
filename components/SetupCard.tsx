@@ -190,7 +190,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
       </div>
 
       {s.step !== 'name' && s.step !== 'loc' && <div className="forecast" aria-label="Forecast">
-        <Fact label="Profit/mo">{hasHall && l.eff > 0 ? <Cash className={l.net < 0 ? 'neg' : undefined} value={l.net} /> : <span className="neg">$0</span>}</Fact>
+        <Fact label="Build cost">{money(cost.floors + cost.found + cost.shape)}</Fact>
         <Fact label="Power">{l.hallMW.toFixed(1)} / {l.powerMW.toFixed(1)} MW</Fact>
         <Fact label="Cooling">{l.hallMW.toFixed(1)} / {l.coolMW.toFixed(1)} MW</Fact>
         <Fact label="Trees cut">{imp.cleared}/{imp.trees}</Fact>

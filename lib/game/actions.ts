@@ -33,6 +33,7 @@ export type Action =
   | { type: 'grid'; mw: number }
   | { type: 'tierSeen' }
   | { type: 'mute'; on: boolean }
+  | { type: 'hints'; on: boolean }
   | { type: 'permit'; key: PermitKey }
   | { type: 'pay'; level: number }
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
@@ -261,6 +262,9 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'mute':
       s.muted = a.on;
+      return {};
+    case 'hints':
+      s.hints = a.on;
       return {};
     case 'permit':
       if (s.phase !== 'play') return {};

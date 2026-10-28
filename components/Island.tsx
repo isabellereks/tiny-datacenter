@@ -265,6 +265,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
               <Chip on={s.spin} onClick={() => dispatch({ type: 'spin', on: !s.spin })}><b>Rotate</b></Chip>
               <Chip on={s.smoke} onClick={() => dispatch({ type: 'smoke', on: !s.smoke })}><b>Steam</b></Chip>
               <Chip on={!s.muted} onClick={() => dispatch({ type: 'mute', on: !s.muted })}><b>Sound</b></Chip>
+              <Chip on={!!s.hints} onClick={() => dispatch({ type: 'hints', on: !s.hints })}><b>Hints</b></Chip>
               <Chip onClick={onResetView}><b>Reset view</b></Chip>
             </div>
             <span className="label">Stitch size</span>
@@ -317,15 +318,15 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
           <Chip key={t} on={s.next === t} onClick={() => dispatch({ type: 'next', floor: t })}>
             <b>{TYPES[t].name}</b>
             <small className="chip-price">{money(today(s, floorPrice(s.loc, t, n)))}</small>
-            <Delta n={deltas[t]} />
+            {s.hints && <Delta n={deltas[t]} />}
           </Chip>
         ))}
       </div>
       <div className="stats">
         <span>{floorEffect(s, s.next)}</span>
-        {after.eff < l.eff - 0.001 && <span className="bad">Halls {Math.round(l.eff * 100)}% → {Math.round(after.eff * 100)}%</span>}
-        {after.eff > l.eff + 0.001 && <span className="good">Halls {Math.round(l.eff * 100)}% → {Math.round(after.eff * 100)}%</span>}
-        {gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
+        {s.hints && after.eff < l.eff - 0.001 && <span className="bad">Halls {Math.round(l.eff * 100)}% → {Math.round(after.eff * 100)}%</span>}
+        {s.hints && after.eff > l.eff + 0.001 && <span className="good">Halls {Math.round(l.eff * 100)}% → {Math.round(after.eff * 100)}%</span>}
+        {s.hints && gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
       </div>
       {n < max ? (
         <button className="pill white wide" disabled={!!s.build || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
@@ -447,10 +448,10 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
             {techs < MAX_TECHS ? (
               <span className="hires">
                 <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })} title="Counts as a town job">
-                  Local {money(hireFee(s))} <span className="cost">{perMonth(hireDelta(s, i))}</span>
+                  Local {money(hireFee(s))} <span className="cost">{s.hints ? perMonth(hireDelta(s, i)) : `${money(today(s, wageFor(s)))}/mo`}</span>
                 </button>
                 <button className="pill" disabled={s.cash < hireFee(s, true)} onClick={() => dispatch({ type: 'hire', overseas: true })} title={`Half the wage, ${money(today(s, VISA_FEE))} visa a year`}>
-                  Overseas {money(hireFee(s, true))} <span className="cost">{perMonth(hireDelta(s, i, true))}</span>
+                  Overseas {money(hireFee(s, true))} <span className="cost">{s.hints ? perMonth(hireDelta(s, i, true)) : `${money(today(s, overseasWage(s)))}/mo`}</span>
                 </button>
               </span>
             ) : <span className="muted">Full crew</span>}
@@ -590,15 +591,15 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
           <button className="pill white" onClick={() => dispatch({ type: 'settle' })} title="Pay +10%, union, health and retirement">Settle</button>
         </div>
       )}
-      <Meter label="Morale" value={S.morale} max={100} text={`${Math.round(S.morale)} ${dir} ${Math.round(mood.target)}`} bad={S.morale < 35} marks={[mood.target]} />
-      <Why label="Why">
+      <Meter label="Morale" value={S.morale} max={100} text={s.hints ? `${Math.round(S.morale)} ${dir} ${Math.round(mood.target)}` : `${Math.round(S.morale)}`} bad={S.morale < 35} marks={s.hints ? [mood.target] : []} />
+      {s.hints && <Why label="Why">
         <div className="books">
           <Row label="Base" value={String(mood.base)} />
           {[...mood.parts].sort((a, b) => a.value - b.value).map(p => (
             <Row key={p.label} label={p.label} sub={` ${p.note}`} value={signed(p.value)} neg={p.value < 0} />
           ))}
         </div>
-      </Why>
+      </Why>}
 
       <span className="label">Pay</span>
       <div className="seg three" role="group" aria-label="Pay">
@@ -673,7 +674,7 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         <Row label="Profit" value={money(books.net)} strong neg={books.net < 0} />
       </div>
       <FinancePanel s={s} dispatch={dispatch} />
-      <Why label={`Rating ${r.total}/100`}>
+      {s.hints && <Why label={`Rating ${r.total}/100`}>
         <div className="books">
           <Row label="Trust" value={`${r.parts.trust}/30`} />
           <Row label="Profit margin" value={`${r.parts.profit}/25`} />
@@ -682,7 +683,7 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
           <Row label="Grid" value={`${r.parts.grid}/10`} />
           <Row label="Costs since opening" value={`×${inflation(s).toFixed(2)}`} />
         </div>
-      </Why>
+      </Why>}
     </>
   );
 }
@@ -693,11 +694,11 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
   const dir = mood.target > s.trust + 1 ? '▲' : mood.target < s.trust - 1 ? '▼' : '–';
   return (
     <>
-      <Meter label="Trust" value={s.trust} max={100} text={`${Math.round(s.trust)} ${dir} ${Math.round(mood.target)}`} bad={s.trust < 40} marks={[mood.target]} />
+      <Meter label="Trust" value={s.trust} max={100} text={s.hints ? `${Math.round(s.trust)} ${dir} ${Math.round(mood.target)}` : `${Math.round(s.trust)}`} bad={s.trust < 40} marks={s.hints ? [mood.target] : []} />
       <div className="town">
         {mood.parts.filter(p => p.key !== 'deeds' && p.key !== 'grudge' || p.value !== 0).map(p => (
           <div key={p.key} className={`tfac ${p.value < -3 ? 'bad' : p.value > 0 ? 'good' : ''}`}>
-            <span className="tfac-v">{signed(p.value)}</span>
+            <span className="tfac-v">{s.hints ? signed(p.value) : p.value < -3 ? '▼' : p.value > 0 ? '▲' : '–'}</span>
             <div>
               <b>{p.label}</b>
               <small>{p.note}</small>

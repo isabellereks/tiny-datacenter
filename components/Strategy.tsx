@@ -19,13 +19,13 @@ export function BillPanel({ s, l }: { s: GameState; l: Ledger }) {
     <>
       <span className="label">Moratorium bill</span>
       <Meter label={billStageName(s)} value={s.bill.progress} max={100} text={`${Math.round(s.bill.progress)}%`} bad={s.bill.progress >= 40} marks={[40, 80]} />
-      <Why label={eta ? `Passes in about ${eta} mo` : 'Stalled'}>
+      {s.hints && <Why label={eta ? `Passes in about ${eta} mo` : 'Stalled'}>
         <div className="books">
           <Row label="Base pressure" value="+0.2" />
           {f.parts.map(p => <Row key={p.label} label={p.label} value={pct(p.value)} neg={p.value > 0} />)}
           <Row label="Per month" value={pct(f.total)} strong neg={f.total > 0} />
         </div>
-      </Why>
+      </Why>}
     </>
   );
 }

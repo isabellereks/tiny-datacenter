@@ -197,13 +197,21 @@ export function Share({ s, capture, font, ui, onClose }: {
     setStatus('Image saved');
   };
   const link = `${location.origin}/s?${encodeRun(runOf(s))}`;
+  const local = /^(localhost|127\.0\.0\.1|\[::1\]|.*\.local)$/.test(location.hostname);
   const post = () => {
     const b = blob.current;
     if (b && isTouch()) {
       const f = new File([b], file, { type: 'image/png' });
-      if (navigator.canShare?.({ files: [f] })) { navigator.share({ files: [f], text, url: link }).catch(() => {}); return; }
+      if (navigator.canShare?.({ files: [f] })) { navigator.share({ files: [f], text, ...(local ? {} : { url: link }) }).catch(() => {}); return; }
     }
-    // the link's preview card carries the picture, so the post needs nothing pasted
+    // online, the link's preview card carries the picture. Running on this computer, X can't see the link,
+    // so copy the picture instead and leave the link out
+    if (local) {
+      const copied = copy();
+      window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+      copied.then(ok => { if (ok) setStatus('Image copied. Paste it into your post.'); else save(); });
+      return;
+    }
     window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`, '_blank', 'noopener');
   };
   const copyOnly = () => copy().then(ok => setStatus(ok ? 'Image copied' : 'Copy not supported here. Try Save.'));

@@ -287,7 +287,7 @@ export function briefing(s: GameState): Brief[] {
     { label: 'Economy', value: `${ECON[s.econ.phase].name}, AI market ${s.market.phase === 'boom' ? 'booming' : s.market.phase === 'glut' ? 'crashed' : 'normal'}`, bad: s.econ.phase !== 'steady' || s.market.phase === 'glut' },
     {
       label: 'Moratorium bill',
-      value: hasLaw(s, 'moratorium') ? 'In force, no building' : s.bill ? `${Math.round(s.bill.progress)}%, ${eta ? `passes in about ${eta} mo` : 'stalled'}` : 'None yet',
+      value: hasLaw(s, 'moratorium') ? 'In force, no new halls' : s.bill ? `${Math.round(s.bill.progress)}%, ${billStageName(s).toLowerCase()}${s.hints ? (eta ? `, passes in about ${eta} mo` : ', stalled') : ''}` : 'None yet',
       bad: !!s.bill && billOdds(s, l) > 40,
     },
     { label: 'Debt', value: s.loans.length ? `${money(debt(s))}, ${money(s.loans.reduce((t, x) => t + x.payment, 0))}/mo` : 'None', bad: debt(s) > assets(s) * 0.5 },
