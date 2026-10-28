@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
-import { clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
-import { baseY, bOf, buildingX, heightOf, ledger, level, levelY, simulate, tallest, type GameState } from './state';
-import { createStitchMaterial } from './stitchPass';
+import { bake, clear, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
+import { baseY, bOf, buildingX, heightOf, isBroken, ledger, level, levelY, simulate, tallest, type GameState } from './state';
+import { createStitchMaterial, createWeaveMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
 THREE.ColorManagement.enabled = false;
@@ -97,7 +97,11 @@ export class Engine {
   private puffs = new THREE.Group();
   private normalMat = new THREE.MeshNormalMaterial();
   private post = createStitchMaterial();
+  private weave = createWeaveMaterial();
   private postScene = new THREE.Scene();
+  private weaveScene = new THREE.Scene();
+  /** one pixel per stitch: the colour of each stitch, worked out once, then woven at full size */
+  private rtCell: THREE.WebGLRenderTarget | null = null;
   private postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private rtNormal: THREE.WebGLRenderTarget | null = null;
   private rtRole: THREE.WebGLRenderTarget | null = null;
@@ -114,7 +118,9 @@ export class Engine {
   private protesters: Protester[] = [];
   private townKey = '';
   private weather = new THREE.Group();
-  private drops: { mesh: THREE.Mesh; v: number; drift: number }[] = [];
+  private drops: { p: THREE.Vector3; v: number; drift: number }[] = [];
+  private dropMesh: THREE.InstancedMesh | null = null;
+  private dropM = new THREE.Matrix4();
   private weatherKind: 'snow' | 'rain' | null = null;
   private riotCash = 0;
   private goalClock = 0;
@@ -153,6 +159,8 @@ export class Engine {
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // shadows barely change frame to frame; draw them a few times a second instead of every frame
+    this.renderer.shadowMap.autoUpdate = false;
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute('aria-label', 'Your stitched datacenter. Drag to turn it, right-drag or two-finger drag to move.');
@@ -181,6 +189,7 @@ export class Engine {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground, this.building, this.scenery, this.options, this.puffs, this.crowd, this.townGroup, this.weather);
     this.postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.post));
+    this.weaveScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.weave));
     this.post.uniforms.uNear.value = this.camera.near;
     this.post.uniforms.uFar.value = this.camera.far;
 
@@ -209,7 +218,7 @@ export class Engine {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.layout);
     this.controls.dispose();
-    this.rtNormal?.dispose(); this.rtRole?.dispose(); this.textTex?.dispose();
+    this.rtNormal?.dispose(); this.rtRole?.dispose(); this.rtCell?.dispose(); this.textTex?.dispose();
     this.groundTex.forEach(t => t.dispose());
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -266,8 +275,9 @@ export class Engine {
     this.grid.textBottom = Math.ceil((this.insets.bottom * dpr) / cell) + 2;
     this.grid.textRows = letters?.rows ?? 0;
 
-    this.rtNormal?.dispose(); this.rtRole?.dispose();
+    this.rtNormal?.dispose(); this.rtRole?.dispose(); this.rtCell?.dispose();
     const opts = { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter };
+    this.rtCell = new THREE.WebGLRenderTarget(n, m, opts);
     this.rtNormal = new THREE.WebGLRenderTarget(n, m, opts);
     this.rtNormal.depthTexture = new THREE.DepthTexture(n, m);
     this.rtRole = new THREE.WebGLRenderTarget(n, m, opts);
@@ -281,6 +291,10 @@ export class Engine {
     u.uTextBottom.value = this.grid.textBottom;
     u.uTextRows.value = this.textHidden || this.moved ? 0 : this.grid.textRows;
     u.uCell.value = cell;
+    const w2 = this.weave.uniforms;
+    w2.tCell.value = this.rtCell.texture;
+    (w2.uGrid.value as THREE.Vector2).set(n, m);
+    w2.uCell.value = cell;
     this.applyFrustum();
   };
 
@@ -291,6 +305,12 @@ export class Engine {
   }
 
   rebuild() {
+    const t0 = performance.now();
+    this.rebuildScene();
+    if (process.env.NODE_ENV !== 'production') (window as unknown as { __rebuild?: number[] }).__rebuild = [...((window as unknown as { __rebuild?: number[] }).__rebuild ?? []), performance.now() - t0].slice(-20);
+  }
+
+  private rebuildScene() {
     const s = this.s;
     clear(this.building);
     this.anim = { leds: [], fans: [], rotors: [], alarms: [], vent: new THREE.Vector3() };
@@ -301,6 +321,7 @@ export class Engine {
       const fg = makeFoundation(s.found);
       fg.position.x = buildingX(b);
       this.building.add(fg);
+      bake(fg);
     }
     // once the town has torn it down, only the foundation is left
     const razed = s.over?.reason === 'town' && s.over.done;
@@ -321,6 +342,20 @@ export class Engine {
         this.roofs.push(r);
       }
     } else this.roofs = [];
+    // merge what never moves; blinking lights, fans and alarms stay separate
+    // rack lights blink in two groups per floor instead of one by one: two merged meshes, not dozens
+    const lights = new Set(this.anim.leds);
+    this.anim.leds = [];
+    for (const g of this.floorGroups) {
+      const own = g.children.filter(c => lights.has(c));
+      if (!own.length) continue;
+      const sets = [new THREE.Group(), new THREE.Group()];
+      own.forEach((m, k) => { g.remove(m); sets[k % 2].add(m); });
+      for (const set of sets) { set.userData.floor = own[0].userData.floor; g.add(set); bake(set); this.anim.leds.push(set); }
+    }
+    const live = new Set<THREE.Object3D>([...this.anim.leds, ...this.anim.alarms, ...this.anim.fans, ...this.anim.rotors]);
+    for (const g of this.floorGroups) bake(g, live);
+    for (const r of this.roofs) bake(r, live);
     this.makeCrowd();
     this.makeTown();
     for (const w of s.workers) {
@@ -334,6 +369,7 @@ export class Engine {
     this.falling.forEach(f => this.scenery.remove(f.obj));
     this.falling = [];
     this.spots = makeScenery(s, this.scenery, imp.trees, imp.cleared);
+    bake(this.scenery);
     if (this.lastLoc === s.loc && this.lastCleared >= 0 && imp.cleared > this.lastCleared) {
       for (const sp of this.spots.slice(this.lastCleared, imp.cleared)) {
         const obj = makeTree(s.loc, sp.k);
@@ -352,6 +388,7 @@ export class Engine {
       g.position.x = OPTION_X[key] ?? 0;
       g.traverse(o => { o.userData.found = key; });
       this.options.add(g);
+      bake(g);
     }
 
     const picking = this.picking;
@@ -368,6 +405,8 @@ export class Engine {
     const u = this.post.uniforms;
     (u.uCloth.value as THREE.Color).set(L.cloth);
     (u.uHole.value as THREE.Color).set(L.hole);
+    (this.weave.uniforms.uCloth.value as THREE.Color).set(L.cloth);
+    (this.weave.uniforms.uHole.value as THREE.Color).set(L.hole);
     (u.uGroundEdge.value as THREE.Color).set(L.edge);
     (u.uGroundDeco.value as THREE.Color).set(L.deco);
     document.body.style.backgroundColor = L.cloth;
@@ -562,8 +601,37 @@ export class Engine {
     if (key !== this.hoverKey) { this.hoverKey = key; this.hooks.onHover(what); }
   };
 
+  /** frame timing, for development only */
+  private perf = { n: 0, ms: 0, worst: 0 };
+
   private loop = (now: number) => {
     if (this.disposed) return;
+    const t0 = performance.now();
+    this.frame(now);
+    const ms = performance.now() - t0;
+    if (process.env.NODE_ENV !== 'production') {
+      const p = this.perf;
+      p.n++; p.ms += ms; p.worst = Math.max(p.worst, ms);
+      const info = this.renderer.info.render;
+      (window as unknown as { __perf?: unknown }).__perf = { frames: p.n, avg: p.ms / p.n, worst: p.worst, calls: info.calls, tris: info.triangles, meshes: this.countMeshes() };
+    }
+    this.raf = requestAnimationFrame(this.loop);
+  };
+
+  private meshCount = 0;
+  private meshAt = 0;
+  private countMeshes() {
+    if (performance.now() - this.meshAt > 2000) {
+      this.meshAt = performance.now();
+      let n = 0;
+      this.scene.traverse(o => { if (o instanceof THREE.Mesh) n++; });
+      this.meshCount = n;
+    }
+    return this.meshCount;
+  }
+
+  /** One frame: simulate, animate and draw. */
+  private frame(now: number) {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     const s = this.s;
@@ -581,9 +649,11 @@ export class Engine {
     if (s.phase === 'over' && !wasOver) {
       this.rebuild();
       this.resetView();
-    } else if (built || (newMonth && s.broken.length) || fixed) {
+    } else if (built) {
+      // outages and repairs only blink an alarm, so they don't need the scene rebuilt
       this.rebuild();
-      if (built) { this.fit(true); this.dust(this.lastBuild); }
+      this.fit(true);
+      this.dust(this.lastBuild);
     }
     if (this.riot(now)) changed = true;
     if (changed) this.hooks.onChange();
@@ -607,13 +677,12 @@ export class Engine {
     (u.uAccent.value as THREE.Color).set(s.look.accent);
     // gaps smaller than a couple of stitches aren't worth a line
     u.uDepthEdge.value = Math.max(0.35, (this.upc / this.camera.zoom) * 2);
-    u.uNight.value = s.phase === 'play' ? nightOf(s.month) * 0.8 : 0;
+    this.weave.uniforms.uNight.value = s.phase === 'play' ? nightOf(s.month) * 0.8 : 0;
     this.render();
 
     this.saveClock += dt;
     if (this.saveClock > 5) { this.saveClock = 0; this.hooks.onSave(); }
-    this.raf = requestAnimationFrame(this.loop);
-  };
+  }
 
   /** Runs the town ending. Returns true when it finishes. */
   private riot(now: number) {
@@ -684,22 +753,29 @@ export class Engine {
       this.weatherKind = kind;
       clear(this.weather);
       this.drops = [];
+      this.dropMesh = null;
       if (kind) {
+        // one instanced mesh for every flake or drop: a single draw call
         const geo = kind === 'snow' ? new THREE.BoxGeometry(0.22, 0.22, 0.22) : new THREE.BoxGeometry(0.06, 0.7, 0.06);
-        for (let k = 0; k < (kind === 'snow' ? 140 : 110); k++) {
-          const mesh = new THREE.Mesh(geo, mat('light'));
-          mesh.position.set((Math.random() - 0.5) * 38, Math.random() * 30, (Math.random() - 0.5) * 34);
-          this.weather.add(mesh);
-          this.drops.push({ mesh, v: kind === 'snow' ? 1.2 + Math.random() * 0.8 : 14 + Math.random() * 4, drift: (Math.random() - 0.5) * 0.6 });
+        const n = kind === 'snow' ? 140 : 110;
+        this.dropMesh = new THREE.InstancedMesh(geo, mat('light'), n);
+        this.dropMesh.frustumCulled = false;
+        this.weather.add(this.dropMesh);
+        for (let k = 0; k < n; k++) {
+          this.drops.push({ p: new THREE.Vector3((Math.random() - 0.5) * 38, Math.random() * 30, (Math.random() - 0.5) * 34), v: kind === 'snow' ? 1.2 + Math.random() * 0.8 : 14 + Math.random() * 4, drift: (Math.random() - 0.5) * 0.6 });
         }
       }
     }
-    for (const d of this.drops) {
-      const p = d.mesh.position;
+    if (!this.dropMesh) return;
+    this.drops.forEach((d, k) => {
+      const p = d.p;
       p.y -= d.v * dt;
       p.x += d.drift * dt;
       if (p.y < 0) { p.y = 28 + Math.random() * 4; p.x = (Math.random() - 0.5) * 38; p.z = (Math.random() - 0.5) * 34; }
-    }
+      this.dropM.makeTranslation(p.x, p.y, p.z);
+      this.dropMesh!.setMatrixAt(k, this.dropM);
+    });
+    this.dropMesh.instanceMatrix.needsUpdate = true;
   }
 
   /** A copy of the current frame, for the share card. */
@@ -712,8 +788,11 @@ export class Engine {
     return c;
   }
 
+  private shadowAt = 0;
   private render() {
     const r = this.renderer;
+    const now = performance.now();
+    if (now - this.shadowAt > 250 || this.fitTween || this.s.build) { r.shadowMap.needsUpdate = true; this.shadowAt = now; }
     r.setClearColor(0x000000, 0);
     const groundOn = this.ground.visible;
     this.ground.visible = false;
@@ -726,8 +805,10 @@ export class Engine {
     r.setRenderTarget(this.rtRole);
     r.clear();
     r.render(this.scene, this.camera);
-    r.setRenderTarget(null);
+    r.setRenderTarget(this.rtCell);
     r.render(this.postScene, this.postCam);
+    r.setRenderTarget(null);
+    r.render(this.weaveScene, this.postCam);
   }
 
   private animate(dt: number, now: number) {
@@ -761,7 +842,7 @@ export class Engine {
     for (const f of this.anim.fans) f.rotation.z -= dt * 6;
     for (const f of this.anim.rotors) f.rotation.z -= dt * 4;
     const blink = Math.floor(t * 3) % 2 === 0;
-    for (const a of this.anim.alarms) a.visible = blink;
+    for (const a of this.anim.alarms) a.visible = blink && isBroken(s, a.userData.alarmFloor);
     this.ledClock -= dt;
     if (this.ledClock <= 0) {
       this.ledClock = 0.35;

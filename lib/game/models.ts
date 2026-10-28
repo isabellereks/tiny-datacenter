@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
 import { baseY, bOf, buildingX, floorW, heightOf, isBroken, levelW, levelY, perRow, type Floor, type GameState } from './state';
 
@@ -100,7 +101,7 @@ export function makeFoundation(key: FoundKey, chosen = false) {
 }
 
 /** Parts the engine animates. Fans spin face-on, rotors spin flat (rooftop fans). */
-export interface Animated { leds: THREE.Mesh[]; fans: THREE.Group[]; rotors: THREE.Group[]; alarms: THREE.Mesh[]; vent: THREE.Vector3 }
+export interface Animated { leds: THREE.Object3D[]; fans: THREE.Group[]; rotors: THREE.Group[]; alarms: THREE.Mesh[]; vent: THREE.Vector3 }
 
 // thread colours for equipment, so each kind of floor reads at a glance
 const INK = '#1F2A44', SLATE = '#7D8597', SKY = '#99BBFF', CHERRY = '#D7263D', MARIGOLD = '#F2B43C';
@@ -285,10 +286,13 @@ export function makeFloor(s: GameState, i: number, f: Floor, anim: Animated) {
     facade(g, f.type, w, i, anim);
     side(g, f.type, w, i, s.shape);
   }
-  if (isBroken(s, i) && f.done) {
-    // a warning light the engine blinks, on the wall facing the camera
+  if (f.done && f.type !== 'lobby') {
+    // a warning light on the wall facing the camera; the engine blinks it while the floor is down
     const z = s.inside ? -FD / 2 + 0.25 : FD / 2 + 0.06;
-    anim.alarms.push(box(g, 1.4, 0.5, 0.12, 'accent', w / 2 - 1.4, FH - 0.45, z));
+    const a = box(g, 1.4, 0.5, 0.12, 'accent', w / 2 - 1.4, FH - 0.45, z);
+    a.visible = isBroken(s, i);
+    a.userData.alarmFloor = i;
+    anim.alarms.push(a);
   }
   g.traverse(o => { o.userData.floor = i; });
   return g;
@@ -670,4 +674,40 @@ export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared
     g.add(h);
   });
   return spots;
+}
+
+/**
+ * Merges everything in a group that never moves into one mesh per material, so a floor is a handful of
+ * draw calls instead of dozens. Anything in `live` (blinking lights, fans, alarms) and its children stay as they are.
+ */
+export function bake(g: THREE.Object3D, live: Set<THREE.Object3D> = new Set()) {
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
+  const byMat = new Map<THREE.Material, { geos: THREE.BufferGeometry[]; shadow: boolean }>();
+  const drop: THREE.Mesh[] = [];
+  const isLive = (o: THREE.Object3D) => { for (let p: THREE.Object3D | null = o; p && p !== g; p = p.parent) if (live.has(p)) return true; return false; };
+  g.traverse(o => {
+    if (!(o instanceof THREE.Mesh) || isLive(o) || Array.isArray(o.material)) return;
+    const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone());
+    for (const k of Object.keys(geo.attributes)) if (k !== 'position' && k !== 'normal') geo.deleteAttribute(k);
+    geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    const e = byMat.get(o.material) ?? { geos: [], shadow: false };
+    e.geos.push(geo);
+    e.shadow ||= o.castShadow;
+    byMat.set(o.material, e);
+    drop.push(o);
+  });
+  if (drop.length < 4) { byMat.forEach(e => e.geos.forEach(x => x.dispose())); return; }
+  const data = { ...(drop[0].userData) };
+  for (const m of drop) { m.parent?.remove(m); if (!m.geometry.userData.shared) m.geometry.dispose(); }
+  byMat.forEach((e, material) => {
+    const merged = mergeGeometries(e.geos, false);
+    e.geos.forEach(x => x.dispose());
+    if (!merged) return;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = e.shadow;
+    mesh.receiveShadow = true;
+    mesh.userData = { ...data };
+    g.add(mesh);
+  });
 }

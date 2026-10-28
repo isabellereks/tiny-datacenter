@@ -41,11 +41,14 @@ export function Letter({ s, imp, dispatch, font }: { s: GameState; imp: Impact; 
   const options: Option[] = complaint
     ? complaint.choices.map(c => {
       const cost = choiceCost(s, c);
-      return { label: c.label, cost, detail: cost ? `${money(cost)}, trust +${c.trust ?? 0}` : `Trust −${complaint.sting}` };
+      return { label: c.label, cost, detail: cost ? money(cost) : 'Free' };
     })
     : decision!.choices.map(c => {
       const cost = decisionCost(s, c);
-      return { label: c.label, cost, detail: `${cost > 0 ? `${money(cost)}. ` : cost < 0 ? `+${money(-cost)}. ` : ''}${c.note}` };
+      // the price up front; what it does to trust you find out from the town
+      const note = c.note.replace(/(^|[,.]\s*|\s+and\s+)trust [+−-]\d+/gi, '').replace(/^[,.\s]+|[,\s]+$/g, '');
+      const price = cost > 0 ? money(cost) : cost < 0 ? `Pays ${money(-cost)}` : '';
+      return { label: c.label, cost, detail: [price, note].filter(Boolean).join('. ') || 'Free' };
     });
 
   return (

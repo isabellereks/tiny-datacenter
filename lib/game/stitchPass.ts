@@ -121,14 +121,47 @@ export function createStitchMaterial() {
         return vec4(uOutline, 1.0);
       }
 
+      // one fragment per stitch: the render target is the stitch grid, so this runs once per cell.
+      // a = 0 bare cloth, 0.5 a stitch, 1 a stitch that glows after dark
+      void main(){
+        vec4 th = threadAt(floor(gl_FragCoord.xy));
+        gl_FragColor = vec4(th.rgb, th.a > 1.5 ? 1.0 : th.a > 0.5 ? 0.5 : 0.0);
+      }`,
+  });
+}
+
+
+/**
+ * The second, cheap pass: at full screen resolution, draws each grid cell as cloth with its hole,
+ * and an X stitch in the colour the first pass picked. Its cost doesn't grow with how much is on screen.
+ */
+export function createWeaveMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tCell: { value: null },
+      uGrid: { value: new THREE.Vector2(1, 1) },
+      uCell: { value: 6 },
+      uNight: { value: 0 },
+      uCloth: { value: new THREE.Color('#F5F4F1') },
+      uHole: { value: new THREE.Color('#E5E3DD') },
+    },
+    vertexShader: /* glsl */ `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      precision highp float;
+      uniform sampler2D tCell;
+      uniform vec2 uGrid;
+      uniform float uCell;
+      uniform float uNight;
+      uniform vec3 uCloth;
+      uniform vec3 uHole;
       void main(){
         vec2 px = gl_FragCoord.xy;
         vec2 cell = floor(px / uCell);
         vec2 f = fract(px / uCell);
         float corner = length(0.5 - abs(f - 0.5));
         vec3 col = mix(uHole, uCloth, smoothstep(0.03, 0.09, corner));
-        vec4 t = threadAt(cell);
-        if (t.a > 0.5) {
+        vec4 t = texture2D(tCell, (cell + 0.5) / uGrid);
+        if (t.a > 0.25) {
           vec3 th = t.rgb;
           float w = 0.29;
           float aa = 1.2 / uCell;
@@ -143,7 +176,7 @@ export function createStitchMaterial() {
         }
         // night: everything dims toward dusk blue except what glows
         vec3 dusk = col * vec3(0.66, 0.7, 0.88);
-        float glow = t.a > 1.5 ? 1.0 : 0.0;
+        float glow = t.a > 0.75 ? 1.0 : 0.0;
         col = mix(col, dusk, uNight * (1.0 - glow));
         gl_FragColor = vec4(col, 1.0);
       }`,
