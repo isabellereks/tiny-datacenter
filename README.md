@@ -56,7 +56,7 @@ Hire from town or overseas. Locals count as town jobs and push local wages up as
 
 ## Government
 
-Permits take months and some need a hearing with enough trust: zoning for bigger foundations, height permits (past 20 floors a flight safety review, past 40 a skyscraper review), air permits for the backup generators on power floors, site plan approval for each new building, and water in Phoenix. Inspections come once a year with the checklist visible ahead of time; failing two or more items brings a stop-work order. County elections are decided by trust; US national elections are a coin flip. Laws follow each place's real timeline, simplified.
+Permits take months. Zoning, height and site plans go to a hearing, a vote where more trust means better odds; close votes often pass with conditions (you pay community benefits), and after a denial you can reapply in 3 months. They cover zoning for bigger foundations, height permits (past 20 floors a flight safety review, past 40 a skyscraper review), air permits for the backup generators on power floors, site plan approval for each new building, and water in Phoenix. Inspections come once a year with the checklist visible ahead of time; failing two or more items brings a stop-work order. County elections are decided by trust; US national elections are a coin flip. Laws follow each place's real timeline, simplified.
 
 ## Locations
 

@@ -16,7 +16,7 @@ import {
   allocate, buildMonths, crews, CREW_COST, noCrew, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
-  LAWS, PERMITS, activeLaws, buildBlock, checklist, heightLimit, hallLimit,
+  LAWS, PERMITS, activeLaws, hearingOdds, buildBlock, checklist, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
@@ -813,7 +813,11 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
               <b>{P.name}</b>
               <small>{limits[k]}</small>
               {log && log.ok === false && <small className="bad">{log.text}</small>}
-              {!pending && !block && needs !== null && s.trust < needs && <small className="bad">Needs trust {needs}</small>}
+              {!pending && !block && k === 'water' && needs !== null && s.trust < needs && <small className="bad">Needs trust {needs}</small>}
+              {!pending && !block && (k === 'zoning' || k === 'height' || k === 'campus') && (() => {
+                const o = hearingOdds(s);
+                return <small className={o >= 0.7 ? 'ok' : o >= 0.4 ? undefined : 'bad'}>{o >= 0.7 ? 'The vote looks likely' : o >= 0.4 ? 'The vote looks close' : 'The vote looks uphill'}</small>;
+              })()}
               <span>{pending ? `${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `${money(fee)}, ${permitWait(s, k)} mo`}</span>
             </button>
           );

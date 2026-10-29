@@ -143,7 +143,9 @@ export function permitWait(s: GameState, key: PermitKey) {
 }
 export const permitFee = (s: GameState, key: PermitKey) => today(s, PERMITS[key].fee * (1 + s.permits[key] * 0.5));
 /** Trust a hearing needs to pass. */
-export const hearingBar = (s: GameState) => (hasLaw(s, 'boardPro') ? 40 : hasLaw(s, 'boardAnti') ? 60 : 50) + LOCS[s.loc].space.hearing;
+export const hearingBar = (s: GameState) => (hasLaw(s, 'boardPro') ? 35 : hasLaw(s, 'boardAnti') ? 55 : 45) + LOCS[s.loc].space.hearing;
+/** A hearing is a vote, not a cutoff: at the bar it's a coin flip, and every point of trust helps. */
+export const hearingOdds = (s: GameState) => Math.max(0.1, Math.min(0.95, 0.5 + (s.trust - hearingBar(s)) / 30));
 
 /** Why you can't apply right now, or null. */
 export function permitBlock(s: GameState, key: PermitKey): string | null {
@@ -171,10 +173,13 @@ export function applyPermit(s: GameState, key: PermitKey) {
 function decidePermit(s: GameState, key: PermitKey) {
   const P = PERMITS[key];
   const by = P.by(s);
-  let ok = true, why = '';
+  let ok = true, why = '', conditions = 0;
   if (key === 'zoning' || key === 'height' || key === 'campus') {
-    ok = s.trust >= hearingBar(s);
-    why = `Trust ${Math.round(s.trust)}, needed ${hearingBar(s)}`;
+    const roll = Math.random(), odds = hearingOdds(s);
+    ok = roll < odds;
+    // a close vote often passes with conditions: you fund something for the town
+    if (!ok && roll < odds + 0.2) { ok = true; conditions = today(s, 250_000 + permitFee(s, key) * 0.5); }
+    why = `The vote went against you at trust ${Math.round(s.trust)}`;
   } else if (key === 'air') {
     ok = s.strikes < 3;
     why = 'Too many generator violations';
@@ -185,12 +190,16 @@ function decidePermit(s: GameState, key: PermitKey) {
   s.permitLog[key] = { ok, text: ok ? `Approved ${dateLabel(s.month)}` : `Denied ${dateLabel(s.month)}. ${why}` };
   if (ok) {
     s.permits[key]++;
-    note(s, `${by} approved your ${P.name.toLowerCase()}`);
+    if (conditions) {
+      s.cash -= conditions;
+      s.permitLog[key] = { ok: true, text: `Approved with conditions ${dateLabel(s.month)}: ${money(conditions)} for the town` };
+      note(s, `${by} approved your ${P.name.toLowerCase()}, with ${money(conditions)} in community benefits`);
+    } else note(s, `${by} approved your ${P.name.toLowerCase()}`);
     if (key === 'height' || key === 'zoning') headline(s, 'Local news', `${by} approves ${siteName(s)} expansion`, [`${ownerName(s)} can build bigger`, `Vote follows public hearing`]);
   } else {
-    s.cooldown[`permit-${key}`] = s.month + 6;
+    s.cooldown[`permit-${key}`] = s.month + 3;
     note(s, `${by} denied your ${P.name.toLowerCase()}. ${why}`);
-    if (key === 'height' || key === 'zoning') headline(s, 'Local news', `${by} rejects ${siteName(s)} expansion`, [`Residents packed the hearing`, `${ownerName(s)} can reapply in 6 months`]);
+    if (key === 'height' || key === 'zoning') headline(s, 'Local news', `${by} rejects ${siteName(s)} expansion`, [`Residents packed the hearing`, `${ownerName(s)} can reapply in 3 months`]);
   }
 }
 
@@ -204,8 +213,8 @@ const REVIEWS: Record<PermitKey, string[]> = {
 
 /** Sometimes a reviewer asks for more before deciding. Likelier with a slow-growth board, rarer when fast-tracked. */
 function extraReview(s: GameState, a: { key: PermitKey; reviews?: number }) {
-  if ((a.reviews ?? 0) >= 2) return null;
-  const p = 0.3 * (hasLaw(s, 'boardAnti') ? 1.6 : hasLaw(s, 'boardPro') ? 0.6 : 1) * (hasLaw(s, 'fasttrack') ? 0.5 : 1);
+  if ((a.reviews ?? 0) >= 1) return null;
+  const p = 0.18 * (hasLaw(s, 'boardAnti') ? 1.6 : hasLaw(s, 'boardPro') ? 0.6 : 1) * (hasLaw(s, 'fasttrack') ? 0.5 : 1);
   if (Math.random() >= p) return null;
   const list = REVIEWS[a.key];
   return { what: list[Math.floor(Math.random() * list.length)], months: 1 + Math.floor(Math.random() * 3) };
