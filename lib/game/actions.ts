@@ -6,8 +6,8 @@ import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRA
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
 import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
-import { BOOST_MONTHS, BOOST_WAIT, boostCost, settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, buildMonths, noCrew, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBoosted, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
+import { buildCost, buildingCost, buildMonths, noCrew, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -44,7 +44,6 @@ export type Action =
   | { type: 'benefit'; key: 'health' | 'retire' | 'overtime'; on: boolean }
   | { type: 'teamEvent' }
   | { type: 'settle' }
-  | { type: 'boost'; floor: number }
   | { type: 'addBuilding' }
   | { type: 'speed'; speed: number }
   | { type: 'loan'; amount: number }
@@ -313,15 +312,6 @@ export function apply(s: GameState, a: Action): Effects {
       s.staff.cheer += 10;
       s.cooldown.team = s.month + TEAM_EVENT_WAIT;
       note(s, 'Team event. Morale +10');
-      return {};
-    }
-    case 'boost': {
-      const f = s.floors[a.floor], cost = boostCost(s);
-      if (s.phase !== 'play' || f?.type !== 'hall' || !f.done || s.cash < cost || isBoosted(s, a.floor) || (s.cooldown[`boost-${a.floor}`] ?? 0) > s.month) return {};
-      s.cash -= cost;
-      s.boosts.push({ floor: a.floor, until: s.month + BOOST_MONTHS });
-      s.cooldown[`boost-${a.floor}`] = s.month + BOOST_WAIT;
-      note(s, `${floorLabel(s, a.floor)} boosted for ${BOOST_MONTHS} months`);
       return {};
     }
     case 'addBuilding': {

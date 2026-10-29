@@ -41,9 +41,6 @@ export function moraleMood(s: GameState): MoraleParts {
 
 export const TEAM_EVENT_WAIT = 6;
 export const teamEventCost = (s: GameState) => today(s, 20_000 + 2_000 * s.workers.length);
-export const BOOST_MONTHS = 3;
-export const BOOST_WAIT = 6;
-export const boostCost = (s: GameState) => today(s, 250_000);
 
 /** Give the union what it asked for and end the strike. */
 export function settle(s: GameState) {

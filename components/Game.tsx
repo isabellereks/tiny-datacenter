@@ -19,7 +19,6 @@ import { Report } from './Report';
 import { Party } from './Party';
 import { Letter } from './Letter';
 import { TierUp } from './TierUp';
-import { Meta } from './Meta';
 import { Ticks } from './Ticks';
 import type { FoundKey } from '@/lib/game/data';
 import { armSound, setHum, setMuted, sfx } from '@/lib/game/sound';
@@ -31,6 +30,9 @@ const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 /** Small text: a rounded sans that stays readable where the pixel face blurs. */
 const body = Nunito({ subsets: ['latin'], variable: '--body', weight: ['400', '600', '700'] });
 const ISLAND_SPACE = 76;
+
+/** Things worth interrupting the view for. */
+const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open/i;
 
 export default function Game() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -54,11 +56,12 @@ export default function Game() {
   const flashTimer = useRef<number | undefined>(undefined);
   const redraw = useCallback(() => setTick(t => t + 1), []);
 
-  /** New log lines briefly pop the island, like a live activity. */
-  const announce = useCallback(() => {
+  /** Only news you didn't cause pops the island; everything else just goes in the log. */
+  const announce = useCallback((quiet = false) => {
     const line = stateRef.current?.log[0];
     if (line && line !== lastLog.current) {
       lastLog.current = line;
+      if (quiet || !LOUD.test(line)) return;
       setActivity(line);
       window.clearTimeout(activityTimer.current);
       activityTimer.current = window.setTimeout(() => setActivity(null), 3200);
@@ -87,7 +90,7 @@ export default function Game() {
       else if (fx.refit) engine.fit(true);
     }
     if (a.type === 'open') setOpen(false);
-    announce();
+    announce(true);
     save(stateRef.current!);
     redraw();
   }, [redraw, announce]);
@@ -231,11 +234,10 @@ export default function Game() {
     <main className={`app ${ui.variable} ${body.variable}`}>
       <div className="stage" ref={hostRef} />
       {phase === 'play' && <Ticks month={Math.floor(s.month)} net={(s.books ?? l).net} roof={() => engineRef.current?.roofOnScreen(0) ?? null} />}
-      {phase === 'play' && !open && <Meta s={s} />}
       {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
       {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
       {/* one thing at a time: the news waits while a letter, briefing or new tier is on screen */}
-      {phase === 'play' && flash && !s.complaint && !s.briefing && !s.report && s.tierUp === null && <News s={s} story={flash} full={false} font={pixel.className} />}
+      {phase === 'play' && flash && !s.complaint && !s.briefing && s.tierUp === null && <News s={s} story={flash} full={false} font={pixel.className} />}
       {phase === 'play' && !ended && (
         <Island
           s={s} l={l} imp={imp} open={open} tab={tab} activity={activity} armed={armedRef.current}
@@ -244,14 +246,14 @@ export default function Game() {
         />
       )}
       {phase === 'play' && !open && !flash && !s.complaint && <GoalCard s={s} onHeight={setGoalH} dispatch={dispatch} font={pixel.className} />}
-      {phase === 'play' && s.tierUp !== null && !s.briefing && !s.report && <TierUp s={s} dispatch={dispatch} font={pixel.className} />}
-      {phase === 'play' && s.complaint && !s.call && !s.briefing && !s.report && s.tierUp === null && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
+      {phase === 'play' && s.tierUp !== null && !s.briefing && <TierUp s={s} dispatch={dispatch} font={pixel.className} />}
+      {phase === 'play' && s.complaint && !s.call && !s.briefing && s.tierUp === null && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}
       {hovered && <HoverLabel s={s} what={hovered} />}
       {bubble && <div key={bubble.id} className="bubble" style={{ left: bubble.x, top: bubble.y }}>{bubble.text}</div>}
       {phase === 'play' && s.party && <Party key={s.party.id} id={s.party.id} text={s.party.text} font={pixel.className} />}
       {phase === 'play' && s.briefing && <Briefing s={s} dispatch={dispatch} />}
-      {phase === 'play' && !s.briefing && s.report && <Report s={s} dispatch={dispatch} />}
+      {phase === 'play' && !s.briefing && s.report && <Report key={s.report.label} s={s} dispatch={dispatch} />}
       {phase === 'play' && s.call && <Call key={s.call.id} call={s.call} dispatch={dispatch} font={pixel.className} />}
       {sharing && (
         <Share s={s} capture={() => engineRef.current?.capture() ?? null} font={pixel.style.fontFamily} ui={ui.style.fontFamily}

@@ -526,12 +526,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .tick { position: fixed; z-index: 14; pointer-events: none; transform: translate(-50%, 0); font-family: var(--body), var(--font); font-size: 13px; color: rgba(31, 42, 68, .75); text-shadow: 0 0 4px var(--cloth); white-space: nowrap; animation: tick 2.4s ease-out both; }
 .tick.bad { color: rgba(215, 38, 61, .7); }
 @keyframes tick { 0% { opacity: 0; transform: translate(-50%, 6px); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -46px); } }
-.meta { position: fixed; left: 18px; top: 26px; z-index: 12; display: flex; align-items: center; gap: 10px; pointer-events: none; font-family: var(--body), var(--font); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: rgba(31, 42, 68, .5); }
-.meta span + span::before { content: '·'; margin-right: 10px; }
-.meta .meta-dot + span::before { content: none; }
-.meta-dot { width: 6px; height: 6px; background: rgba(31, 42, 68, .35); }
-.meta-dot.on { background: #30D158; animation: blink 1.6s steps(2) infinite; }
-@media (max-width: 1100px) { .meta { display: none; } }
+.q-card {
+  position: fixed; left: 16px; top: 16px; z-index: 14; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px 10px;
+  background: var(--weave), var(--card); border-radius: 8px; box-shadow: var(--patch-shadow); font-size: 13px; color: var(--ink-2);
+  outline: 1.5px dashed color-mix(in oklab, var(--thread), transparent 25%); outline-offset: -6px; max-width: calc(100vw - 32px);
+}
+.q-card b { font-size: 15px; color: var(--ink); }
+.q-card b.neg { color: var(--red); }
+.q-card b.pos { color: var(--green); }
+@media (max-width: 899px) { .q-card { top: calc(78px + env(safe-area-inset-top, 0px)); } }
+.q-btns { display: flex; gap: 6px; margin-top: 6px; }
+.q-btns button { border: 0; background: color-mix(in oklab, var(--thread), transparent 85%); color: var(--ink); border-radius: 5px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 
 /* ---------- deals ---------- */
 .deal { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 8px; background: var(--isl-2); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink), transparent 90%); }
@@ -662,6 +667,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 @keyframes panel-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 .panel .expanded { height: 100%; min-height: 0; }
 .panel .ex-head, .panel .tabs { flex-shrink: 0; }
+.panel .tabs { flex-wrap: wrap; }
+.panel .tabs button { flex: 1 1 22%; padding: 7px 4px; }
 .panel .ex-body { max-height: none; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .island.opened { box-shadow: var(--patch-shadow); }
 @media (max-width: 899px) {

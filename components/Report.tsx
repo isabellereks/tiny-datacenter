@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { Action } from '@/lib/game/actions';
 import { money, type GameState, type QuarterReport } from '@/lib/game/state';
 
@@ -30,9 +31,28 @@ export function Statement({ r }: { r: QuarterReport }) {
   );
 }
 
-/** Every three months the game stops for the quarter's numbers. */
+/** Every three months a small card with the bottom line. The full books open on tap; the game keeps going. */
 export function Report({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
+  const [full, setFull] = useState(false);
+  const label = s.report?.label;
+  // the card leaves on its own unless you open the books
+  useEffect(() => {
+    if (!label || full) return;
+    const id = window.setTimeout(() => dispatch({ type: 'report' }), 12_000);
+    return () => window.clearTimeout(id);
+  }, [label, full, dispatch]);
   if (!s.report) return null;
+  const r = s.report;
+  if (!full) return (
+    <div className="q-card card-pop" role="status">
+      <span>{r.label}</span>
+      <b className={r.change < 0 ? 'neg' : 'pos'}>{r.change < 0 ? 'Loss' : 'Profit'} {money(r.change)}</b>
+      <div className="q-btns">
+        <button onClick={() => setFull(true)}>Books</button>
+        <button onClick={() => dispatch({ type: 'report' })} aria-label="Dismiss">✕</button>
+      </div>
+    </div>
+  );
   return (
     <div className="share-back" role="dialog" aria-labelledby="q-title">
       <div className="share brief card-pop">
@@ -40,7 +60,7 @@ export function Report({ s, dispatch }: { s: GameState; dispatch: (a: Action) =>
         <h2 id="q-title">{s.report.label}</h2>
         <Statement r={s.report} />
         <div className="share-foot">
-          <button className="go" onClick={() => dispatch({ type: 'report' })}>Back to work</button>
+          <button className="go" onClick={() => { setFull(false); dispatch({ type: 'report' }); }}>Back to work</button>
         </div>
       </div>
     </div>

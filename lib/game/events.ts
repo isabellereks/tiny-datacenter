@@ -133,12 +133,12 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   const techs = locals(s), hoped = hopedJobs(s);
   const loud = (Math.max(0, floors - 5) * 1.2 + Math.min(12, turbineCount(s) * 5)) * (s.up.soundWalls ? 0.4 : 1);
   const parts: MoodPart[] = [
-    { key: 'jobs', label: 'Jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 8)), note: `${techs} of ${hoped} hoped-for jobs went to locals` },
-    { key: 'noise', label: 'Noise', value: -Math.round(clamp(loud, 0, 18)), note: s.up.soundWalls ? 'Sound wall up' : `${floors} floors of fans${s.up.turbines ? ' and turbines' : ''}` },
-    { key: 'bills', label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25)), note: `You use ${Math.round(l.strain * 100)}% of the town grid` },
-    { key: 'nature', label: 'Nature', value: -Math.round(clamp(i.cleared * 0.5 + i.waterML * 1.5 + i.carbonT / 400, 0, 20)), note: `${i.cleared} trees cut, ${i.waterML.toFixed(1)} ML of water a month` },
-    { key: 'deeds', label: 'Good deeds', value: Math.round(s.goodwill + (s.up.heat ? 6 : 0)), note: 'Gifts fade over time' },
-    { key: 'grudge', label: 'Ignored complaints', value: -Math.round(s.grudge), note: 'Fades slowly' },
+    { key: 'jobs', label: 'Jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 8)), note: `${techs} of ${hoped} locals` },
+    { key: 'noise', label: 'Noise', value: -Math.round(clamp(loud, 0, 18)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors${s.up.turbines ? ', turbines' : ''}` },
+    { key: 'bills', label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25)), note: `${Math.round(l.strain * 100)}% of the grid` },
+    { key: 'nature', label: 'Nature', value: -Math.round(clamp(i.cleared * 0.5 + i.waterML * 1.5 + i.carbonT / 400, 0, 20)), note: `${i.cleared} trees, ${i.waterML.toFixed(1)} ML water` },
+    { key: 'deeds', label: 'Good deeds', value: Math.round(s.goodwill + (s.up.heat ? 6 : 0)), note: 'Fades' },
+    { key: 'grudge', label: 'Ignored complaints', value: -Math.round(s.grudge), note: 'Fades' },
   ];
   const BASE = 60;
   const target = clamp(BASE + parts.reduce((t, p) => t + p.value, 0), 0, 100);

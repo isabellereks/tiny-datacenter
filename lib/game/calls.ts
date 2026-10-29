@@ -139,7 +139,7 @@ export function callMonth(s: GameState) {
   if (s.call || s.phase !== 'play') return;
   const list = topics(s);
   if (!list.length) return;
-  const p = 0.1 + (s.trust < 50 ? 0.2 : 0) + (s.trust < 30 ? 0.15 : 0);
+  const p = 0.05 + (s.trust < 50 ? 0.1 : 0) + (s.trust < 30 ? 0.08 : 0);
   if (Math.random() >= p) return;
   const heard = s.heard ?? [];
   // favour topics, lines and people nobody has heard from lately

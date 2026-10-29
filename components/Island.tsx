@@ -12,14 +12,14 @@ import {
 } from '@/lib/game/events';
 import {
   GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
-  gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBoosted, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
+  gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
   allocate, buildMonths, crews, CREW_COST, noCrew, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, hearingOdds, buildBlock, checklist, heightLimit, hallLimit,
   inspectionTitle, permitBlock, permitNeeds, permitFee, permitWait, pollPro, powerLimit, zoningAllows,
 } from '@/lib/game/gov';
-import { breakRooms, breaksNeeded, boostCost, BOOST_MONTHS, moraleMood, teamEventCost } from '@/lib/game/staff';
+import { breakRooms, breaksNeeded, moraleMood, teamEventCost } from '@/lib/game/staff';
 import {
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
@@ -27,9 +27,10 @@ import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
+export type Tab = 'build' | 'power' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
+  { key: 'power', label: 'Power' },
   { key: 'floor', label: 'Floors' },
   { key: 'deals', label: 'Deals' },
   { key: 'crew', label: 'Staff' },
@@ -262,6 +263,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
 
       <div className="ex-body" key={tab}>
         {tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
+        {tab === 'power' && <PowerTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'floor' && <FloorTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'deals' && <DealsTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'crew' && <StaffTab s={s} l={l} dispatch={dispatch} onTab={onTab} />}
@@ -365,10 +367,17 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         </button>
       )}
       <AddBuilding s={s} dispatch={dispatch} />
-      <GridPanel s={s} l={l} dispatch={dispatch} />
-      <span className="label">Projects</span>
-      <div className="ups">
-        {UPGRADES.map(u => {
+      <span className="label">Upgrades</span>
+      <Projects s={s} keys={['liquid']} dispatch={dispatch} />
+    </>
+  );
+}
+
+/** Things you build on the site, by key: one-offs, repeatables like turbines, and the reactor. */
+function Projects({ s, keys, dispatch }: { s: GameState; keys: string[]; dispatch: (a: Action) => void }) {
+  return (
+    <div className="ups">
+        {UPGRADES.filter(u => keys.includes(u.key)).map(u => {
           const locked = s.tier < u.tier;
           if (u.key === 'turbines' || u.key === 'solar') {
             const n = u.key === 'turbines' ? turbineCount(s) : solarCount(s);
@@ -389,7 +398,17 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
             </button>
           );
         })}
-      </div>
+    </div>
+  );
+}
+
+/** Power: what the town grid gives you, your place in the utility's queue, and what you make yourself. */
+function PowerTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  return (
+    <>
+      <GridPanel s={s} l={l} dispatch={dispatch} />
+      <span className="label">Make your own</span>
+      <Projects s={s} keys={['solar', 'turbines', 'batteries', 'renewables', 'smr']} dispatch={dispatch} />
     </>
   );
 }
@@ -507,7 +526,6 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
               {canRefresh(s, i) ? `Refit with ${CHIPS[fitGen(s)].name}  ${money(refreshCost(s))}` : `${CHIPS[s.chip].name} need liquid cooling`}
             </button>
           )}
-          <BoostRow s={s} i={i} dispatch={dispatch} />
         </>
       )}
       <Threads label="Floor color" value={f.fill} onPick={fill => dispatch({ type: 'fill', fill })} />
@@ -776,6 +794,8 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
           );
         })}
       </div>
+      <span className="label">Projects</span>
+      <Projects s={s} keys={['soundWalls', 'closedLoop', 'heat']} dispatch={dispatch} />
       <Why label="Recent">
         <ul className="log">{s.log.slice(0, 6).map((x, k) => <li key={k}>{x}</li>)}</ul>
       </Why>
@@ -847,16 +867,3 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   );
 }
 
-function BoostRow({ s, i, dispatch }: { s: GameState; i: number; dispatch: (a: Action) => void }) {
-  const on = isBoosted(s, i);
-  const left = Math.ceil((s.boosts.find(b => b.floor === i)?.until ?? 0) - s.month);
-  const wait = Math.max(0, Math.ceil((s.cooldown[`boost-${i}`] ?? 0) - s.month));
-  return (
-    <div className="crewrow">
-      <span className="muted small">{on ? `Boosted, ${left} mo left` : `+25% for ${BOOST_MONTHS} mo`}</span>
-      <button className="pill" disabled={on || wait > 0 || s.cash < boostCost(s)} onClick={() => dispatch({ type: 'boost', floor: i })}>
-        {on ? 'Boosted' : wait ? `Ready in ${wait} mo` : `Boost ${money(boostCost(s))}`}
-      </button>
-    </div>
-  );
-}

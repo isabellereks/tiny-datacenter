@@ -670,7 +670,7 @@ export class Engine {
     this.last = now;
     const s = this.s;
     const wasOver = s.phase === 'over';
-    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.report || s.call || s.complaint || s.tierUp !== null ? 0 : SPEEDS[s.speed] ?? 1);
+    const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call || s.complaint || s.tierUp !== null ? 0 : SPEEDS[s.speed] ?? 1);
     if (newMonth) endOfMonth(s);
     let changed = built || newMonth || fixed;
     // the town changes month to month: more homes, lights out in a blackout, a picket at the gate
