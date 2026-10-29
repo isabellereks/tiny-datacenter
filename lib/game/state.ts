@@ -31,7 +31,7 @@ export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: numbe
 export type Need = 'green' | 'uptime' | 'fresh';
 export interface Offer { id: number; who: string; kind: CustKey; mw: number; price: number; months: number; lead: number; needs: Need[]; expires: number }
 /** A signed deal. Months you can't supply their power cost you credits and strikes; three strikes and they leave. */
-export interface Deal extends Offer { start: number; until: number; strikes: number }
+export interface Deal extends Offer { start: number; until: number; strikes: number; lastNews?: number }
 
 export interface Worker {
   id: number; name: string; floor: number;

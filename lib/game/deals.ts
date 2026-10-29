@@ -97,6 +97,22 @@ export function anchorDeal(s: GameState, kind: CustKey, mw: number): Deal {
   return { ...o, months: 36, lead: 0, needs: [], price: Math.round(marketPrice(s, kind)), start: 0, until: 36, strikes: 0 };
 }
 
+/** Headlines for a customer's outage, by what kind of business they are. More people hit the more power you fell short. */
+function outageNews(s: GameState, d: Deal, short: number) {
+  const scale = Math.max(1, Math.round(d.mw * short * (d.kind === 'bank' ? 0.4 : d.kind === 'stream' ? 2.5 : 1.8)));
+  const n = `${scale} million`;
+  const site = siteName(s);
+  const story: Record<CustKey, [string, string[]]> = {
+    ai: [`${d.who} goes down for ${n} users`, [`Chatbots and coding tools stall worldwide`, `${d.who} blames its datacenter provider, ${site}`, '"Capacity constraints," says the status page']],
+    stream: [`${d.who} outage hits ${n} viewers`, ['Streams freeze in the middle of the big game', `Engineers point to power limits at ${site}`, 'Refund requests pile up']],
+    bank: [`${d.who} payments fail for ${n} customers`, ['Cards declined at checkout', `Regulators ask why ${site} could not keep systems up`, 'The bank promises an inquiry']],
+    games: [`${d.who} servers crash for ${n} players`, ['Players stuck in lobbies for hours', `${site} named as the weak link`, 'Streamers rage live on camera']],
+  };
+  const [head, ticker] = story[d.kind];
+  headline(s, 'Breaking news', head, ticker);
+  s.trust = Math.max(0, s.trust - 1);
+}
+
 // ---------- chips ----------
 
 /** Halls fitted with chips older than the newest. */
@@ -174,6 +190,11 @@ export function dealsMonth(s: GameState, l: Ledger) {
     if (got < d.mw * 0.9) {
       d.strikes++;
       note(s, `${d.who} got ${got.toFixed(1)} of ${d.mw} MW. Strike ${d.strikes}/3`);
+      // a big customer's outage is a public one: their users notice, and the press finds out whose datacenter it was
+      if (d.mw >= 5 && d.strikes < 3 && (d.lastNews ?? -99) <= s.month - 6) {
+        d.lastNews = s.month;
+        outageNews(s, d, 1 - got / d.mw);
+      }
       if (d.strikes >= 3) {
         d.until = s.month;
         s.trust = Math.max(0, s.trust - 2);
