@@ -491,7 +491,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
       </div>
       {broken && (
         <div className="note bad">
-          <span>{techs ? `Down. Repairing ${Math.round(((fixing?.t ?? 0) / 4) * 100)}%` : 'Down. No income.'}</span>
+          <span>{fixing?.why ? `${fixing.why}. ` : ''}{techs ? `Repairing ${Math.round(((fixing?.t ?? 0) / 4) * 100)}%` : 'No income.'}</span>
           {!techs && (
             <button className="pill white" disabled={s.cash < today(s, REPAIR_COST)} onClick={() => dispatch({ type: 'repair', floor: i })}>
               Repair crew  {money(today(s, REPAIR_COST))}

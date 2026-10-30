@@ -36,7 +36,7 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
           <div className="alarm-tag"><span className="dot" />Alarm</div>
           <div className="alarm-head">{floorLabel(s, down.floor)} down</div>
           <div className="alarm-log">
-            <span>{f ? TYPES[f.type].name : 'Floor'} offline. No tech on site.</span>
+            <span>{down.why ?? `${f ? TYPES[f.type].name : 'Floor'} offline`}. No tech on site.</span>
             {others > 0 && <span>{others} more {others === 1 ? 'floor' : 'floors'} down</span>}
           </div>
           <div className="alarm-foot">

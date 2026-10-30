@@ -6,7 +6,7 @@ import { strategyMonth } from './strategy';
 import { dealsMonth, SMR_COST, SMR_MONTHS } from './deals';
 import { eventsMonth } from './rival';
 import {
-  floorLabel, genOf, turbineCount, gridLevel, hasLaw, hallCount, inflation, isBoosted, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
+  floorLabel, genOf, turbineCount, gridLevel, hasLaw, hallCount, inflation, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
   type GameState, type Ledger, type Upgrades,
 } from './state';
 
@@ -218,16 +218,26 @@ export function endOfMonth(s: GameState) {
   if (lvl === 2) addTrust(s, -1.5);
   if (lvl === 3) addTrust(s, -3);
 
-  // a hall can go down; it's likelier when power, cooling or the grid is short, or nobody is watching it
+  // a hall can go down, and there is always a reason. With backup gear a healthy hall rarely fails;
+  // short power or cooling, a strained grid, old chips and no one watching make it likely
   const halls = s.floors.map((f, k) => ({ f, k })).filter(o => o.f.done && o.f.type === 'hall' && !s.broken.some(b => b.floor === o.k));
   const before = s.broken.length;
   for (const { f, k } of halls) {
-    // old chips fail more often
-    const age = Math.max(0, s.chip - genOf(f)) * 0.01;
-    const p = 0.012 + age + (l.eff < 1 ? 0.08 : 0) + [0, 0, 0.05, 0.1][lvl] + (techsOn(s, k) === 0 ? 0.02 : 0) + (isBoosted(s, k) ? 0.06 : 0);
+    const gens = Math.max(0, s.chip - genOf(f));
+    const causes: [string, number][] = [
+      ['A power supply failed', 0.003],
+      [`Old chips failing (${gens} ${gens === 1 ? 'generation' : 'generations'} behind)`, gens * 0.01],
+      [l.pe <= l.ce ? 'Not enough power floors for the halls' : 'Not enough cooling for the halls', l.eff < 1 ? 0.08 : 0],
+      [lvl === 3 ? 'Blackout on the town grid' : 'Brownout on the town grid', [0, 0, 0.05, 0.1][lvl]],
+      ['No tech watching it', techsOn(s, k) === 0 ? 0.02 : 0],
+    ];
+    const p = causes.reduce((t, c) => t + c[1], 0);
     if (s.broken.length < 2 && Math.random() < p) {
-      s.broken.push({ floor: k, t: 0 });
-      note(s, techsOn(s, k) ? `${floorLabel(s, k)} is down. Your techs are fixing it.` : `${floorLabel(s, k)} is down`);
+      // name the cause, likelier ones more often
+      let r = Math.random() * p;
+      const why = (causes.find(c => (r -= c[1]) < 0) ?? causes[0])[0];
+      s.broken.push({ floor: k, t: 0, why });
+      note(s, `${floorLabel(s, k)} is down: ${why.toLowerCase()}`);
     }
   }
 

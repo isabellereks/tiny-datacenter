@@ -165,7 +165,8 @@ export interface GameState {
   complaint: string | null;
   cooldown: Record<string, number>;
   /** server halls that are down; t counts seconds a tech has spent fixing it */
-  broken: { floor: number; t: number }[];
+  /** halls that are down, and what took them down */
+  broken: { floor: number; t: number; why?: string }[];
   goal: number;
   /** months in a row that ended with less than $0 */
   debt: number;
