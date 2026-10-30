@@ -550,6 +550,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .deal-nums .bad, .deal small.bad { color: var(--red); }
 .deal small { font-size: 12.5px; }
 .deal-foot { display: flex; align-items: center; gap: 6px; }
+.mw-step { display: flex; align-items: center; gap: 6px; margin: 8px 0 6px; }
+.mw-step b { min-width: 64px; text-align: center; font-size: 15px; }
+.deal .seg { margin-bottom: 6px; }
+.deal-asks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 2px; }
 .deal-foot .muted { margin-right: auto; }
 .deal-foot .pill { padding: 7px 14px; }
 .needs { display: flex; flex-wrap: wrap; gap: 4px; }

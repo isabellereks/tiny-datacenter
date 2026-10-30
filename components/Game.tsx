@@ -32,7 +32,7 @@ const body = Nunito({ subsets: ['latin'], variable: '--body', weight: ['400', '6
 const ISLAND_SPACE = 76;
 
 /** Things worth interrupting the view for. */
-const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open/i;
+const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open|buyer/i;
 
 export default function Game() {
   const hostRef = useRef<HTMLDivElement>(null);

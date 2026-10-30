@@ -31,7 +31,9 @@ export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: numbe
 export type Need = 'green' | 'uptime' | 'fresh';
 export interface Offer { id: number; who: string; kind: CustKey; mw: number; price: number; months: number; lead: number; needs: Need[]; expires: number }
 /** A signed deal. Months you can't supply their power cost you credits and strikes; three strikes and they leave. */
-export interface Deal extends Offer { start: number; until: number; strikes: number; lastNews?: number }
+export interface Deal extends Offer { start: number; until: number; strikes: number; lastNews?: number; reply?: string; replyAt?: number }
+/** Spare capacity a broker is trying to sell: an answer comes in a month or three. */
+export interface Pitch { mw: number; months: number; ask: number; odds: number; due: number }
 
 export interface Worker {
   id: number; name: string; floor: number;
@@ -206,6 +208,7 @@ export interface GameState {
   bill: { progress: number; stage: number; name: string } | null;
   loans: Loan[];
   market: { phase: 'normal' | 'boom' | 'glut'; until: number };
+  pitch?: Pitch | null;
   /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
   econ: { phase: EconPhase; until: number; cost: number; price: number };
   /** things you did that come back later */

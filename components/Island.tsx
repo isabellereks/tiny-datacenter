@@ -21,6 +21,7 @@ import {
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, moraleMood, teamEventCost } from '@/lib/game/staff';
 import {
+  ASKS, PITCH_TERMS, askWait, canRenew, capacityMW, cutFee, cutStep, freeMW, growOdds, growStep, pitchOdds, pitchPrice, renewOdds, renewPrice,
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
 import { BillPanel, FinancePanel } from './Strategy';
@@ -533,11 +534,7 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
   );
 }
 
-/** MW you could run with every hall staffed and enough power, cooling and grid. */
-function potential(s: GameState, l: Ledger) {
-  const supply = Math.min(l.powerMW, l.coolMW, (l.gridCap + l.onsite) / l.pue);
-  return Math.min(l.hallMW, supply);
-}
+const potential = (_s: GameState, l: Ledger) => capacityMW(l);
 
 /** What caps the MW you can run. Just the numbers: the tightest one is marked. */
 function Limits({ s, l, want }: { s: GameState; l: Ledger; want: number }) {
@@ -580,12 +577,55 @@ function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {l.spot > 0 && <span className="good">Spare sells for {money(l.spot)}/mo</span>}
         {l.sla > 0 && <span className="bad">Credits {money(l.sla)}/mo</span>}
       </div>
+      <SellCard s={s} l={l} dispatch={dispatch} />
       {s.offers.length > 0 && <span className="label">Offers</span>}
       {s.offers.map(o => <OfferCard key={o.id} s={s} o={o} can={can} dispatch={dispatch} />)}
       {live.length > 0 && <span className="label">Customers</span>}
       {live.map(d => <DealCard key={d.id} s={s} d={d} l={l} dispatch={dispatch} />)}
       {waiting.length > 0 && <span className="label">Moving in</span>}
       {waiting.map(d => <DealCard key={d.id} s={s} d={d} l={l} dispatch={dispatch} />)}
+    </>
+  );
+}
+
+/** Put spare MW on the market through a broker, on your terms. */
+function SellCard({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  const free = freeMW(s, l);
+  const [mw, setMw] = useState(1);
+  const [months, setMonths] = useState(36);
+  const [ask, setAsk] = useState(1);
+  const p = s.pitch;
+  if (p) return (
+    <>
+      <span className="label">Sell capacity</span>
+      <div className="note"><span>A broker is looking for a buyer for {p.mw} MW. Answer in about {Math.max(1, Math.ceil(p.due - s.month))} mo.</span></div>
+    </>
+  );
+  if (free < 1) return null;
+  const n = Math.min(Math.max(1, mw), free);
+  const price = pitchPrice(s, ask);
+  return (
+    <>
+      <span className="label">Sell capacity</span>
+      <div className="deal offer">
+        <div className="deal-top"><b>{free} MW unsold</b><span>Brokers take 1 to 3 months</span></div>
+        <div className="mw-step">
+          <button className="pill" disabled={n <= 1} onClick={() => setMw(n - 1)} aria-label="Less">−</button>
+          <b>{n} MW</b>
+          <button className="pill" disabled={n >= free} onClick={() => setMw(n + 1)} aria-label="More">+</button>
+          <button className="pill" disabled={n >= free} onClick={() => setMw(free)}>All</button>
+        </div>
+        <div className="seg three" role="group" aria-label="Term">
+          {PITCH_TERMS.map(m => <button key={m} aria-pressed={months === m} onClick={() => setMonths(m)}>{m / 12} {m === 12 ? 'yr' : 'yrs'}</button>)}
+        </div>
+        <div className="seg three" role="group" aria-label="Price">
+          {ASKS.map(a => <button key={a.k} aria-pressed={ask === a.k} onClick={() => setAsk(a.k)}>{a.label}</button>)}
+        </div>
+        <div className="deal-foot">
+          <span className="muted small">About {money(n * 1000 * price)}/mo{s.hints ? `, ${Math.round(pitchOdds(s, l, n, ask) * 100)}% chance` : ''}</span>
+          <button className="pill white" onClick={() => dispatch({ type: 'pitch', mw: n, months, ask })}>Find a buyer</button>
+        </div>
+      </div>
     </>
   );
 }
@@ -627,6 +667,10 @@ function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dis
   // customers pay for the power you deliver, served in the order they signed
   const got = allocate(s, l.itMW).find(x => x.d.id === d.id)?.got ?? 0;
   const yrs = Math.max(0, (d.until - s.month) / 12);
+  const wait = askWait(s, d);
+  const grow = growStep(s, l, d), cut = cutStep(s, l, d), cutCost = cut > 0 ? cutFee(s, d, cut) : 0;
+  const renew = canRenew(s, d);
+  const reply = d.reply && (d.replyAt ?? -99) > s.month - 3 ? d.reply : null;
   return (
     <div className={`deal${d.strikes ? ' hurt' : ''}`}>
       <div className="deal-top">
@@ -640,6 +684,17 @@ function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dis
       </div>
       <Needs needs={d.needs} />
       {!waiting && l.chipValue < 0.99 && d.needs.includes('fresh') && <small className="bad">Paying 20% less for old chips</small>}
+      {reply && <small className="muted">{reply}</small>}
+      {(grow >= 1 || renew || cut > 0) && (
+        <div className="deal-asks">
+          {cut > 0 && <button className="pill" disabled={s.cash < cutCost} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'cut' })}>Give back {cut} MW  {money(cutCost)}</button>}
+          {grow >= 1 && <button className="pill" disabled={wait > 0} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'grow' })}>
+            Offer {grow} more MW{s.hints && !wait ? `  ${Math.round(growOdds(s, l, d) * 100)}%` : ''}</button>}
+          {renew && <button className="pill" disabled={wait > 0} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'renew' })}>
+            Renew 3 yrs at {money(renewPrice(s, d))}/kW{s.hints && !wait ? `  ${Math.round(renewOdds(s, l, d) * 100)}%` : ''}</button>}
+          {wait > 0 && (grow >= 1 || renew) && <span className="muted small">Ask again in {wait} mo</span>}
+        </div>
+      )}
       <div className="deal-foot">
         <span />
         <button className={`pill${sure ? ' danger' : ''}`} disabled={s.cash < fee}

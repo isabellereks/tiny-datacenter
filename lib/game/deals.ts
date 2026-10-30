@@ -1,6 +1,6 @@
 import { CHIPS, CHIP_EVERY, CUSTS, GRID_ASK, HYPERSCALERS, LIQUID_GEN, LOCS, TIERS, type CustKey } from './data';
 import {
-  allocate, chipValue, noCrew, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
+  allocate, chipValue, dealPrice, noCrew, fitGen, genOf, hallCount, hasLaw, ledger, marketPrice, money, note, signedMW, siteName, tierOf, today,
   type Deal, type GameState, type Ledger, type Need, type Offer,
 } from './state';
 
@@ -113,6 +113,106 @@ function outageNews(s: GameState, d: Deal, short: number) {
   s.trust = Math.max(0, s.trust - 1);
 }
 
+// ---------- selling and reworking capacity ----------
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** MW you could run with every hall staffed and enough power, cooling and grid. */
+export function capacityMW(l: Ledger) {
+  return Math.min(l.hallMW, l.powerMW, l.coolMW, (l.gridCap + l.onsite) / l.pue);
+}
+/** Whole MW you could still sell: what you can run, less what you have promised or have a broker selling. */
+export const freeMW = (s: GameState, l: Ledger) => Math.max(0, Math.floor(capacityMW(l) - signedMW(s) - (s.pitch?.mw ?? 0) + 0.05));
+
+export const ASKS = [{ label: 'Below market', k: 0.9 }, { label: 'Market', k: 1 }, { label: 'Premium', k: 1.15 }];
+export const PITCH_TERMS = [12, 36, 60];
+const MARKET_PULL = { normal: 0, boom: 0.15, glut: -0.3 };
+
+/** Odds a buyer takes your capacity: cheap sells, booms and new chips help, big blocks, a bigger rival and an angry town hurt. */
+export function pitchOdds(s: GameState, l: Ledger, mw: number, ask: number) {
+  const base = ask < 0.95 ? 0.9 : ask < 1.05 ? 0.7 : 0.35;
+  const rival = s.rival && s.rival.mw > l.itMW ? -0.15 : 0;
+  return clamp(base + MARKET_PULL[s.market.phase] + rival + (l.chipValue - 1) * 0.8 - mw / 200 - (s.trust < 30 ? 0.1 : 0), 0.05, 0.95);
+}
+
+/** Hire a broker to find a buyer for spare MW at your price. */
+export function pitch(s: GameState, l: Ledger, mw: number, months: number, ask: number) {
+  if (s.pitch || mw < 1 || mw > freeMW(s, l) || !PITCH_TERMS.includes(months)) return false;
+  s.pitch = { mw, months, ask, odds: pitchOdds(s, l, mw, ask), due: s.month + Math.round(rnd(1, 3)) };
+  note(s, `A broker is looking for a buyer for ${mw} MW`);
+  return true;
+}
+
+const BUYERS: CustKey[] = ['ai', 'ai', 'stream', 'bank', 'games'];
+/** What a buyer would pay per kW a month, on average over who tends to buy. */
+export const pitchPrice = (s: GameState, ask: number) => ask * BUYERS.reduce((t, k) => t + marketPrice(s, k), 0) / BUYERS.length;
+
+function pitchMonth(s: GameState) {
+  const p = s.pitch;
+  if (!p || s.month < p.due) return;
+  s.pitch = null;
+  if (Math.random() >= p.odds) { note(s, `No buyer for ${p.mw} MW at that price`); return; }
+  const kind = pick(BUYERS);
+  const o = makeOffer(s, kind, p.mw);
+  // your terms, a little less for long ones, like any lease
+  s.offers.push({ ...o, months: p.months, needs: [], lead: Math.round(rnd(1, 3)), price: Math.round(marketPrice(s, kind) * p.ask * (p.months >= 60 ? 0.95 : 1)) });
+  note(s, `Found a buyer for ${p.mw} MW: ${o.who}`);
+}
+
+const replied = (s: GameState, d: Deal, text: string) => { d.reply = text; d.replyAt = s.month; note(s, text); };
+export const askWait = (s: GameState, d: Deal) => Math.max(0, Math.ceil((s.cooldown[`ask-${d.id}`] ?? 0) - s.month));
+
+/** How much more you can offer a customer: up to half again, if you have it spare. */
+export const growStep = (s: GameState, l: Ledger, d: Deal) => Math.min(freeMW(s, l), Math.max(1, Math.round(d.mw * 0.5)));
+/** Happy customers in a busy market take more. Old chips and strikes put them off. */
+export const growOdds = (s: GameState, l: Ledger, d: Deal) =>
+  clamp(0.5 + MARKET_PULL[s.market.phase] + (d.kind === 'ai' ? 0.1 : 0) - 0.25 * d.strikes + (l.chipValue - 1), 0.05, 0.9);
+
+/** Renewing near the end: another 3 years at today's price. */
+export const renewPrice = (s: GameState, d: Deal) => Math.round(marketPrice(s, d.kind));
+export const canRenew = (s: GameState, d: Deal) => d.start <= s.month && d.until - s.month <= 12;
+export function renewOdds(s: GameState, l: Ledger, d: Deal) {
+  const cheaper = renewPrice(s, d) < dealPrice(s, d) ? 0.15 : -0.05;
+  const rival = s.rival && s.rival.mw > l.itMW ? -0.2 : 0;
+  return clamp(0.75 + cheaper + rival - 0.25 * d.strikes + (l.chipValue - 1), 0.05, 0.95);
+}
+
+/** MW over what you can run, and what it costs to hand some back to this customer. */
+export const overMW = (s: GameState, l: Ledger) => Math.max(0, signedMW(s) - capacityMW(l));
+export const cutStep = (s: GameState, l: Ledger, d: Deal) => Math.min(d.mw - 1, Math.ceil(overMW(s, l) * 2) / 2);
+export const cutFee = (s: GameState, d: Deal, mw: number) => Math.round(exitFee(s, d) * mw / d.mw);
+
+export function reworkDeal(s: GameState, l: Ledger, id: number, what: 'grow' | 'renew' | 'cut') {
+  const d = s.deals.find(x => x.id === id);
+  if (!d || d.until <= s.month) return false;
+  if (what === 'cut') {
+    const mw = cutStep(s, l, d), fee = cutFee(s, d, mw);
+    if (mw <= 0 || s.cash < fee) return false;
+    s.cash -= fee;
+    d.mw -= mw;
+    replied(s, d, `${d.who} gave back ${mw} MW for ${money(fee)}`);
+    return true;
+  }
+  if (askWait(s, d)) return false;
+  if (what === 'grow') {
+    const mw = growStep(s, l, d);
+    if (mw < 1) return false;
+    s.cooldown[`ask-${d.id}`] = s.month + 6;
+    if (Math.random() < growOdds(s, l, d)) { d.mw += mw; replied(s, d, `${d.who} took ${mw} more MW`); }
+    else replied(s, d, `${d.who} doesn't need more right now`);
+    return true;
+  }
+  if (!canRenew(s, d)) return false;
+  s.cooldown[`ask-${d.id}`] = s.month + 6;
+  if (Math.random() < renewOdds(s, l, d)) {
+    // the new price starts today and rises from here like the old one did
+    d.price = Math.round(renewPrice(s, d) / 1.025 ** (Math.max(0, s.month - d.start) / 12));
+    d.until += 36;
+    replied(s, d, `${d.who} renewed for 3 years`);
+  } else replied(s, d, `${d.who} isn't ready to renew`);
+  return true;
+}
+
 // ---------- chips ----------
 
 /** Halls fitted with chips older than the newest. */
@@ -210,6 +310,7 @@ export function dealsMonth(s: GameState, l: Ledger) {
   }
   s.deals = s.deals.filter(d => d.until > s.month);
 
+  pitchMonth(s);
   // offers expire, and new ones come in; more in a boom, fewer in a crash
   const gone = s.offers.filter(o => o.expires <= s.month);
   if (gone.length) note(s, `${gone.map(o => o.who).join(', ')} went elsewhere`);

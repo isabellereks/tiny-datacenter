@@ -5,7 +5,7 @@ import {
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRADES, type GiftKey } from './events';
 import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
-import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, refreshCost, requestGrid, sign, SMR_MONTHS } from './deals';
+import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, pitch, refreshCost, reworkDeal, requestGrid, sign, SMR_MONTHS } from './deals';
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { buildCost, buildingCost, buildMonths, noCrew, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
 
@@ -36,6 +36,8 @@ export type Action =
   | { type: 'hints'; on: boolean }
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
+  | { type: 'pitch'; mw: number; months: number; ask: number }
+  | { type: 'rework'; id: number; what: 'grow' | 'renew' | 'cut' }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
   | { type: 'gridFast'; how: 'pay' | 'flex' }
   | { type: 'crews'; n: number }
@@ -354,6 +356,14 @@ export function apply(s: GameState, a: Action): Effects {
     case 'endDeal':
       if (s.phase !== 'play') return {};
       endDeal(s, a.id);
+      return {};
+    case 'pitch':
+      if (s.phase !== 'play') return {};
+      pitch(s, ledger(s), a.mw, a.months, a.ask);
+      return {};
+    case 'rework':
+      if (s.phase !== 'play') return {};
+      reworkDeal(s, ledger(s), a.id, a.what);
       return {};
     case 'call': {
       const c = s.call;
