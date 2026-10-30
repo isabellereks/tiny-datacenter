@@ -222,7 +222,7 @@ export const GRID_ASK = [10, 25, 50, 100];
  *  $2.5M per MW it holds, power gear about $3.5M per MW, cooling about $2M. Customers bring their own servers. */
 export const TYPES: Record<FloorType, { name: string; short: string; cost: number; note: string }> = {
   hall: { name: 'Server hall', short: 'Server hall', cost: 2_500_000, note: 'Earns money. Priced per MW it holds.' },
-  power: { name: 'Power', short: 'Power', cost: 35_000_000, note: '+10 MW power.' },
+  power: { name: 'Electrical', short: 'Electrical', cost: 35_000_000, note: 'Carries 10 MW to the halls.' },
   cool: { name: 'Cooling', short: 'Cooling', cost: 20_000_000, note: '+10 MW cooling.' },
   net: { name: 'Network', short: 'Network', cost: 4_000_000, note: 'Halls earn more.' },
   break: { name: 'Break room', short: 'Break room', cost: 600_000, note: 'Techs work faster.' },

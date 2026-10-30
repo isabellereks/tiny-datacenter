@@ -227,7 +227,7 @@ export function endOfMonth(s: GameState) {
     const causes: [string, number][] = [
       ['A power supply failed', 0.003],
       [`Old chips failing (${gens} ${gens === 1 ? 'generation' : 'generations'} behind)`, gens * 0.01],
-      [l.pe <= l.ce ? 'Not enough power floors for the halls' : 'Not enough cooling for the halls', l.eff < 1 ? 0.08 : 0],
+      [l.pe <= l.ce ? 'Not enough electrical floors for the halls' : 'Not enough cooling for the halls', l.eff < 1 ? 0.08 : 0],
       [lvl === 3 ? 'Blackout on the town grid' : 'Brownout on the town grid', [0, 0, 0.05, 0.1][lvl]],
       ['No tech watching it', techsOn(s, k) === 0 ? 0.02 : 0],
     ];

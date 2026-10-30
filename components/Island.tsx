@@ -306,7 +306,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
 function SupplyMeters({ l }: { l: Ledger }) {
   return (
     <>
-      <Meter label="Power" value={l.hallMW} max={l.powerMW} text={`${l.hallMW.toFixed(1)} of ${l.powerMW.toFixed(1)} MW`} bad={l.hallMW > l.powerMW} />
+      <Meter label="Electrical" value={l.hallMW} max={l.powerMW} text={`${l.hallMW.toFixed(1)} of ${l.powerMW.toFixed(1)} MW`} bad={l.hallMW > l.powerMW} />
       <Meter label="Cooling" value={l.hallMW} max={l.coolMW} text={`${l.hallMW.toFixed(1)} of ${l.coolMW.toFixed(1)} MW`} bad={l.hallMW > l.coolMW} />
     </>
   );
@@ -405,8 +405,17 @@ function Projects({ s, keys, dispatch }: { s: GameState; keys: string[]; dispatc
 
 /** Power: what the town grid gives you, your place in the utility's queue, and what you make yourself. */
 function PowerTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  // power reaches the halls in two steps: the grid and on-site plants supply it, your electrical floors carry it in
+  const supply = (l.gridCap + l.onsite) / l.pue;
+  const short = l.powerMW < l.hallMW - 0.05 && l.powerMW <= supply;
   return (
     <>
+      <div className="books">
+        <Row label="Halls could use" value={`${l.hallMW.toFixed(1)} MW`} />
+        <Row label="Grid and on-site supply" sub=" for servers, after cooling" value={`${supply.toFixed(1)} MW`} neg={supply < l.hallMW - 0.05} />
+        <Row label="Electrical floors carry" value={`${l.powerMW.toFixed(1)} MW`} neg={l.powerMW < l.hallMW - 0.05} />
+      </div>
+      {short && <div className="note bad"><span>The grid has room. Your electrical floors are full: build another in the Build tab.</span></div>}
       <GridPanel s={s} l={l} dispatch={dispatch} />
       <span className="label">Make your own</span>
       <Projects s={s} keys={['solar', 'turbines', 'batteries', 'renewables', 'smr']} dispatch={dispatch} />
@@ -541,7 +550,7 @@ function Limits({ s, l, want }: { s: GameState; l: Ledger; want: number }) {
   const staffed = s.floors.reduce((t, f, i) => t + (f.done && f.type === 'hall' && !isBroken(s, i) ? hallMWOf(f) * utilization(s, i) : 0), 0);
   const rows = [
     { label: 'Server halls', mw: l.hallMW },
-    { label: 'Power floors', mw: l.powerMW },
+    { label: 'Electrical floors', mw: l.powerMW },
     { label: 'Cooling floors', mw: l.coolMW },
     { label: l.onsite ? 'Grid and on-site power' : 'Town grid', mw: (l.gridCap + l.onsite) / l.pue },
     { label: 'Techs on halls', mw: staffed },
@@ -867,7 +876,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
   const limits: Record<string, string> = {
     zoning: `${FOUNDS[FOUND_ORDER[s.permits.zoning]].name} (${FOUNDS[FOUND_ORDER[s.permits.zoning]].max} floors)`,
     height: heightLimit(s) > 100 ? 'No height limit' : `Up to ${heightLimit(s)} floors`,
-    air: `${powerLimit(s)} power floors (${s.floors.filter(f => f.type === 'power').length} built)`,
+    air: `${powerLimit(s)} electrical floors (${s.floors.filter(f => f.type === 'power').length} built)`,
     water: hallLimit(s) > 100 ? 'Not limited' : `${hallLimit(s)} server halls (${hallCount(s)} built)`,
     campus: `${s.permits.campus + 1} of ${maxBuildings(s)} buildings`,
   };

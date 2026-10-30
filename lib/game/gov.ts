@@ -108,7 +108,7 @@ export const PERMITS: Record<PermitKey, PermitInfo> = {
   },
   air: {
     name: 'Air permit', by: s => LOCS[s.loc].gov.air, fee: 150_000, wait: 3, here: () => true, max: () => 20,
-    what: () => '+2 power floors of backup generators',
+    what: () => '+2 electrical floors of backup generators',
   },
   campus: {
     name: 'Site plan approval', by: s => LOCS[s.loc].gov.local, fee: 1_000_000, wait: 5, here: s => maxBuildings(s) > 1, max: s => maxBuildings(s) - 1,

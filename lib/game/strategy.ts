@@ -255,7 +255,7 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
   // supply chains: big transformers can be backordered for a year or more
   if (m >= 18 && (s.shortageUntil ?? 0) <= s.month && Math.random() < 0.02) {
     s.shortageUntil = s.month + 12 + Math.round(Math.random() * 12);
-    headline(s, 'Business news', 'Transformer shortage hits datacenters', ['Lead times for big transformers double', 'Power floors take twice as long to build', 'Utilities blame the AI boom']);
+    headline(s, 'Business news', 'Transformer shortage hits datacenters', ['Lead times for big transformers double', 'Electrical floors take twice as long to build', 'Utilities blame the AI boom']);
   }
 
   // things that come back years later
