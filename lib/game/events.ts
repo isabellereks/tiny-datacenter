@@ -161,27 +161,27 @@ const doneFloors = (s: GameState) => s.floors.filter(f => f.done).length;
 /** The first goals double as a tutorial; later ones push you through the tiers. */
 export const GOALS: Goal[] = [
   { text: 'Hire a tech', reward: 500_000, hint: 'Tap a server hall.', done: s => s.workers.length > 0 },
-  { text: 'Sign a customer', reward: 1_000_000, hint: 'Deals tab.', done: s => s.deals.length >= 2 },
-  { text: 'Join the grid queue', reward: 2_000_000, hint: 'Build tab.', done: s => !!s.gridQueue || s.gridAdded > 0 },
+  { text: 'Sign a customer', reward: 1_000_000, hint: '', done: s => s.deals.length >= 2 },
+  { text: 'Join the grid queue', reward: 2_000_000, hint: '', done: s => !!s.gridQueue || s.gridAdded > 0 },
   { text: 'Make $250K profit in a month', reward: 2_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 250_000 },
-  { text: 'Build a second server hall', reward: 4_000_000, hint: 'Build tab.', done: s => hallCount(s) >= 2 },
+  { text: 'Build a second server hall', reward: 4_000_000, hint: '', done: s => hallCount(s) >= 2 },
   { text: 'Run every hall at 100%', reward: 3_000_000, hint: '', done: (s, l) => hallCount(s) >= 2 && l.eff >= 0.999 && s.floors.every((f, i) => f.type !== 'hall' || !f.done || techsOn(s, i) >= MAX_TECHS) },
   { text: 'Grow into colocation', reward: 6_000_000, hint: '', done: s => s.tier >= 1 },
-  { text: 'Do something for the town', reward: 1_000_000, hint: 'Town tab.', done: s => s.goodwill > 0.5 || s.up.heat || s.up.soundWalls },
-  { text: 'Get staff morale to 70', reward: 2_000_000, hint: 'Staff tab.', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
-  { text: 'Serve 3 customers at once', reward: 5_000_000, hint: 'Deals tab.', done: s => liveDeals(s).length >= 3 },
-  { text: 'Refit a hall with new chips', reward: 5_000_000, hint: 'Floors tab.', done: s => s.floors.some(f => (f.gen ?? 1) >= 2) },
+  { text: 'Do something for the town', reward: 1_000_000, hint: '', done: s => s.goodwill > 0.5 || s.up.heat || s.up.soundWalls },
+  { text: 'Get staff morale to 70', reward: 2_000_000, hint: '', done: s => s.workers.length >= 3 && s.staff.morale >= 70 },
+  { text: 'Serve 3 customers at once', reward: 5_000_000, hint: '', done: s => liveDeals(s).length >= 3 },
+  { text: 'Refit a hall with new chips', reward: 5_000_000, hint: '', done: s => s.floors.some(f => (f.gen ?? 1) >= 2) },
   { text: 'Make $1M profit in a month', reward: 10_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 1_000_000 },
   { text: 'Build 12 floors', reward: 15_000_000, hint: '', done: s => doneFloors(s) >= 12 },
   { text: 'Grow into hyperscale', reward: 25_000_000, hint: '', done: s => s.tier >= 2 },
-  { text: 'Open a second building', reward: 15_000_000, hint: 'Gov tab, then Build.', done: s => s.campus >= 2 },
-  { text: 'Install liquid cooling', reward: 10_000_000, hint: 'Build tab.', done: s => s.up.liquid },
+  { text: 'Open a second building', reward: 15_000_000, hint: '', done: s => s.campus >= 2 },
+  { text: 'Install liquid cooling', reward: 10_000_000, hint: '', done: s => s.up.liquid },
   { text: 'Reach year 10 with trust above 60', reward: 40_000_000, hint: '', done: s => s.month >= 108 && s.trust > 60 },
   { text: 'Make $5M profit in a month', reward: 40_000_000, hint: '', done: s => (s.books?.net ?? 0) >= 5_000_000 },
   { text: 'Make it through an AI crash', reward: 30_000_000, hint: '', done: s => s.fired.includes('glutSurvived') },
   { text: 'Outgrow your rival', reward: 50_000_000, hint: '', done: s => s.fired.includes('rivalBeaten') },
   { text: 'Grow into an AI factory', reward: 100_000_000, hint: '', done: s => s.tier >= 3 },
-  { text: 'Switch on your own reactor', reward: 100_000_000, hint: 'Build tab.', done: s => s.up.smr },
+  { text: 'Switch on your own reactor', reward: 100_000_000, hint: '', done: s => s.up.smr },
   { text: 'Build 40 floors', reward: 150_000_000, hint: '', done: s => doneFloors(s) >= 40 },
 ];
 
@@ -251,7 +251,7 @@ export function endOfMonth(s: GameState) {
 
   if (s.cash < 0) {
     s.debt++;
-    if (s.debt === 1) note(s, 'You are in the red. After 3 months like this you go bankrupt.');
+    if (s.debt === 1) note(s, 'In the red: month 1 of 3');
   } else s.debt = 0;
 
   if (s.trust <= 0) { endGame(s, 'town'); return; }

@@ -25,7 +25,7 @@ export function TierUp({ s, dispatch, font }: { s: GameState; dispatch: (a: Acti
           {unlocked.map(u => <li key={u.key}>{u.name}: {u.note}</li>)}
         </ul>
         <div className="share-foot">
-          <button className="go" onClick={() => dispatch({ type: 'tierSeen' })}>Keep growing</button>
+          <button className="go" onClick={() => dispatch({ type: 'tierSeen' })}>Continue</button>
         </div>
       </div>
     </div>

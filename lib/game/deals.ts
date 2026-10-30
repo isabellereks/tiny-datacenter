@@ -27,7 +27,7 @@ export const NEED_LABEL: Record<Need, string> = {
   green: 'Clean power', uptime: 'No outages', fresh: 'Newest chips',
 };
 export const NEED_NOTE: Record<Need, string> = {
-  green: 'Needs a wind deal or solar, or pays 20% less',
+  green: 'Pays 20% less without clean power',
   uptime: 'Shortfalls refund the whole fee',
   fresh: 'Pays 20% less on chips a generation old',
 };

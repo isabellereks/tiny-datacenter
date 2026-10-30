@@ -131,7 +131,7 @@ export const STRAT_DECISIONS: Decision[] = [
           note(s, 'Took an emergency loan at 14%.');
         },
       },
-      { label: 'Go it alone', note: 'Two more months to fix it', apply: () => {} },
+      { label: 'Go it alone', note: '2 months left', apply: () => {} },
     ],
   },
   {

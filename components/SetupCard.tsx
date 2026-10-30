@@ -198,12 +198,12 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
         <Fact label="Trees cut">{imp.cleared}/{imp.trees}</Fact>
       </div>}
       {(l.eff < 0.999 || !hasHall) && (
-        <p className="warn-line">{!hasHall ? 'Add a server hall to earn money.' : `Need more ${l.pe < 1 ? 'power' : 'cooling'}. Halls at ${Math.round(l.eff * 100)}%.`}</p>
+        <p className="warn-line">{!hasHall ? 'No server halls' : `Halls at ${Math.round(l.eff * 100)}%: ${l.pe < 1 ? 'electrical' : 'cooling'} short`}</p>
       )}
 
       <div className="setup-foot">
         {i > 0 ? <button className="back" onClick={() => go(-1)}>Back</button> : <span />}
-        {over && <span className="foot-note">Over budget. Pick cheaper options.</span>}
+        {over && <span className="foot-note">Over budget</span>}
         {last
           ? <button className="go" disabled={over || approved || !s.look.name.trim() || !s.look.owner.trim()}
               onClick={() => { setApproved(true); window.setTimeout(() => dispatch({ type: 'open' }), 1200); }}>Submit permit</button>

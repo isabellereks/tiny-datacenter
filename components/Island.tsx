@@ -349,7 +349,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       </div>
       {n < max ? (<>
         <button className="pill white wide" disabled={noCrew(s) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
-          {noCrew(s) ? `All crews busy, next free in ${Math.max(1, Math.ceil(Math.min(...(s.jobs ?? []).map(j => j.to)) - s.month))} mo` : block ? `${block} (Gov tab)` : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
+          {noCrew(s) ? `All crews busy, next free in ${Math.max(1, Math.ceil(Math.min(...(s.jobs ?? []).map(j => j.to)) - s.month))} mo` : block ? block : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
         </button>
         <div className="crews">
           <span>Crews {(s.jobs ?? []).length} of {crews(s)} working</span>
@@ -359,7 +359,7 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       </>) : (
         <div className="note">
           <span>Max height for this foundation</span>
-          {up && !zoningAllows(s, up) && <span>Taller needs a zoning permit (Gov tab)</span>}
+          {up && !zoningAllows(s, up) && <span>Height limit: zoning</span>}
         </div>
       )}
       {up && zoningAllows(s, up) && (
@@ -407,15 +407,13 @@ function Projects({ s, keys, dispatch }: { s: GameState; keys: string[]; dispatc
 function PowerTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
   // power reaches the halls in two steps: the grid and on-site plants supply it, your electrical floors carry it in
   const supply = (l.gridCap + l.onsite) / l.pue;
-  const short = l.powerMW < l.hallMW - 0.05 && l.powerMW <= supply;
   return (
     <>
       <div className="books">
         <Row label="Halls could use" value={`${l.hallMW.toFixed(1)} MW`} />
-        <Row label="Grid and on-site supply" sub=" for servers, after cooling" value={`${supply.toFixed(1)} MW`} neg={supply < l.hallMW - 0.05} />
+        <Row label="Grid and on-site supply" value={`${supply.toFixed(1)} MW`} neg={supply < l.hallMW - 0.05} />
         <Row label="Electrical floors carry" value={`${l.powerMW.toFixed(1)} MW`} neg={l.powerMW < l.hallMW - 0.05} />
       </div>
-      {short && <div className="note bad"><span>The grid has room. Your electrical floors are full: build another in the Build tab.</span></div>}
       <GridPanel s={s} l={l} dispatch={dispatch} />
       <span className="label">Make your own</span>
       <Projects s={s} keys={['solar', 'turbines', 'batteries', 'renewables', 'smr']} dispatch={dispatch} />
@@ -439,7 +437,7 @@ function GridPanel({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: 
           {!s.gridQueue.paid && !s.gridQueue.flex && (
             <div className="queue-acts">
               <button className="pill" disabled={s.cash < fastTrackCost(s)} onClick={() => dispatch({ type: 'gridFast', how: 'pay' })}>Pay for the substation  {money(fastTrackCost(s))}</button>
-              <button className="pill" onClick={() => dispatch({ type: 'gridFast', how: 'flex' })} title="The grid operator can cut you back at peak times, for good">Flexible connection</button>
+              <button className="pill" onClick={() => dispatch({ type: 'gridFast', how: 'flex' })} title="Cut back at peaks, permanently">Flexible connection</button>
             </div>
           )}
         </div>
@@ -458,7 +456,7 @@ function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => v
   const allowed = s.campus <= s.permits.campus;
   return (
     <button className="pill wide" disabled={!allowed || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
-      {allowed ? `New building ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}` : `Building ${s.campus + 1} needs site plan approval (Gov tab)`}
+      {allowed ? `New building ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}` : `Building ${s.campus + 1}: site plan not approved`}
     </button>
   );
 }
@@ -617,7 +615,7 @@ function SellCard({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
     <>
       <span className="label">Sell capacity</span>
       <div className="deal offer">
-        <div className="deal-top"><b>{free} MW unsold</b><span>Brokers take 1 to 3 months</span></div>
+        <div className="deal-top"><b>{free} MW unsold</b><span>1–3 mo</span></div>
         <div className="mw-step">
           <button className="pill" disabled={n <= 1} onClick={() => setMw(n - 1)} aria-label="Less">−</button>
           <b>{n} MW</b>
@@ -795,7 +793,7 @@ function MoneyTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const r = rating(s, l);
   return (
     <>
-      {s.debt > 0 && <p className="warn">In debt {s.debt}/3 months. At 3 you go bankrupt.</p>}
+      {s.debt > 0 && <p className="warn">In debt {s.debt}/3 months</p>}
       <span className="label">{s.books ? 'Last month' : 'Each month'}</span>
       <div className="books">
         <Row label="Customers" value={money(books.dealIncome)} />
@@ -900,7 +898,7 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
               {!pending && !block && k === 'water' && needs !== null && s.trust < needs && <small className="bad">Needs trust {needs}</small>}
               {!pending && !block && (k === 'zoning' || k === 'height' || k === 'campus') && (() => {
                 const o = hearingOdds(s);
-                return <small className={o >= 0.7 ? 'ok' : o >= 0.4 ? undefined : 'bad'}>{o >= 0.7 ? 'The vote looks likely' : o >= 0.4 ? 'The vote looks close' : 'The vote looks uphill'}</small>;
+                return <small className={o >= 0.7 ? 'ok' : o >= 0.4 ? undefined : 'bad'}>{o >= 0.7 ? 'Vote: likely' : o >= 0.4 ? 'Vote: close' : 'Vote: uphill'}</small>;
               })()}
               <span>{pending ? `${Math.max(1, Math.ceil(pending.done - s.month))} mo` : block ?? `${money(fee)}, ${permitWait(s, k)} mo`}</span>
             </button>

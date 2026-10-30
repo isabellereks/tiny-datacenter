@@ -474,7 +474,7 @@ export function govMonth(s: GameState, l: Ledger): string | null {
   for (const a of due) decidePermit(s, a.key);
 
   // inspections, announced two months ahead
-  if (m === Math.floor(s.inspectAt) - 2) note(s, `${inspectionTitle(s)} in 2 months. Check the Gov tab.`);
+  if (m === Math.floor(s.inspectAt) - 2) note(s, `${inspectionTitle(s)} in 2 months`);
   if (s.month >= s.inspectAt) inspect(s, l);
   // the inspector comes back every month until everything passes
   else if (hasLaw(s, 'stopWork')) {

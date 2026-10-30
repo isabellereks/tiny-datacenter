@@ -14,10 +14,10 @@ function describe(s: GameState, what: { found?: FoundKey; floor?: number }): [st
   const i = what.floor, f = s.floors[i];
   const title = `${floorLabel(s, i)} · ${TYPES[f.type].name}`;
   if (!f.done) return [title, 'Under construction'];
-  if (isBroken(s, i)) return [title, `${s.broken.find(b => b.floor === i)?.why ?? 'Down'} · ${techsOn(s, i) ? 'techs repairing' : 'tap to send a crew'}`];
+  if (isBroken(s, i)) return [title, `${s.broken.find(b => b.floor === i)?.why ?? 'Down'} · ${techsOn(s, i) ? 'repairing' : 'no techs'}`];
   if (f.type !== 'hall') return [title, `Built for ${money(f.cost)}`];
   const n = techsOn(s, i);
-  if (!n) return [title, 'Off · needs a tech'];
+  if (!n) return [title, 'Off · 0 techs'];
   return [title, `${n} ${n === 1 ? 'tech' : 'techs'} · ${Math.round(utilization(s, i) * 100)}% in use · ${money(hallIncome(s, ledger(s), i))}/mo`];
 }
 

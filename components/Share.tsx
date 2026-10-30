@@ -209,12 +209,12 @@ export function Share({ s, capture, font, ui, onClose }: {
     if (local) {
       const copied = copy();
       window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-      copied.then(ok => { if (ok) setStatus('Image copied. Paste it into your post.'); else save(); });
+      copied.then(ok => { if (ok) setStatus('Image copied'); else save(); });
       return;
     }
     window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`, '_blank', 'noopener');
   };
-  const copyOnly = () => copy().then(ok => setStatus(ok ? 'Image copied' : 'Copy not supported here. Try Save.'));
+  const copyOnly = () => copy().then(ok => setStatus(ok ? 'Image copied' : 'Copy not supported'));
 
   return (
     <div className="share-back sharing" role="dialog" aria-label="Share your datacenter" onClick={onClose}>
