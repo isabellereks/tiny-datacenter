@@ -21,7 +21,8 @@ function headline(s: GameState, tag: string, text: string, ticker: string[]) {
 
 /** Deal sizes grow with you: MW a customer asks for at each tier. */
 const SIZES: [number, number][] = [[1, 4], [3, 10], [8, 24], [20, 60]];
-const TERMS = [24, 36, 60, 120];
+/** Deal lengths in months at each tier: short at first so space frees up for bigger customers. */
+const TERMS: number[][] = [[12, 18, 24], [12, 24, 36], [24, 36, 60], [36, 60, 120]];
 
 export const NEED_LABEL: Record<Need, string> = {
   green: 'Clean power', uptime: 'No outages', fresh: 'Newest chips',
@@ -39,7 +40,7 @@ export function makeOffer(s: GameState, kind?: CustKey, mw?: number): Offer {
   const k: CustKey = kind ?? (big ? 'ai' : pick(['ai', 'ai', 'stream', 'bank', 'games'] as CustKey[]));
   const [lo, hi] = SIZES[tier];
   const size = mw ?? Math.max(1, Math.round(rnd(lo, hi) * (big ? 1.6 : 1)));
-  const months = pick(TERMS.slice(0, tier >= 2 ? 4 : 3));
+  const months = pick(TERMS[tier]);
   const needs: Need[] = [];
   if ((k === 'ai' || k === 'stream') && Math.random() < 0.3) needs.push('green');
   if (k === 'bank' || Math.random() < 0.1) needs.push('uptime');
@@ -94,7 +95,7 @@ export function decline(s: GameState, id: number) {
 /** The first customer, signed at opening for what your halls can run. */
 export function anchorDeal(s: GameState, kind: CustKey, mw: number): Deal {
   const o = makeOffer(s, kind, Math.max(1, Math.floor(mw)));
-  return { ...o, months: 36, lead: 0, needs: [], price: Math.round(marketPrice(s, kind)), start: 0, until: 36, strikes: 0 };
+  return { ...o, months: 12, lead: 0, needs: [], price: Math.round(marketPrice(s, kind)), start: 0, until: 12, strikes: 0 };
 }
 
 /** Headlines for a customer's outage, by what kind of business they are. More people hit the more power you fell short. */
@@ -267,5 +268,7 @@ export function capacityGap(s: GameState, l: Ledger = ledger(s)) {
 }
 
 export const dealMonthly = (d: Offer) => d.mw * 1000 * d.price;
-export const dealLabel = (d: Offer) => `${d.mw} MW · ${money(d.price)}/kW · ${d.months / 12} yrs`;
+/** A deal's length: "18 mo", "1 yr", "5 yrs". */
+export const termLabel = (months: number) => (months % 12 ? `${months} mo` : months === 12 ? '1 yr' : `${months / 12} yrs`);
+export const dealLabel = (d: Offer) => `${d.mw} MW · ${money(d.price)}/kW · ${termLabel(d.months)}`;
 export { hallCount };

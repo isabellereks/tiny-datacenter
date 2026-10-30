@@ -21,7 +21,7 @@ import {
 } from '@/lib/game/gov';
 import { breakRooms, breaksNeeded, moraleMood, teamEventCost } from '@/lib/game/staff';
 import {
-  canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
+  canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost, termLabel,
 } from '@/lib/game/deals';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
@@ -605,7 +605,7 @@ function OfferCard({ s, o, can, dispatch }: { s: GameState; o: Offer; can: numbe
         <span>{CUSTS[o.kind].name}</span>
       </div>
       <div className="deal-nums">
-        <span><b>{o.mw} MW</b> for {o.months / 12} yrs</span>
+        <span><b>{o.mw} MW</b> for {termLabel(o.months)}</span>
         <span><b>{money(o.mw * 1000 * o.price)}</b>/mo</span>
         <span>Moves in {o.lead} mo</span>
       </div>
