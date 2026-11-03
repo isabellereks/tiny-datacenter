@@ -4,7 +4,7 @@
  * Browsers only allow sound after the player interacts, so nothing plays until the first tap.
  */
 
-type Sfx = 'click' | 'coin' | 'loss' | 'build' | 'stamp' | 'ring' | 'alarm' | 'news' | 'tier' | 'sign';
+type Sfx = 'click' | 'coin' | 'loss' | 'build' | 'stamp' | 'ring' | 'alarm' | 'news' | 'tier' | 'sign' | 'done' | 'down';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -112,6 +112,8 @@ export function sfx(name: Sfx) {
       break;
     case 'alarm': tone(880, t, 0.15, 'square', 0.07); tone(660, t + 0.18, 0.15, 'square', 0.07); tone(880, t + 0.36, 0.15, 'square', 0.07); break;
     case 'news': tone(523, t, 0.12, 'sawtooth', 0.06); tone(784, t + 0.12, 0.12, 'sawtooth', 0.06); tone(1047, t + 0.24, 0.3, 'sawtooth', 0.06); break;
+    case 'done': tone(784, t, 0.09, 'triangle', 0.09); tone(1175, t + 0.09, 0.18, 'triangle', 0.09); break;
+    case 'down': tone(392, t, 0.1, 'square', 0.06); tone(262, t + 0.12, 0.22, 'square', 0.06, 196); break;
     case 'tier':
       [523, 659, 784, 1047, 1319].forEach((f, k) => tone(f, t + k * 0.1, 0.22, 'triangle', 0.1));
       break;

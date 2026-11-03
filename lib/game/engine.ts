@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { bake, clear, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
-import { baseY, bOf, busy, buildingX, heightOf, isBroken, jobOn, ledger, level, levelY, simulate, tallest, type GameState } from './state';
+import { baseY, bOf, busy, buildingX, heightOf, isBroken, jobOn, ledger, level, levelY, signedMW, simulate, tallest, utilization, type GameState } from './state';
+import { capacityMW } from './deals';
 import { createStitchMaterial, createWeaveMaterial } from './stitchPass';
 
 // Role codes and thread colours are exact values, not sRGB to convert. Must run before any Color is made.
@@ -885,8 +886,16 @@ export class Engine {
     for (const a of this.anim.alarms) a.visible = blink && isBroken(s, a.userData.alarmFloor);
     this.ledClock -= dt;
     if (this.ledClock <= 0) {
-      this.ledClock = 0.35;
-      for (const l of this.anim.leds) l.visible = Math.random() > 0.35;
+      // rack lights follow the load: dark when a hall is idle, steady when every MW is sold, flickering when you're short
+      const q = s.books ?? ledger(s);
+      const short = q.promised > q.served + 0.1;
+      const soldOut = !short && signedMW(s) >= capacityMW(q) - 0.05 && q.itMW > 0;
+      this.ledClock = short ? 0.12 : 0.35;
+      for (const l of this.anim.leds) {
+        const k = l.userData.floor, hall = s.floors[k]?.type === 'hall';
+        const u = !hall ? 0.5 : isBroken(s, k) ? 0 : utilization(s, k);
+        l.visible = u > 0 && ((hall && soldOut) || Math.random() < 0.35 + 0.6 * u);
+      }
     }
 
     this.falling = this.falling.filter(f => {

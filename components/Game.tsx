@@ -64,6 +64,9 @@ export default function Game() {
       lastLog.current = line;
       if (quiet || !LOUD.test(line)) return;
       setActivity(line);
+      // a sound for each kind of news
+      if (/finished|refitted|found a buyer|target hit|paid off/i.test(line)) sfx('done');
+      else if (/ is down|no buyer|strike|left for|moved to|went elsewhere|failed/i.test(line)) sfx('down');
       window.clearTimeout(activityTimer.current);
       activityTimer.current = window.setTimeout(() => setActivity(null), 3200);
     }
