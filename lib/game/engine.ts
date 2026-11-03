@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
-import { bake, clear, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
+import { ceoOf } from './ceo';
+import { bake, clear, makeCeo, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
 import { baseY, bOf, busy, buildingX, heightOf, lotSpread, isBroken, jobOn, ledger, level, levelY, signedMW, simulate, tallest, utilization, type GameState } from './state';
 import { capacityMW } from './deals';
 import { createStitchMaterial, createWeaveMaterial } from './stitchPass';
@@ -36,7 +37,7 @@ export interface EngineHooks {
 interface Puff { mesh: THREE.Mesh; y0: number; age: number; x: number; z: number; dust?: { dx: number; dz: number } }
 interface Falling { obj: THREE.Group; t: number; axis: THREE.Vector3 }
 interface Marcher { group: THREE.Group; legs: THREE.Group[]; sign: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; phase: number }
-interface Walker { group: THREE.Group; legs: THREE.Group[]; a: number; speed: number; rx: number; rz: number }
+interface Walker { group: THREE.Group; legs: THREE.Group[]; a: number; speed: number; rx: number; rz: number; cx?: number; cz?: number }
 interface Protester { group: THREE.Group; sign: THREE.Group; phase: number }
 
 /** Snow and rain by place and month. */
@@ -464,6 +465,11 @@ export class Engine {
       this.townGroup.add(m.group);
       this.walkers.push({ ...m, a: k * 2.1, speed: (0.05 + (k % 3) * 0.015) * (k % 2 ? 1 : -1), rx: ((s.campus > 1 ? 18.2 : 15) + (k % 2) * 0.6) * lotSpread(s), rz: 11.5 + (k % 3) * 0.6 });
     }
+    // the CEO paces in front of the door
+    const c = ceoOf(s), boss = makeCeo(c.suit, c.hair);
+    boss.group.scale.setScalar(1.5);
+    this.townGroup.add(boss.group);
+    this.walkers.push({ ...boss, a: 0, speed: 0.35, rx: 3.5, rz: 0.25, cx: -FW / 2 + 3, cz: FD / 2 + 1.4 });
     const p = this.protestSize();
     for (let k = 0; k < p; k++) {
       const m = makePerson(CROWD[k % CROWD.length]);
@@ -868,7 +874,7 @@ export class Engine {
     for (const w of this.walkers) {
       w.group.visible = !this.picking && s.phase === 'play';
       w.a += w.speed * dt;
-      const x = Math.cos(w.a) * w.rx, z = Math.sin(w.a) * w.rz;
+      const x = Math.cos(w.a) * w.rx + (w.cx ?? 0), z = Math.sin(w.a) * w.rz + (w.cz ?? 0);
       w.group.position.set(x, 0, z);
       // face along the path
       w.group.rotation.y = Math.atan2(-Math.sin(w.a) * w.rx * Math.sign(w.speed), Math.cos(w.a) * w.rz * Math.sign(w.speed));

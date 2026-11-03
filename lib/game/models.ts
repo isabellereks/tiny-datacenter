@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
+import { owns } from './ceo';
 import { baseY, bOf, buildingX, floorW, lotSpread, heightOf, isBroken, levelW, levelY, perRow, type Floor, type GameState } from './state';
 
 /**
@@ -363,6 +364,17 @@ export function makeRoof(s: GameState, anim: Animated, b = 0) {
   } else {
     rooftop(g, s, w, t, anim);
   }
+  // the CEO's helicopter waits on the first building's roof
+  if (b === 0 && owns(s, 'heli') && s.shape !== 'hangar') {
+    const y = t + (s.shape === 'saw' || s.shape === 'shed' ? 1.45 : 0.05);
+    cyl(g, 1.6, 0.06, 'surf', -w / 4, y, 0, 20);
+    box(g, 0.2, 0.08, 1.2, '#F2B43C', -w / 4 - 0.4, y + 0.06, 0);
+    box(g, 0.2, 0.08, 1.2, '#F2B43C', -w / 4 + 0.4, y + 0.06, 0);
+    box(g, 0.8, 0.08, 0.2, '#F2B43C', -w / 4, y + 0.06, 0);
+    box(g, 1.6, 0.8, 0.9, s.ceo?.suit ?? '#1F2A44', -w / 4, y + 0.55, 0);
+    box(g, 1.8, 0.14, 0.14, 'dark', -w / 4 + 1.4, y + 0.7, 0);
+    box(g, 3.4, 0.05, 0.16, 'dark', -w / 4, y + 1.1, 0);
+  }
   g.traverse(o => { o.userData.floor = n - 1; });
   return g;
 }
@@ -407,6 +419,23 @@ export function makePerson(shirt: string, withSign = true) {
     box(sign, 1, 0.65, 0.08, 'surf', 0, 1.55, 0.02);
   }
   return { group: g, legs, sign };
+}
+
+/** The CEO: a suit, a tie and their own hair color. */
+export function makeCeo(suit: string, hair: string) {
+  const g = new THREE.Group();
+  const legs = [-0.12, 0.12].map(x => {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.45, 0);
+    g.add(pivot);
+    box(pivot, 0.2, 0.45, 0.2, suit, 0, -0.22, 0);
+    return pivot;
+  });
+  box(g, 0.6, 0.55, 0.36, suit, 0, 0.72, 0);
+  box(g, 0.12, 0.4, 0.04, '#D7263D', 0, 0.76, 0.19);
+  box(g, 0.46, 0.42, 0.42, 'surf', 0, 1.22, 0);
+  box(g, 0.5, 0.16, 0.46, hair, 0, 1.47, 0);
+  return { group: g, legs };
 }
 
 export function makeWorker() {
@@ -538,6 +567,13 @@ function site(s: GameState, g: THREE.Group) {
   const cars = ['#D7263D', '#99BBFF', '#F2B43C'];
   const filled = 1 + Math.min(2, s.workers.length);
   for (let k = 0; k < filled; k++) car(g, px0 + 0.4 + (k + 0.5) * ((pw - 0.8) / bays) + (k === 2 ? (pw - 0.8) / bays : 0), pz1 - pd * 0.27, cars[k]);
+  // the CEO's sports car takes the last bay: low, long and red
+  if (owns(s, 'car')) {
+    const x = px0 + 0.4 + 3.5 * ((pw - 0.8) / bays), z = pz1 - pd * 0.27;
+    box(g, 1.05, 0.32, 2.2, '#D7263D', x, 0.28, z);
+    box(g, 0.8, 0.24, 0.8, 'dark', x, 0.55, z + 0.1);
+    box(g, 1.1, 0.06, 0.3, 'dark', x, 0.5, z - 1);
+  }
   // a path from the parking to the door
   box(g, 1.2, 0.05, 2.2, 'surf', -FW / 2 + 2, 0.025, FD / 2 + 1.6).castShadow = false;
   lamp(g, px0 - 0.3, pz0 + 0.4);
@@ -686,6 +722,17 @@ export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared
     const t = sp.k < cleared ? stump() : makeTree(s.loc, sp.k);
     t.position.set(sp.x, 0, sp.z);
     g.add(t);
+  }
+  // the CEO's mansion sits on the farthest spot
+  if (owns(s, 'mansion') && s.phase === 'play') {
+    const sp = all[all.length - 1], h = new THREE.Group();
+    box(h, 5, 2.6, 3, 'light', 0, 1.3, 0);
+    prism(h, [[-2.7, 0], [2.7, 0], [0, 1.3]], 3.2, ROOFS[s.loc], 0, 2.6, -1.6);
+    for (const x of [-1.6, -0.55, 0.55, 1.6]) box(h, 0.22, 2.4, 0.22, 'surf', x, 1.2, 1.7);
+    box(h, 0.7, 1.1, 0.05, '#7A1F2B', 0, 0.55, 1.51);
+    h.position.set(sp.x, 0, sp.z);
+    h.rotation.y = Math.atan2(-sp.x, -sp.z);
+    g.add(h);
   }
   all.slice(total, total + town.homes).forEach((sp, j) => {
     const h = makeHouse(s.loc, j, town.lit, j < town.forSale);

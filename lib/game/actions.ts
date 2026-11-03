@@ -10,6 +10,7 @@ import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff'
 import { answerCall } from './calls';
 import { poachRival } from './rival';
 import { fixClaim, LAWYER_COST, settleEarly } from './legal';
+import { buyToy, ceoOf } from './ceo';
 import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, money, maxBuildings, needsBuyout, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
@@ -43,6 +44,8 @@ export type Action =
   | { type: 'poachRival' }
   | { type: 'claim'; id: string; how: 'settle' | 'fix' }
   | { type: 'lawyers'; on: boolean }
+  | { type: 'toy'; key: string }
+  | { type: 'ceoLook'; suit?: string; hair?: string }
   | { type: 'pitch'; mw: number; months: number; ask: number }
   | { type: 'rework'; id: number; what: 'grow' | 'renew' | 'cut' }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
@@ -289,6 +292,14 @@ export function apply(s: GameState, a: Action): Effects {
       if (s.phase !== 'play') return {};
       if (a.how === 'settle') settleEarly(s, a.id); else fixClaim(s, a.id);
       return {};
+    case 'toy':
+      if (s.phase !== 'play') return {};
+      return buyToy(s, a.key) ? { rebuild: true } : {};
+    case 'ceoLook': {
+      const c = ceoOf(s);
+      s.ceo = { ...c, suit: a.suit ?? c.suit, hair: a.hair ?? c.hair };
+      return { rebuild: true };
+    }
     case 'lawyers':
       s.lawyers = a.on;
       note(s, a.on ? `Law firm on retainer: ${money(today(s, LAWYER_COST))}/mo` : 'Let the law firm go');

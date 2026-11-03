@@ -288,6 +288,7 @@ const UNLOCKS: { tab: string; when: (s: GameState, l: Ledger) => boolean; head: 
   { tab: 'town', when: s => !!s.complaint || s.goal >= 7 || s.month >= 9, head: s => `Neighbors talk about ${Site(s)}`, ticker: ['Jobs, noise, bills, nature'] },
   { tab: 'gov', when: s => s.month >= 12 || s.goal >= 14 || s.floors.length >= 7, head: s => `County opens a file on ${Site(s)}`, ticker: ['Permits, inspections, laws'] },
   { tab: 'legal', when: s => s.seeds.length > 0 || (s.cases ?? []).length > 0 || s.month >= 18, head: s => `Lawyers start calling ${Site(s)}`, ticker: ['Inspections, claims, court'] },
+  { tab: 'ceo', when: s => s.cash >= 300_000_000 || s.month >= 20, head: s => `${s.look.owner.trim() || 'The CEO'} spotted at the car dealer`, ticker: ['Watches, jets, yachts'] },
   { tab: 'money', when: s => s.debt > 0 || s.month >= 14, head: s => `Banks call ${Site(s)}`, ticker: ['Loans and the economy'] },
 ];
 function unlockMonth(s: GameState, l: Ledger) {

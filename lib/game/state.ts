@@ -215,6 +215,8 @@ export interface GameState {
   /** every lawsuit, settlement and fine; a law firm on retainer */
   cases?: import('./legal').Case[];
   lawyers?: boolean;
+  /** the CEO's look and toys */
+  ceo?: import('./ceo').Ceo;
   /** the location's target: hit before the deadline, or missed */
   target?: 'won' | 'missed' | 'off' | null;
   newTab?: string | null;
@@ -337,7 +339,7 @@ export function load(): GameState {
         permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
         econ: { ...base.econ, ...saved.econ },
         // saves from before tabs unlocked keep every tab
-        unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money', 'legal'],
+        unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money', 'legal', 'ceo'],
         // games started before targets existed don't get one
         target: saved.target === undefined && (saved.month ?? 0) > 0 ? 'off' : saved.target,
         build: null,

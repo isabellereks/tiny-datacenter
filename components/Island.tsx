@@ -13,7 +13,7 @@ import {
 import {
   GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, needsBuyout, dateLabel, floorPrice,
   gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
-  allocate, buildMonths, crewFreeAt, hallForTech, crews, crewsWorking, CREW_COST, noCrew, queueFull, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
+  allocate, ownerName, buildMonths, crewFreeAt, hallForTech, crews, crewsWorking, CREW_COST, noCrew, queueFull, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, hearingOdds, buildBlock, checklist, heightLimit, hallLimit,
@@ -25,12 +25,13 @@ import {
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
 import { CLAIMS, LAWYER_COST } from '@/lib/game/legal';
+import { ceoOf, hardTimes, HAIRS, SUITS, TOYS, toyCost } from '@/lib/game/ceo';
 import { poachCost, poachMW, poachOdds, poachWait } from '@/lib/game/rival';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'power' | 'legal' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
+export type Tab = 'build' | 'power' | 'legal' | 'ceo' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'power', label: 'Power' },
@@ -41,9 +42,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'gov', label: 'Gov' },
   { key: 'money', label: 'Money' },
   { key: 'legal', label: 'Legal' },
+  { key: 'ceo', label: 'CEO' },
 ];
 /** Tabs that open up as the game goes on; the rest are there from the start. */
-const LOCKABLE: string[] = ['crew', 'power', 'town', 'gov', 'money', 'legal'];
+const LOCKABLE: string[] = ['crew', 'power', 'town', 'gov', 'money', 'legal', 'ceo'];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
 function MonthRing({ month }: { month: number }) {
@@ -291,6 +293,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'legal' && <LegalTab s={s} l={l} dispatch={dispatch} />}
+        {tab === 'ceo' && <CeoTab s={s} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
             <button className={`pill wide${armed ? ' danger' : ''}`} onClick={() => dispatch({ type: 'reset' })}>
@@ -931,6 +934,33 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
       <Why label="Recent">
         <ul className="log">{s.log.slice(0, 6).map((x, k) => <li key={k}>{x}</li>)}</ul>
       </Why>
+    </>
+  );
+}
+
+/** The CEO: how they look, and what they've bought with the company's money. */
+function CeoTab({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
+  const c = ceoOf(s);
+  const spent = TOYS.filter(t => c.owned.includes(t.key)).reduce((n, t) => n + toyCost(s, t), 0);
+  return (
+    <>
+      <div className="ceo-head">
+        <i className="ceo-pic" style={{ ['--suit' as string]: c.suit, ['--hair' as string]: c.hair }} aria-hidden="true" />
+        <div><b>{ownerName(s)}</b><span>{c.owned.length} toys, {money(spent)}</span></div>
+      </div>
+      <div className="ceo-pick"><span>Suit</span>{SUITS.map(x => <button key={x} aria-pressed={c.suit === x} aria-label={`Suit ${x}`} style={{ background: x }} onClick={() => dispatch({ type: 'ceoLook', suit: x })} />)}</div>
+      <div className="ceo-pick"><span>Hair</span>{HAIRS.map(x => <button key={x} aria-pressed={c.hair === x} aria-label={`Hair ${x}`} style={{ background: x }} onClick={() => dispatch({ type: 'ceoLook', hair: x })} />)}</div>
+      <span className="label">Toys{hardTimes(s) ? ' · hard times: trust −3' : ''}</span>
+      <div className="ups">
+        {TOYS.map(t => {
+          const have = c.owned.includes(t.key), cost = toyCost(s, t);
+          return (
+            <button key={t.key} className="up" aria-pressed={have} disabled={have || s.cash < cost} onClick={() => dispatch({ type: 'toy', key: t.key })}>
+              <b>{t.name}</b>{t.trust ? <small>Trust +{t.trust}</small> : null}<span>{have ? 'Owned' : money(cost)}</span>
+            </button>
+          );
+        })}
+      </div>
     </>
   );
 }
