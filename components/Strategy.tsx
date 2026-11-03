@@ -37,11 +37,9 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
   return (
     <>
       <span className="label">Market</span>
-      <div className="stats">
-        <span className={s.econ.phase === 'steady' ? undefined : 'bad'}>{E.name}: costs {pct1(E.cost)}/yr{E.power !== 1 ? `, power ${pct1(E.power - 1)}` : ''}</span>
-        <span className={m === 'glut' ? 'bad' : m === 'boom' ? 'good' : undefined}>
-          {m === 'boom' ? 'AI boom' : m === 'glut' ? 'AI crash' : 'AI market normal'}: new deals {Math.round(MARKET_MULT[m] * 100)}%
-        </span>
+      <div className="books">
+        <div className="row"><span>{E.name}</span><b className={s.econ.phase === 'steady' ? undefined : 'neg'}>Costs {pct1(E.cost)}/yr{E.power !== 1 ? `, power ${pct1(E.power - 1)}` : ''}</b></div>
+        <div className="row"><span>{m === 'boom' ? 'AI boom' : m === 'glut' ? 'AI crash' : 'AI market'}</span><b className={m === 'glut' ? 'neg' : undefined}>Deals {Math.round(MARKET_MULT[m] * 100)}%</b></div>
       </div>
       <span className="label">Loans{debt(s) > 0 ? `: ${money(debt(s))} owed` : ''}</span>
       {s.loans.length > 0 && (
@@ -54,11 +52,11 @@ export function FinancePanel({ s, dispatch }: { s: GameState; dispatch: (a: Acti
           ))}
         </div>
       )}
-      <div className="chips">
+      <div className="ups">
         {LOAN_SIZES.map(a => (
-          <button key={a} className="chip" disabled={a > limit} onClick={() => dispatch({ type: 'loan', amount: a })}>
+          <button key={a} className="up" disabled={a > limit} onClick={() => dispatch({ type: 'loan', amount: a })}>
             <b>Borrow {money(a)}</b>
-            <small>{(rate * 100).toFixed(1)}%, interest only</small>
+            <span>{(rate * 100).toFixed(1)}%</span>
           </button>
         ))}
       </div>

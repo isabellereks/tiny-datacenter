@@ -835,14 +835,14 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
       </div>
 
       <span className="label">Techs {n}</span>
-      <div className="hires">
-        <button className="pill white" disabled={s.cash < hireFee(s) || hallForTech(s) === null} onClick={() => dispatch({ type: 'hire' })}>
+      {hallForTech(s) === null ? <p className="muted small">All halls full</p> : <div className="hires">
+        <button className="pill white" disabled={s.cash < hireFee(s)} onClick={() => dispatch({ type: 'hire' })}>
           Hire local {money(hireFee(s))} <span className="cost">{money(today(s, wageFor(s)))}/mo</span>
         </button>
-        <button className="pill" disabled={s.cash < hireFee(s, true) || hallForTech(s) === null} onClick={() => dispatch({ type: 'hire', overseas: true })}>
+        <button className="pill" disabled={s.cash < hireFee(s, true)} onClick={() => dispatch({ type: 'hire', overseas: true })}>
           Hire overseas {money(hireFee(s, true))} <span className="cost">{money(today(s, overseasWage(s)))}/mo</span>
         </button>
-      </div>
+      </div>}
       <div className="books">
         <Row label="Payroll" value={`${money(l.staff)}/mo`} />
         <Row label="Local jobs" value={`${locals(s)}/${hoped}`} neg={locals(s) < hoped * 0.5} sub={` ${overseas(s)} overseas`} />
@@ -915,15 +915,10 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
   return (
     <>
       <Meter label="Trust" value={s.trust} max={100} text={s.hints ? `${Math.round(s.trust)} ${dir} ${Math.round(mood.target)}` : `${Math.round(s.trust)}`} bad={s.trust < 40} marks={s.hints ? [mood.target] : []} />
-      <div className="town">
+      <div className="books">
         {mood.parts.filter(p => p.key !== 'deeds' && p.key !== 'grudge' || p.value !== 0).map(p => (
-          <div key={p.key} className={`tfac ${p.value < -3 ? 'bad' : p.value > 0 ? 'good' : ''}`}>
-            <span className="tfac-v">{s.hints ? signed(p.value) : p.value < -3 ? '▼' : p.value > 0 ? '▲' : '–'}</span>
-            <div>
-              <b>{p.label}</b>
-              <small>{p.note}</small>
-            </div>
-          </div>
+          <Row key={p.key} label={p.label} sub={` ${p.note}`} neg={p.value < -3}
+            value={s.hints ? signed(p.value) : p.value < -3 ? '▼' : p.value > 0 ? '▲' : '–'} />
         ))}
       </div>
       <span className="label">Give back</span>
@@ -1064,15 +1059,17 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
       </div>
 
       <span className="label">{L.gov.local} election in {voteIn} mo</span>
-      <Meter label="Pro-growth" value={pollPro(s)} max={1} text={`${Math.round(pollPro(s) * 100)}%`} bad={pollPro(s) < 0.5} marks={[0.5]} />
+      <Meter label="Pro-side" value={pollPro(s)} max={1} text={`${Math.round(pollPro(s) * 100)}%`} bad={pollPro(s) < 0.5} marks={[0.5]} />
       {L.gov.us && <Row label={`National election in ${Math.max(0, Math.ceil(s.nationalAt - s.month))} mo`} value={s.admin === 'build' ? 'Build-fast' : s.admin === 'green' ? 'Clean-energy' : ''} />}
 
       {laws.length > 0 && <span className="label">Laws</span>}
       {laws.length > 0 && (
         <div className="books">
           {laws.map(x => LAWS[x.id] && (
-            <Row key={x.id} label={LAWS[x.id].name} sub={` ${LAWS[x.id].by(s)}`}
-              value={`${LAWS[x.id].effect}${x.until < 1e8 ? `, ${Math.max(1, Math.ceil(x.until - s.month))} mo` : ''}`} />
+            <div key={x.id} className="law">
+              <div className="row"><span>{LAWS[x.id].name}</span><b>{x.until < 1e8 ? `${Math.max(1, Math.ceil(x.until - s.month))} mo` : ''}</b></div>
+              <small>{LAWS[x.id].effect}</small>
+            </div>
           ))}
         </div>
       )}

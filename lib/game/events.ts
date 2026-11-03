@@ -100,28 +100,28 @@ export const COMPLAINTS: Complaint[] = [
 
 /** Things you build on the site. Some quiet the town, some make power, some unlock as you grow. */
 export const UPGRADES: { key: keyof Upgrades; name: string; cost: number; tier: number; note: string }[] = [
-  { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, tier: 0, note: 'Quiets the fans.' },
-  { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, tier: 0, note: '85% less water.' },
-  { key: 'renewables', name: 'Wind power deal', cost: 3_000_000, tier: 0, note: 'Clean power. 90% less CO₂, power +5%.' },
-  { key: 'solar', name: 'Solar farm', cost: 9_000_000, tier: 0, note: 'Clean power. +3 MW on site each.' },
-  { key: 'batteries', name: 'Batteries', cost: 6_000_000, tier: 0, note: 'Cuts your grid peak 15%.' },
-  { key: 'heat', name: 'Heat homes nearby', cost: 5_000_000, tier: 0, note: 'Server heat warms the town.' },
-  { key: 'turbines', name: 'Gas turbines', cost: 18_000_000, tier: 1, note: '+12 MW on site each. Loud, and burns gas.' },
-  { key: 'liquid', name: 'Liquid cooling', cost: 25_000_000, tier: 2, note: 'For dense chips. Cooling +50%, less water.' },
-  { key: 'smr', name: 'Small reactor', cost: SMR_COST, tier: 3, note: `+60 MW of clean power. ${SMR_MONTHS / 12} years to build.` },
+  { key: 'soundWalls', name: 'Sound wall', cost: 1_500_000, tier: 0, note: 'Noise −60%' },
+  { key: 'closedLoop', name: 'Water-saving cooling', cost: 4_000_000, tier: 0, note: 'Water −85%' },
+  { key: 'renewables', name: 'Wind power deal', cost: 3_000_000, tier: 0, note: 'Clean power, CO₂ −90%, power +5%' },
+  { key: 'solar', name: 'Solar farm', cost: 9_000_000, tier: 0, note: 'Clean, +3 MW each' },
+  { key: 'batteries', name: 'Batteries', cost: 6_000_000, tier: 0, note: 'Grid peak −15%' },
+  { key: 'heat', name: 'Heat homes nearby', cost: 5_000_000, tier: 0, note: 'Trust +6' },
+  { key: 'turbines', name: 'Gas turbines', cost: 18_000_000, tier: 1, note: '+12 MW each, loud, burns gas' },
+  { key: 'liquid', name: 'Liquid cooling', cost: 25_000_000, tier: 2, note: 'Cooling +50%, less water' },
+  { key: 'smr', name: 'Small reactor', cost: SMR_COST, tier: 3, note: `+60 MW clean, ${SMR_MONTHS / 12} yrs to build` },
 ];
 
 /** Things you can do for the town again and again, with a wait between them. */
 export const GIFTS = [
-  { key: 'trees', name: 'Plant trees', cost: 200_000, trust: 3, wait: 0, note: 'Replants 6 trees.' },
-  { key: 'meeting', name: 'Town meeting', cost: 0, trust: 0, wait: 6, note: 'Free. Goes well when they like you.' },
-  { key: 'foodbank', name: 'Food bank', cost: 100_000, trust: 1, wait: 3, note: 'Every 3 months.' },
-  { key: 'school', name: 'Fund the school', cost: 1_000_000, trust: 8, wait: 12, note: 'Once a year.' },
-  { key: 'scholarship', name: 'Tech scholarships', cost: 600_000, trust: 3, wait: 12, note: 'Trains 3 locals. Local wages rise slower.' },
-  { key: 'library', name: 'Library wing', cost: 1_500_000, trust: 4, wait: 18, note: 'Every 18 months.' },
-  { key: 'bills', name: 'Pay down power bills', cost: 3_000_000, trust: 3, wait: 12, note: 'Power bills count half for a year.' },
-  { key: 'park', name: 'Build a park', cost: 2_500_000, trust: 5, wait: 24, note: 'Replants 10 trees.' },
-  { key: 'firehouse', name: 'Fire station', cost: 4_000_000, trust: 6, wait: 36, note: 'Every 3 years.' },
+  { key: 'trees', name: 'Plant trees', cost: 200_000, trust: 3, wait: 0, note: 'Trust +3, 6 trees' },
+  { key: 'meeting', name: 'Town meeting', cost: 0, trust: 0, wait: 6, note: 'Trust ±3' },
+  { key: 'foodbank', name: 'Food bank', cost: 100_000, trust: 1, wait: 3, note: 'Trust +1' },
+  { key: 'school', name: 'Fund the school', cost: 1_000_000, trust: 8, wait: 12, note: 'Trust +8' },
+  { key: 'scholarship', name: 'Tech scholarships', cost: 600_000, trust: 3, wait: 12, note: 'Trust +3, 3 locals trained' },
+  { key: 'library', name: 'Library wing', cost: 1_500_000, trust: 4, wait: 18, note: 'Trust +4' },
+  { key: 'bills', name: 'Pay down power bills', cost: 3_000_000, trust: 3, wait: 12, note: 'Trust +3, bills ½ for 1 yr' },
+  { key: 'park', name: 'Build a park', cost: 2_500_000, trust: 5, wait: 24, note: 'Trust +5, 10 trees' },
+  { key: 'firehouse', name: 'Fire station', cost: 4_000_000, trust: 6, wait: 36, note: 'Trust +6' },
 ] as const;
 export type GiftKey = (typeof GIFTS)[number]['key'];
 /** months until a gift can be given again, 0 when ready */

@@ -234,11 +234,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .facts { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13.5px; color: var(--isl-dim); }
 .facts span { background: var(--isl-2); border-radius: 8px; padding: 4px 8px; }
 .muted.small { font-size: 13px; }
-.ups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.up { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; border: 0; background: var(--isl-2); color: var(--isl-text); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
-.up b { font-weight: 600; font-size: 14.5px; }
-.up small { color: var(--isl-dim); font-size: 13px; }
-.up span { font-size: 13.5px; color: var(--ok); margin-top: 2px; }
+/* actions as a list: name and price on one line, one short stat under it */
+.ups { display: flex; flex-direction: column; gap: 4px; }
+.up { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 12px; row-gap: 1px; text-align: left; border: 0; background: var(--isl-2); color: var(--isl-text); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+.up > b { grid-column: 1; grid-row: 1; font-weight: 600; font-size: 14.5px; }
+.up > span { grid-column: 2; grid-row: 1; font-size: 13.5px; color: var(--ok); text-align: right; white-space: nowrap; }
+.up > small { grid-column: 1 / -1; color: var(--isl-dim); font-size: 13px; }
 .up small.ok { color: var(--ok); }
 .up small.bad { color: var(--red); }
 .up:disabled { opacity: .45; cursor: not-allowed; }
@@ -757,3 +758,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .sound-row { display: flex; align-items: center; gap: 10px; }
 .sound-row input[type=range] { flex: 1; accent-color: var(--thread); }
 .sound-row .num { width: 28px; text-align: right; font-size: 13px; }
+.law + .law { border-top: 1px dashed color-mix(in oklab, var(--ink), transparent 85%); }
+.law .row { padding-bottom: 0; }
+.law small { display: block; padding-bottom: 6px; font-size: 13px; color: var(--isl-dim); }
