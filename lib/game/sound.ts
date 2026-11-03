@@ -23,7 +23,7 @@ function start() {
   master = ctx.createGain();
   master.gain.value = masterLevel();
   master.connect(ctx.destination);
-  // the hum: two low tones through a soft filter
+  // the hum: soft low tones through a filter, kept well under everything else
   const gain = ctx.createGain();
   gain.gain.value = 0;
   const filter = ctx.createBiquadFilter();
@@ -31,10 +31,10 @@ function start() {
   filter.frequency.value = 220;
   for (const f of [55, 110.5, 165]) {
     const o = ctx.createOscillator();
-    o.type = f === 55 ? 'sawtooth' : 'sine';
+    o.type = 'sine';
     o.frequency.value = f;
     const g = ctx.createGain();
-    g.gain.value = f === 55 ? 0.5 : 0.25;
+    g.gain.value = f === 55 ? 0.5 : 0.15;
     o.connect(g).connect(filter);
     o.start();
   }
@@ -69,8 +69,8 @@ export function setMix(m: { volume: number; hum: boolean; fx: boolean }) {
 export function setHum(k: number) {
   level = Math.max(0, Math.min(1, k));
   if (!ctx || !hum) return;
-  hum.gain.gain.setTargetAtTime(mix.hum ? 0.012 + level * 0.05 : 0, ctx.currentTime, 0.8);
-  hum.filter.frequency.setTargetAtTime(180 + level * 260, ctx.currentTime, 0.8);
+  hum.gain.gain.setTargetAtTime(mix.hum ? 0.004 + level * 0.014 : 0, ctx.currentTime, 0.8);
+  hum.filter.frequency.setTargetAtTime(140 + level * 120, ctx.currentTime, 0.8);
 }
 
 function tone(freq: number, at: number, dur: number, type: OscillatorType = 'square', vol = 0.12, slide?: number) {
