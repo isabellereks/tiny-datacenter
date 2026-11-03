@@ -194,8 +194,10 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         {warn && <span className="flag">{warn}</span>}
         {s.bill && <span className={`flag bill${s.bill.progress >= 80 ? ' hot' : ''}`}>Bill {Math.round(s.bill.progress)}%</span>}
       </button>
-      <SpeedButton s={s} dispatch={dispatch} />
-      <SkipButton s={s} dispatch={dispatch} />
+      <span className="speeds">
+        <SpeedButton s={s} dispatch={dispatch} />
+        <SkipButton s={s} dispatch={dispatch} />
+      </span>
       </div>
     );
   } else if (mode === 'activity') {
@@ -607,14 +609,16 @@ function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const live = s.deals.filter(d => d.start <= s.month);
   return (
     <>
-      <Meter label="Running" value={l.itMW} max={Math.max(signed, can, 0.1)} text={`${l.itMW.toFixed(1)} MW`} />
-      <Meter label="Signed" value={signed} max={Math.max(signed, can, 0.1)} text={`${signed.toFixed(1)} MW`} bad={signed > can + 0.05} />
-      <Limits s={s} l={l} want={signed} />
-      <div className="stats">
-        <span>Could run {can.toFixed(1)} MW</span>
-        {l.spot > 0 && <span className="good">Spare sells for {money(l.spot)}/mo</span>}
-        {l.sla > 0 && <span className="bad">Credits {money(l.sla)}/mo</span>}
+      <div className="mw3">
+        <div><span>Running</span><b>{l.itMW.toFixed(1)}</b></div>
+        <div><span>Can run</span><b>{can.toFixed(1)}</b></div>
+        <div className={signed > can + 0.05 ? 'bad' : undefined}><span>Sold</span><b>{signed.toFixed(1)}</b></div>
       </div>
+      <Limits s={s} l={l} want={signed} />
+      {(l.spot > 0 || l.sla > 0) && <div className="stats">
+        {l.spot > 0 && <span className="good">Spot {money(l.spot)}/mo</span>}
+        {l.sla > 0 && <span className="bad">Credits {money(l.sla)}/mo</span>}
+      </div>}
       <SellCard s={s} l={l} dispatch={dispatch} />
       {s.offers.length > 0 && <span className="label">Offers</span>}
       {s.offers.map(o => <OfferCard key={o.id} s={s} o={o} can={can} dispatch={dispatch} />)}
@@ -632,21 +636,24 @@ function SellCard({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   const [mw, setMw] = useState(1);
   const [months, setMonths] = useState(36);
   const [ask, setAsk] = useState(1);
+  const [open, setOpen] = useState(false);
   const p = s.pitch;
   if (p) return (
-    <>
-      <span className="label">Sell capacity</span>
-      <div className="note"><span>A broker is looking for a buyer for {p.mw} MW. Answer in about {Math.max(1, Math.ceil(p.due - s.month))} mo.</span></div>
-    </>
+    <div className="deal tight"><div className="deal-row static"><b>Broker</b><span>{p.mw} MW</span><span className="num">{Math.max(1, Math.ceil(p.due - s.month))} mo</span></div><div className="deal-sub" /></div>
   );
   if (free < 1) return null;
+  if (!open) return (
+    <div className="deal tight">
+      <button className="deal-row" onClick={() => setOpen(true)}><b>Unsold</b><span>{free} MW</span><span className="num link">Sell</span></button>
+      <div className="deal-sub" />
+    </div>
+  );
   const n = Math.min(Math.max(1, mw), free);
   const price = pitchPrice(s, ask);
   return (
     <>
-      <span className="label">Sell capacity</span>
       <div className="deal offer">
-        <div className="deal-top"><b>{free} MW unsold</b><span>1–3 mo</span></div>
+        <div className="deal-top"><b>{free} MW unsold</b><span>Broker, 1–3 mo</span></div>
         <div className="mw-step">
           <button className="pill" disabled={n <= 1} onClick={() => setMw(n - 1)} aria-label="Less">−</button>
           <b>{n} MW</b>
@@ -677,69 +684,68 @@ function OfferCard({ s, o, can, dispatch }: { s: GameState; o: Offer; can: numbe
   const tight = signedMW(s) + o.mw > can + 0.05;
   const left = Math.max(1, Math.ceil(o.expires - s.month));
   return (
-    <div className="deal offer">
-      <div className="deal-top">
+    <div className="deal tight offer">
+      <div className="deal-row static">
         <b>{o.who}</b>
-        <span>{CUSTS[o.kind].name}</span>
+        <span className={tight ? 'bad' : undefined}>{o.mw} MW</span>
+        <span className="num">{money(o.mw * 1000 * o.price)}/mo</span>
       </div>
-      <div className="deal-nums">
-        <span><b>{o.mw} MW</b> for {o.months / 12} yrs</span>
-        <span><b>{money(o.mw * 1000 * o.price)}</b>/mo</span>
-        <span>Moves in {o.lead} mo</span>
+      <div className="deal-sub">
+        <span>{o.months / 12} yrs</span>
+        <span>{o.lead ? `In ${o.lead} mo` : 'Now'}</span>
+        {o.needs.map(n => <span key={n} className="tag" title={NEED_NOTE[n]}>{NEED_LABEL[n]}</span>)}
+        <span className="muted">{left} mo to answer</span>
       </div>
-      <Needs needs={o.needs} />
-      {tight && <small className="bad">Over capacity</small>}
-      <div className="deal-foot">
-        <span className="muted small">Answer within {left} mo</span>
+      <div className="deal-acts two">
         <button className="pill" onClick={() => dispatch({ type: 'decline', id: o.id })}>Pass</button>
-        <button className="pill white" onClick={() => dispatch({ type: 'sign', id: o.id })}>{tight ? 'Sign anyway' : 'Sign'}</button>
+        <button className="pill white" onClick={() => dispatch({ type: 'sign', id: o.id })}>{tight ? 'Sign, over capacity' : 'Sign'}</button>
       </div>
     </div>
   );
 }
 
 function DealCard({ s, d, l, dispatch }: { s: GameState; d: Deal; l: Ledger; dispatch: (a: Action) => void }) {
+  const [open, setOpen] = useState(false);
   const [sure, setSure] = useState(false);
   const fee = exitFee(s, d);
   const waiting = d.start > s.month;
   // customers pay for the power you deliver, served in the order they signed
   const got = allocate(s, l.itMW).find(x => x.d.id === d.id)?.got ?? 0;
+  const short = !waiting && got < d.mw - 0.05;
   const yrs = Math.max(0, (d.until - s.month) / 12);
   const wait = askWait(s, d);
   const grow = growStep(s, l, d), cut = cutStep(s, l, d), cutCost = cut > 0 ? cutFee(s, d, cut) : 0;
   const renew = canRenew(s, d);
   const reply = d.reply && (d.replyAt ?? -99) > s.month - 3 ? d.reply : null;
+  const pay = (waiting ? d.mw : got) * 1000 * dealPrice(s, d) * (waiting ? 1 : l.chipValue);
   return (
-    <div className={`deal${d.strikes ? ' hurt' : ''}`}>
-      <div className="deal-top">
+    <div className={`deal tight${d.strikes ? ' hurt' : ''}${open ? ' open' : ''}`}>
+      <button className="deal-row" onClick={() => setOpen(o => !o)} aria-expanded={open}>
         <b>{d.who}</b>
-        <span>{waiting ? `Moves in ${Math.ceil(d.start - s.month)} mo` : `${yrs < 1 ? `${Math.ceil(yrs * 12)} mo` : `${yrs.toFixed(1)} yrs`} left`}</span>
+        <span className={short ? 'bad' : undefined}>{short ? `${got.toFixed(1)}/${d.mw}` : d.mw} MW</span>
+        <span className="num">{money(pay)}/mo</span>
+      </button>
+      <div className="deal-sub">
+        <span>{waiting ? `In ${Math.ceil(d.start - s.month)} mo` : yrs < 1 ? `${Math.ceil(yrs * 12)} mo left` : `${yrs.toFixed(1)} yrs left`}</span>
+        {d.strikes > 0 && <span className="bad">Strike {d.strikes}/3</span>}
+        {d.needs.map(n => <span key={n} className="tag" title={NEED_NOTE[n]}>{NEED_LABEL[n]}</span>)}
+        {!waiting && l.chipValue < 0.99 && d.needs.includes('fresh') && <span className="bad">−20% old chips</span>}
       </div>
-      <div className="deal-nums">
-        <span><b>{waiting ? d.mw : got.toFixed(1)}</b>{waiting ? ' MW' : ` of ${d.mw} MW`}</span>
-        <span>{waiting ? `${money(d.mw * 1000 * dealPrice(s, d))}/mo` : <><b>{money(got * 1000 * dealPrice(s, d) * l.chipValue)}</b>/mo of {money(d.mw * 1000 * dealPrice(s, d))}</>}</span>
-        {d.strikes > 0 && <span className="bad">Strikes {d.strikes}/3</span>}
-      </div>
-      <Needs needs={d.needs} />
-      {!waiting && l.chipValue < 0.99 && d.needs.includes('fresh') && <small className="bad">Paying 20% less for old chips</small>}
       {reply && <small className="muted">{reply}</small>}
-      {(grow >= 1 || renew || cut > 0) && (
-        <div className="deal-asks">
-          {cut > 0 && <button className="pill" disabled={s.cash < cutCost} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'cut' })}>Give back {cut} MW  {money(cutCost)}</button>}
+      {open && (
+        <div className="deal-acts">
           {grow >= 1 && <button className="pill" disabled={wait > 0} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'grow' })}>
-            Offer {grow} more MW{s.hints && !wait ? `  ${Math.round(growOdds(s, l, d) * 100)}%` : ''}</button>}
+            +{grow} MW{s.hints && !wait ? ` ${Math.round(growOdds(s, l, d) * 100)}%` : ''}</button>}
           {renew && <button className="pill" disabled={wait > 0} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'renew' })}>
-            Renew 3 yrs at {money(renewPrice(s, d))}/kW{s.hints && !wait ? `  ${Math.round(renewOdds(s, l, d) * 100)}%` : ''}</button>}
+            Renew ${Math.round(renewPrice(s, d))}/kW{s.hints && !wait ? ` ${Math.round(renewOdds(s, l, d) * 100)}%` : ''}</button>}
+          {cut > 0 && <button className="pill" disabled={s.cash < cutCost} onClick={() => dispatch({ type: 'rework', id: d.id, what: 'cut' })}>−{cut} MW {money(cutCost)}</button>}
+          <button className={`pill${sure ? ' danger' : ''}`} disabled={s.cash < fee}
+            onClick={() => { if (sure) dispatch({ type: 'endDeal', id: d.id }); else { setSure(true); window.setTimeout(() => setSure(false), 3000); } }}>
+            {sure ? `Confirm ${money(fee)}` : `End ${money(fee)}`}
+          </button>
           {wait > 0 && (grow >= 1 || renew) && <span className="muted small">Ask again in {wait} mo</span>}
         </div>
       )}
-      <div className="deal-foot">
-        <span />
-        <button className={`pill${sure ? ' danger' : ''}`} disabled={s.cash < fee}
-          onClick={() => { if (sure) dispatch({ type: 'endDeal', id: d.id }); else { setSure(true); window.setTimeout(() => setSure(false), 3000); } }}>
-          {sure ? `Tap again to pay ${money(fee)}` : `End deal  ${money(fee)}`}
-        </button>
-      </div>
     </div>
   );
 }

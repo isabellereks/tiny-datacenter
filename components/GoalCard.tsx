@@ -67,11 +67,13 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
 /** The location's target, with how close you are. */
 function Target({ s }: { s: GameState }) {
   const t = TARGETS[s.loc];
+  if (s.target === 'off') return null;
   const mw = (s.books ?? ledger(s)).itMW;
+  const year = Math.floor(s.month / 12) + 1;
   return (
     <span className={`goal-target${s.target ? ` ${s.target}` : ''}`}>
-      {s.target === 'won' ? 'Target hit' : s.target === 'missed' ? 'Target missed' : `Target: ${targetText(t)}`}
-      {!s.target && <b>{mw.toFixed(0)}/{t.mw} MW</b>}
+      {s.target === 'won' ? `Target hit: ${t.mw} MW` : s.target === 'missed' ? `Target missed: ${t.mw} MW by year ${t.by}` : targetText(t)}
+      {!s.target && <b>{mw.toFixed(0)}/{t.mw} MW · year {year}/{t.by}</b>}
     </span>
   );
 }

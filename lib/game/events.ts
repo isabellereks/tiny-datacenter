@@ -309,7 +309,7 @@ export const TARGETS: Record<GameState['loc'], Target> = {
   newalbany: { mw: 30, by: 10, level: 'Medium', extra: 'trust 50+', ok: s => s.trust >= 50 },
   phoenix: { mw: 30, by: 12, level: 'Hard', extra: 'wells not dry', lost: s => s.fired.includes('wellsDry') },
 };
-export const targetText = (t: Target) => `${t.mw} MW by year ${t.by}${t.extra ? `, ${t.extra}` : ''}`;
+export const targetText = (t: Target) => `Run ${t.mw} MW by year ${t.by}${t.extra ? `, ${t.extra}` : ''}`;
 
 function targetMonth(s: GameState, l: Ledger) {
   if (s.target) return;

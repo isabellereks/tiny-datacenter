@@ -182,10 +182,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .compact-row { display: flex; align-items: center; padding-right: 6px; }
 .speed { display: grid; place-items: center; border: 0; background: var(--thread); color: #fff; border-radius: 6px; min-width: 40px; height: 30px; padding: 0 10px; cursor: pointer; box-shadow: 0 2px 0 color-mix(in oklab, var(--thread), #000 35%); }
 .speed.paused { background: var(--meh); color: var(--ink); box-shadow: 0 2px 0 color-mix(in oklab, var(--meh), #000 30%); }
-.speed.skip { background: var(--card-2); color: var(--ink); box-shadow: 0 2px 0 color-mix(in oklab, var(--card-2), #000 25%); min-width: 34px; padding: 0 8px; }
 .speed.skip.on { background: var(--green); color: #fff; animation: skipping .8s steps(2) infinite; }
 @keyframes skipping { 50% { opacity: .65; } }
-.compact-row .speed + .speed { margin-left: 4px; }
 .compact.static { cursor: default; }
 .compact .day { font-weight: 600; }
 .compact .cash { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -707,3 +705,35 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .spec-target .lvl.hard { background: var(--red); }
 .timers { position: fixed; left: 0; top: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; }
 .timers span { background: color-mix(in oklab, var(--card), transparent 8%); color: var(--ink); font-size: 12px; padding: 2px 7px; border-radius: 4px; box-shadow: 0 1px 0 color-mix(in oklab, var(--thread), transparent 60%); white-space: nowrap; }
+.call-choices { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
+.call-choices .call-btn + .call-btn { border-top: 2px solid #0B1D4F; }
+.call-choices .call-btn { text-align: left; }
+.caller.biz { --shirt: #3A4A6B; }
+/* customer cards: one line of numbers, tap for actions */
+.deal.tight { gap: 3px; padding: 0; }
+.deal-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 12px; width: 100%; padding: 10px 12px 0; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.deal-row b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deal-row span { font-size: 14px; }
+.deal-row .bad { color: var(--red); }
+.deal-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 12px 10px; font-size: 13px; color: var(--ink-2); }
+.deal-sub .bad { color: var(--red); }
+.deal-sub .tag { padding: 1px 6px; border-radius: 4px; background: color-mix(in oklab, var(--thread), transparent 85%); color: var(--thread); }
+.deal.tight > small { padding: 0 12px 8px; }
+.deal-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; padding: 0 12px 12px; }
+.deal-acts .pill { padding: 8px 10px; font-size: 13px; }
+.deal-acts .muted { grid-column: 1 / -1; }
+.deal.tight.open { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--thread), transparent 50%); }
+/* play speed and skip read as one control */
+.speeds { display: inline-flex; border-radius: 6px; box-shadow: 0 2px 0 color-mix(in oklab, var(--thread), #000 35%); }
+.speeds .speed { border-radius: 0; box-shadow: none; }
+.speeds .speed:first-child { border-radius: 6px 0 0 6px; }
+.speeds .speed:last-child { border-radius: 0 6px 6px 0; border-left: 1.5px solid color-mix(in oklab, #fff, transparent 60%); min-width: 34px; padding: 0 8px; }
+.speeds .speed.paused { box-shadow: none; }
+.deal-row.static { cursor: default; }
+.deal-row .link { color: var(--thread); }
+.deal-acts.two { grid-template-columns: 1fr 1fr; }
+.mw3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mw3 div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--isl-2); }
+.mw3 span { font-size: 12px; color: var(--ink-2); }
+.mw3 b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.mw3 .bad b { color: var(--red); }

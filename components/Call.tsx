@@ -59,7 +59,14 @@ export function Call({ call, dispatch, font }: { call: CallT; dispatch: (a: Acti
         </div>
       ) : null}
       <div className="call-foot">
-        {call.answered ? (
+        {call.answered && call.choices ? (
+          <div className="call-choices">
+            {call.choices.map((c, i) => (
+              <button key={c} className={`call-btn${i === 0 ? ' answer' : ''}`} disabled={said.length < call.line.length}
+                onClick={() => dispatch({ type: 'call', act: 'choose', choice: i })}>{c}</button>
+            ))}
+          </div>
+        ) : call.answered ? (
           <button className="call-btn" onClick={() => dispatch({ type: 'call', act: 'hangup' })}>Hang up</button>
         ) : (
           <>

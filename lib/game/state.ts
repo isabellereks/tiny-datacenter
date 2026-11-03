@@ -213,7 +213,7 @@ export interface GameState {
   /** panel tabs opened up so far, and the newest one not yet looked at */
   unlocked: string[];
   /** the location's target: hit before the deadline, or missed */
-  target?: 'won' | 'missed' | null;
+  target?: 'won' | 'missed' | 'off' | null;
   newTab?: string | null;
   /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
   econ: { phase: EconPhase; until: number; cost: number; price: number };
@@ -335,6 +335,8 @@ export function load(): GameState {
         econ: { ...base.econ, ...saved.econ },
         // saves from before tabs unlocked keep every tab
         unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money'],
+        // games started before targets existed don't get one
+        target: saved.target === undefined && (saved.month ?? 0) > 0 ? 'off' : saved.target,
         build: null,
       };
     }

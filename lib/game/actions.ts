@@ -7,6 +7,7 @@ import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
 import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, pitch, refreshCost, reworkDeal, requestGrid, sign, SMR_MONTHS } from './deals';
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
+import { answerCall } from './calls';
 import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
@@ -52,7 +53,7 @@ export type Action =
   | { type: 'loan'; amount: number }
   | { type: 'payoff'; id: number }
   | { type: 'briefing' }
-  | { type: 'call'; act: 'answer' | 'decline' | 'missed' | 'hangup' }
+  | { type: 'call'; act: 'answer' | 'decline' | 'missed' | 'hangup' | 'choose'; choice?: number }
   | { type: 'bld'; b: number }
   | { type: 'inside'; on: boolean }
   | { type: 'spin'; on: boolean }
@@ -375,6 +376,7 @@ export function apply(s: GameState, a: Action): Effects {
       if (!c) return {};
       // picking up and listening helps a little; ignoring people stings
       if (a.act === 'answer') { c.answered = true; if (c.mood === 'mad') s.trust = Math.min(100, s.trust + 1); return {}; }
+      if (a.act === 'choose') answerCall(s, a.choice ?? 1);
       if (a.act === 'decline' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 1); note(s, `Declined a call from ${c.who}. Trust −1`); }
       if (a.act === 'missed' && c.mood === 'mad') { s.trust = Math.max(0, s.trust - 2); note(s, `Missed a call from ${c.who}. Trust −2`); }
       s.call = null;
