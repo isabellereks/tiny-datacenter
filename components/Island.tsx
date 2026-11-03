@@ -24,6 +24,7 @@ import {
   ASKS, PITCH_TERMS, askWait, canRenew, capacityMW, cutFee, cutStep, freeMW, growOdds, growStep, pitchOdds, pitchPrice, renewOdds, renewPrice,
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
+import { poachCost, poachMW, poachOdds, poachWait } from '@/lib/game/rival';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
 import { Threads } from './Threads';
@@ -620,6 +621,7 @@ function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {l.sla > 0 && <span className="bad">Credits {money(l.sla)}/mo</span>}
       </div>}
       <SellCard s={s} l={l} dispatch={dispatch} />
+      <RivalCard s={s} l={l} dispatch={dispatch} />
       {s.offers.length > 0 && <span className="label">Offers</span>}
       {s.offers.map(o => <OfferCard key={o.id} s={s} o={o} can={can} dispatch={dispatch} />)}
       {live.length > 0 && <span className="label">Customers</span>}
@@ -627,6 +629,31 @@ function DealsTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
       {waiting.length > 0 && <span className="label">Moving in</span>}
       {waiting.map(d => <DealCard key={d.id} s={s} d={d} l={l} dispatch={dispatch} />)}
     </>
+  );
+}
+
+/** The rival across town: their size against yours, and a way to win their customers. */
+function RivalCard({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  if (!s.rival) return null;
+  const mw = poachMW(s, l), cost = poachCost(s, l), wait = poachWait(s);
+  const frozen = hasLaw(s, 'moratorium');
+  return (
+    <div className={`deal tight${s.rival.mw > l.itMW ? ' hurt' : ''}`}>
+      <div className="deal-row static">
+        <b>{s.rival.name}</b>
+        <span className={s.rival.mw > l.itMW ? 'bad' : undefined}>{Math.round(s.rival.mw)} MW</span>
+        <span className="num">you {l.itMW.toFixed(0)}</span>
+      </div>
+      <div className="deal-sub">
+        <span>{frozen ? 'Frozen: moratorium' : `+${{ normal: 1.2, boom: 2, glut: 0.3 }[s.market.phase]}%/mo`}</span>
+        <span>Leaves at {Math.ceil(s.rival.mw * 1.5)} MW</span>
+      </div>
+      <div className="deal-acts">
+        <button className="pill" disabled={mw < 1 || wait > 0 || s.cash < cost} onClick={() => dispatch({ type: 'poachRival' })}>
+          {wait ? `Win a customer in ${wait} mo` : mw < 1 ? 'Win a customer: no spare MW' : `Win ${mw} MW  ${money(cost)}${s.hints ? ` ${Math.round(poachOdds(s, l) * 100)}%` : ''}`}
+        </button>
+      </div>
+    </div>
   );
 }
 

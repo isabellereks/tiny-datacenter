@@ -32,7 +32,7 @@ const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 const ISLAND_SPACE = 76;
 
 /** Things worth interrupting the view for. */
-const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open|buyer/i;
+const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open|buyer|switch|kept its customer/i;
 
 export default function Game() {
   const hostRef = useRef<HTMLDivElement>(null);

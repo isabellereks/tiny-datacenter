@@ -60,6 +60,8 @@ export function sign(s: GameState, id: number) {
   s.offers = s.offers.filter(x => x.id !== id);
   const start = s.month + o.lead;
   s.deals.push({ ...o, start, until: start + o.months, strikes: 0 });
+  // a customer won from the rival leaves them smaller
+  if (o.rival && s.rival) s.rival.mw = Math.max(5, s.rival.mw - o.mw);
   note(s, `Signed ${o.who}: ${o.mw} MW from ${Math.ceil(o.lead)} months out`);
   return true;
 }

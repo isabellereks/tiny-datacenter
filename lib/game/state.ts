@@ -29,7 +29,7 @@ export interface Floor { type: FloorType; fill: Fill; done: boolean; cost: numbe
 /** What a customer asks for: the power they want, what they pay per kW a month, for how long,
  *  how many months until they move in, and anything special they need. */
 export type Need = 'green' | 'uptime' | 'fresh';
-export interface Offer { id: number; who: string; kind: CustKey; mw: number; price: number; months: number; lead: number; needs: Need[]; expires: number }
+export interface Offer { id: number; who: string; kind: CustKey; mw: number; price: number; months: number; lead: number; needs: Need[]; expires: number; rival?: boolean }
 /** A signed deal. Months you can't supply their power cost you credits and strikes; three strikes and they leave. */
 export interface Deal extends Offer { start: number; until: number; strikes: number; lastNews?: number; reply?: string; replyAt?: number }
 /** Spare capacity a broker is trying to sell: an answer comes in a month or three. */

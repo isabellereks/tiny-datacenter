@@ -1,6 +1,7 @@
-import { HYPERSCALERS } from './data';
+import { CUSTS, HYPERSCALERS } from './data';
+import { freeMW } from './deals';
 import type { Decision } from './gov';
-import { marketPrice, money, note, promisedMW, siteName, today, type GameState, type Ledger } from './state';
+import { hasLaw, marketPrice, money, note, promisedMW, siteName, today, type GameState, type Ledger } from './state';
 
 /*
  * Things that make a month interesting: someone desperate wants your spare capacity right now,
@@ -59,6 +60,30 @@ export const EVENT_DECISIONS: Decision[] = [
   },
 ];
 
+// ---------- winning the rival's customers ----------
+
+const pickOne = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+/** A block of the rival's load you could take: up to a tenth of them, if you have it spare. */
+export const poachMW = (s: GameState, l: Ledger) => (s.rival ? Math.min(freeMW(s, l), Math.max(1, Math.round(s.rival.mw * 0.1))) : 0);
+/** Switching bonus: two months of what they'd pay you. */
+export const poachCost = (s: GameState, l: Ledger) => Math.round(poachMW(s, l) * 1000 * marketPrice(s, 'ai') * 2);
+/** Customers leave for newer chips and a town that likes you. */
+export const poachOdds = (s: GameState, l: Ledger) => Math.max(0.1, Math.min(0.85, 0.55 + (l.chipValue - 1) * 1.5 + (s.trust - 50) / 200));
+export const poachWait = (s: GameState) => Math.max(0, Math.ceil((s.cooldown.poachRival ?? 0) - s.month));
+
+/** Pay a switching bonus to pitch one of the rival's customers. Win and they send you an offer. */
+export function poachRival(s: GameState, l: Ledger) {
+  const mw = poachMW(s, l), cost = poachCost(s, l);
+  if (!s.rival || mw < 1 || poachWait(s) || s.cash < cost) return false;
+  s.cash -= cost;
+  s.cooldown.poachRival = s.month + 6;
+  if (Math.random() >= poachOdds(s, l)) { note(s, `${s.rival.name} kept its customer`); return true; }
+  const kind = pickOne(['ai', 'ai', 'stream', 'bank'] as const);
+  s.offers.push({ id: s.nid++, who: pickOne(CUSTS[kind].names), kind, mw, price: Math.round(marketPrice(s, kind)), months: 36, lead: 2, needs: [], expires: s.month + 3, rival: true });
+  note(s, `A ${s.rival.name} customer wants to switch: ${mw} MW`);
+  return true;
+}
+
 /** End of month for surprises. Returns a decision to ask about, if any. */
 export function eventsMonth(s: GameState, l: Ledger): string | null {
   const m = Math.floor(s.month);
@@ -71,7 +96,8 @@ export function eventsMonth(s: GameState, l: Ledger): string | null {
     headline(s, 'Business news', `${s.rival.name} breaks ground across town`, [`A ${s.rival.mw} MW datacenter next door to ${siteName(s)}`, 'Same customers, same techs, same grid']);
   }
   if (s.rival) {
-    s.rival.mw *= 1.012;
+    // the rival grows with the market, and a moratorium freezes them like it freezes you
+    if (!hasLaw(s, 'moratorium')) s.rival.mw *= { normal: 1.012, boom: 1.02, glut: 1.003 }[s.market.phase];
     // outgrow them by half and they give up on this town
     if (l.itMW > s.rival.mw * 1.5 && m - s.rival.since >= 12) {
       headline(s, 'Business news', `${s.rival.name} pulls out of town`, [`${siteName(s)} won the market`, `${Math.round(l.itMW)} MW against their ${Math.round(s.rival.mw)}`]);

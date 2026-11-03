@@ -8,6 +8,7 @@ import { payOff, takeLoan } from './strategy';
 import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, pitch, refreshCost, reworkDeal, requestGrid, sign, SMR_MONTHS } from './deals';
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { answerCall } from './calls';
+import { poachRival } from './rival';
 import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
@@ -38,6 +39,7 @@ export type Action =
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
   | { type: 'seenTab' }
+  | { type: 'poachRival' }
   | { type: 'pitch'; mw: number; months: number; ask: number }
   | { type: 'rework'; id: number; what: 'grow' | 'renew' | 'cut' }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
@@ -279,6 +281,10 @@ export function apply(s: GameState, a: Action): Effects {
     case 'grid':
       if (s.phase !== 'play') return {};
       requestGrid(s, a.mw);
+      return {};
+    case 'poachRival':
+      if (s.phase !== 'play') return {};
+      poachRival(s, ledger(s));
       return {};
     case 'seenTab':
       s.newTab = null;
