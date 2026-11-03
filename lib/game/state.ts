@@ -212,6 +212,8 @@ export interface GameState {
   pitch?: Pitch | null;
   /** panel tabs opened up so far, and the newest one not yet looked at */
   unlocked: string[];
+  /** the location's target: hit before the deadline, or missed */
+  target?: 'won' | 'missed' | null;
   newTab?: string | null;
   /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
   econ: { phase: EconPhase; until: number; cost: number; price: number };

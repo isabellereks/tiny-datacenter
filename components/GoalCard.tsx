@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react';
 import type { Action } from '@/lib/game/actions';
 import { REPAIR_COST, TYPES } from '@/lib/game/data';
-import { GOALS } from '@/lib/game/events';
-import { floorLabel, money, today, type GameState } from '@/lib/game/state';
+import { GOALS, TARGETS, targetText } from '@/lib/game/events';
+import { floorLabel, ledger, money, today, type GameState } from '@/lib/game/state';
 import { sfx } from '@/lib/game/sound';
 
 /** The current goal, or an outage that needs a tap. Doubles as the tutorial. */
@@ -12,7 +12,7 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
   const ref = useRef<HTMLDivElement>(null);
   const down = s.broken.find(b => !s.workers.some(w => w.floor === b.floor));
   const g = GOALS[s.goal];
-  const visible = !!(down || g);
+  const visible = !!(down || g || !s.target);
   useEffect(() => {
     const el = ref.current;
     if (!el) { onHeight(0); return; }
@@ -51,6 +51,7 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
 
   return (
     <div className="goal" ref={ref} aria-live="polite">
+      <Target s={s} />
       {g && (
         <>
           <span className="goal-no">Goal {s.goal + 1}/{GOALS.length}</span>
@@ -60,6 +61,18 @@ export function GoalCard({ s, onHeight, dispatch, font }: { s: GameState; onHeig
         </>
       )}
     </div>
+  );
+}
+
+/** The location's target, with how close you are. */
+function Target({ s }: { s: GameState }) {
+  const t = TARGETS[s.loc];
+  const mw = (s.books ?? ledger(s)).itMW;
+  return (
+    <span className={`goal-target${s.target ? ` ${s.target}` : ''}`}>
+      {s.target === 'won' ? 'Target hit' : s.target === 'missed' ? 'Target missed' : `Target: ${targetText(t)}`}
+      {!s.target && <b>{mw.toFixed(0)}/{t.mw} MW</b>}
+    </span>
   );
 }
 

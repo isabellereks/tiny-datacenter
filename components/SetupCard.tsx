@@ -6,7 +6,7 @@ import {
   BUDGET, CUSTS, FOUNDS, SETUP_FOUNDS, LOCS, SETUP, SHAPES, STARTER, TYPES,
   type CustKey, type LocKey, type ShapeKey,
 } from '@/lib/game/data';
-import { impact } from '@/lib/game/events';
+import { impact, TARGETS, targetText } from '@/lib/game/events';
 import { floorPrice, landCost, ledger, money, setupCost, type GameState } from '@/lib/game/state';
 import { Cash } from './Num';
 import { Threads } from './Threads';
@@ -95,6 +95,7 @@ export function SetupCard({ s, dispatch, onHeight, stampFont }: { s: GameState; 
             </div>
             {looked && <div className="spec">
               <div className="spec-head"><b>{L.name}</b><span>{L.note}</span></div>
+              <div className="spec-target"><span className={`lvl ${TARGETS[s.loc].level.toLowerCase()}`}>{TARGETS[s.loc].level}</span><span>Target: {targetText(TARGETS[s.loc])}</span></div>
               <div className="spec-cols">
                 <div>
                   <Spec label="Power cost" level={rate(L.power, 65, 80)} />

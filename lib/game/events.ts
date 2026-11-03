@@ -263,6 +263,7 @@ export function endOfMonth(s: GameState) {
   unlockMonth(s, l);
   quarterMonth(s, l);
   milestones(s, l);
+  targetMonth(s, l);
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l), eventsMonth(s, l)];
   // the bank calls the first month you're in the red, before anything else
   const rescue = s.debt === 1 && (s.cooldown.rescue ?? 0) <= s.month ? 'rescue' : null;
@@ -294,6 +295,33 @@ function unlockMonth(s: GameState, l: Ledger) {
   s.unlocked.push(u.tab);
   s.newTab = u.tab;
   s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Local news', headline: u.head(s, l), ticker: u.ticker };
+}
+
+/** Each location is a scenario: a target to hit by a deadline, rated by how hard the place is. */
+export interface Target { mw: number; by: number; level: 'Easy' | 'Medium' | 'Hard'; extra?: string; ok?: (s: GameState) => boolean; lost?: (s: GameState) => boolean }
+export const TARGETS: Record<GameState['loc'], Target> = {
+  dalles: { mw: 40, by: 10, level: 'Easy' },
+  lulea: { mw: 30, by: 10, level: 'Easy' },
+  reykjavik: { mw: 30, by: 10, level: 'Medium' },
+  ashburn: { mw: 35, by: 12, level: 'Hard' },
+  dublin: { mw: 20, by: 10, level: 'Hard' },
+  abilene: { mw: 40, by: 10, level: 'Medium' },
+  newalbany: { mw: 30, by: 10, level: 'Medium', extra: 'trust 50+', ok: s => s.trust >= 50 },
+  phoenix: { mw: 30, by: 12, level: 'Hard', extra: 'wells not dry', lost: s => s.fired.includes('wellsDry') },
+};
+export const targetText = (t: Target) => `${t.mw} MW by year ${t.by}${t.extra ? `, ${t.extra}` : ''}`;
+
+function targetMonth(s: GameState, l: Ledger) {
+  if (s.target) return;
+  const t = TARGETS[s.loc];
+  if (t.lost?.(s) || s.month >= t.by * 12) {
+    s.target = 'missed';
+    note(s, `Target missed: ${targetText(t)}`);
+  } else if (l.itMW >= t.mw && (t.ok?.(s) ?? true)) {
+    s.target = 'won';
+    s.party = { id: (s.party?.id ?? 0) + 1, text: `Target hit: ${t.mw} MW` };
+    s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Business news', headline: `${Site(s)} hits ${t.mw} MW`, ticker: [`${LOCS[s.loc].short} target reached in year ${Math.floor(s.month / 12) + 1}`, `Rating ${rating(s, l).total}`] };
+  }
 }
 
 /** Big moments, once each: the game throws a little party. */

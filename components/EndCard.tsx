@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { TIERS } from '@/lib/game/data';
+import { TARGETS, targetText } from '@/lib/game/events';
 import { money, type GameState } from '@/lib/game/state';
 
 export function EndCard({ s, onAgain, onHeight, onShare }: { s: GameState; onAgain: () => void; onHeight: (h: number) => void; onShare: () => void }) {
@@ -32,7 +33,7 @@ export function EndCard({ s, onAgain, onHeight, onShare }: { s: GameState; onAga
         <div className="fact"><span>Profit</span><b>{money(s.tally.profit)}</b></div>
         <div className="fact"><span>Grew into</span><b>{TIERS[s.tier].name}</b></div>
         <div className="fact"><span>Peak</span><b>{s.peakMW.toFixed(1)} MW</b></div>
-        <div className="fact"><span>Goals</span><b>{s.tally.goals}</b></div>
+        <div className="fact"><span>Target</span><b>{s.target === 'won' ? 'Hit' : 'Missed'}</b><small>{targetText(TARGETS[s.loc])}</small></div>
       </div>
       <div className="setup-foot">
         <button className="back" onClick={onShare}>Share on X</button>

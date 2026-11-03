@@ -692,3 +692,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .mwbar.over .num { color: var(--red); }
 @media (max-width: 520px) { .mwbar .num { display: none; } }
 .tabs .badge.new { background: var(--green); }
+.goal-target { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--ink-2); padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px dashed color-mix(in oklab, var(--thread), transparent 60%); }
+.goal-target b { color: var(--ink); font-size: 13px; }
+.goal-target.won { color: var(--green); }
+.goal-target.missed { color: var(--red); }
+.spec-target { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 2px 0 8px; }
+.spec-target .lvl { padding: 2px 7px; border-radius: 4px; color: #fff; font-size: 12px; background: var(--green); }
+.spec-target .lvl.medium { background: #C98A1B; }
+.spec-target .lvl.hard { background: var(--red); }
