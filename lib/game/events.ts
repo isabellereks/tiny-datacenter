@@ -259,6 +259,7 @@ export function endOfMonth(s: GameState) {
 
   // every system runs every month; the first one with a question gets to ask it
   dealsMonth(s, l);
+  unlockMonth(s, l);
   quarterMonth(s, l);
   milestones(s, l);
   const asks = [govMonth(s, l), staffMonth(s), strategyMonth(s, l), eventsMonth(s, l)];
@@ -275,6 +276,23 @@ export function endOfMonth(s: GameState) {
     if (c) s.complaint = c.id;
   }
   if (!s.complaint && !s.briefing && !s.report && s.tierUp === null && s.month >= s.calm) callMonth(s);
+}
+
+/** The panel grows with the business: a tab opens when its part of the game first matters, one a month, with a news flash. */
+const Site = (s: GameState) => s.look.name.trim() || 'The datacenter';
+const UNLOCKS: { tab: string; when: (s: GameState, l: Ledger) => boolean; head: (s: GameState, l: Ledger) => string; ticker: string[] }[] = [
+  { tab: 'crew', when: s => s.workers.length > 0 || s.month >= 3, head: s => `${Site(s)} starts hiring`, ticker: ['Pay, benefits and morale'] },
+  { tab: 'power', when: (s, l) => l.strain >= 0.4 || s.tier >= 1 || s.goal >= 2 || s.month >= 6, head: (s, l) => `${Site(s)} draws ${Math.round(l.strain * 100)}% of the town grid`, ticker: ['Grid queue, solar, turbines'] },
+  { tab: 'town', when: s => !!s.complaint || s.goal >= 7 || s.month >= 9, head: s => `Neighbors talk about ${Site(s)}`, ticker: ['Jobs, noise, bills, nature'] },
+  { tab: 'gov', when: s => s.month >= 12 || s.goal >= 14 || s.floors.length >= 7, head: s => `County opens a file on ${Site(s)}`, ticker: ['Permits, inspections, laws'] },
+  { tab: 'money', when: s => s.debt > 0 || s.month >= 14, head: s => `Banks call ${Site(s)}`, ticker: ['Loans and the economy'] },
+];
+function unlockMonth(s: GameState, l: Ledger) {
+  const u = UNLOCKS.find(x => !s.unlocked.includes(x.tab) && x.when(s, l));
+  if (!u) return;
+  s.unlocked.push(u.tab);
+  s.newTab = u.tab;
+  s.news = { id: (s.news?.id ?? 0) + 1, tag: 'Local news', headline: u.head(s, l), ticker: u.ticker };
 }
 
 /** Big moments, once each: the game throws a little party. */

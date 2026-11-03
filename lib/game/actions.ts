@@ -36,6 +36,7 @@ export type Action =
   | { type: 'hints'; on: boolean }
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
+  | { type: 'seenTab' }
   | { type: 'pitch'; mw: number; months: number; ask: number }
   | { type: 'rework'; id: number; what: 'grow' | 'renew' | 'cut' }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
@@ -276,6 +277,9 @@ export function apply(s: GameState, a: Action): Effects {
     case 'grid':
       if (s.phase !== 'play') return {};
       requestGrid(s, a.mw);
+      return {};
+    case 'seenTab':
+      s.newTab = null;
       return {};
     case 'tierSeen':
       s.tierUp = null;

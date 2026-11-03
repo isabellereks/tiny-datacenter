@@ -39,6 +39,8 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'gov', label: 'Gov' },
   { key: 'money', label: 'Money' },
 ];
+/** Tabs that open up as the game goes on; the rest are there from the start. */
+const LOCKABLE: string[] = ['crew', 'power', 'town', 'gov', 'money'];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
 function MonthRing({ month }: { month: number }) {
@@ -256,9 +258,9 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         </div>
       </div>
       <div className="tabs" role="tablist">
-        {TABS.map(t => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => onTab(t.key)}>
-            {t.label}{t.key === 'deals' && s.offers.length > 0 && <i className="badge">{s.offers.length}</i>}
+        {TABS.filter(t => !LOCKABLE.includes(t.key) || (s.unlocked ?? LOCKABLE).includes(t.key)).map(t => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => { onTab(t.key); if (s.newTab === t.key) dispatch({ type: 'seenTab' }); }}>
+            {t.label}{t.key === 'deals' && s.offers.length > 0 && <i className="badge">{s.offers.length}</i>}{s.newTab === t.key && <i className="badge new">New</i>}
           </button>
         ))}
       </div>

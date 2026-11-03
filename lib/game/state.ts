@@ -210,6 +210,9 @@ export interface GameState {
   loans: Loan[];
   market: { phase: 'normal' | 'boom' | 'glut'; until: number };
   pitch?: Pitch | null;
+  /** panel tabs opened up so far, and the newest one not yet looked at */
+  unlocked: string[];
+  newTab?: string | null;
   /** the wider economy: which phase it's in, and how far costs and prices have moved since you opened */
   econ: { phase: EconPhase; until: number; cost: number; price: number };
   /** things you did that come back later */
@@ -273,7 +276,7 @@ export function fresh(): GameState {
     log: [],
     look: { stitch: 'S', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
     month: 0, stageMonth: 0, trust: 70, replanted: 0, gridAdded: 0, gridQueue: null, gridLevel: 0, goodwill: 0, grudge: 0,
-    deals: [], offers: [], chip: 1, chipAt: 24, tier: 0, peakMW: 0, smrAt: null, tierUp: null, muted: false,
+    deals: [], offers: [], chip: 1, chipAt: 24, tier: 0, peakMW: 0, smrAt: null, tierUp: null, muted: false, unlocked: [],
     up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, turbines: false, liquid: false, smr: false },
     complaint: null, cooldown: {}, broken: [], goal: 0, debt: 0,
     tally: { profit: 0, fixed: 0, ignored: 0, goals: 0, best: 0 },
@@ -328,6 +331,8 @@ export function load(): GameState {
         look: { ...base.look, ...saved.look }, up: { ...base.up, ...saved.up }, tally: { ...base.tally, ...saved.tally },
         permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
         econ: { ...base.econ, ...saved.econ },
+        // saves from before tabs unlocked keep every tab
+        unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money'],
         build: null,
       };
     }
