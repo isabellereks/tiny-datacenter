@@ -1,6 +1,6 @@
 'use client';
 
-import { Nunito, Pixelify_Sans, Silkscreen } from 'next/font/google';
+import { Pixelify_Sans, Silkscreen } from 'next/font/google';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apply, type Action } from '@/lib/game/actions';
 import { Engine } from '@/lib/game/engine';
@@ -28,7 +28,6 @@ const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
 /** UI text: a pixel face that stays readable at small sizes. */
 const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 /** Small text: a rounded sans that stays readable where the pixel face blurs. */
-const body = Nunito({ subsets: ['latin'], variable: '--body', weight: ['400', '600', '700'] });
 const ISLAND_SPACE = 76;
 
 /** Things worth interrupting the view for. */
@@ -227,11 +226,11 @@ export default function Game() {
 
   const startOver = useCallback(() => { armedRef.current = true; dispatch({ type: 'reset' }); }, [dispatch]);
 
-  if (!s) return <main className={`app ${ui.variable} ${body.variable}`}><div className="stage" ref={hostRef} /></main>;
+  if (!s) return <main className={`app ${ui.variable}`}><div className="stage" ref={hostRef} /></main>;
   const l = ledger(s);
   const imp = impact(s, l);
   return (
-    <main className={`app ${ui.variable} ${body.variable}`}>
+    <main className={`app ${ui.variable}`}>
       <div className="stage" ref={hostRef} />
       {phase === 'play' && <Ticks month={Math.floor(s.month)} net={(s.books ?? l).net} roof={() => engineRef.current?.roofOnScreen(0) ?? null} />}
       {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
