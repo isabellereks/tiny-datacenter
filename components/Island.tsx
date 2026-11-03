@@ -177,6 +177,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <span className="day">{dateLabel(s.month)}</span>
         <Cash className="cash" value={s.cash} />
         <Cash className={l.net >= 0 ? 'rate' : 'rate neg'} value={l.net} perMonth signed />
+        <MwBar s={s} l={l} />
         <Hearts trust={s.trust} />
         {warn && <span className="flag">{warn}</span>}
         {s.bill && <span className={`flag bill${s.bill.progress >= 80 ? ' hot' : ''}`}>Bill {Math.round(s.bill.progress)}%</span>}
@@ -542,6 +543,22 @@ function FloorDetail({ s, l, i, f, dispatch }: { s: GameState; l: Ledger; i: num
 }
 
 const potential = (_s: GameState, l: Ledger) => capacityMW(l);
+
+/** The one number the business turns on: MW you can run, MW running, MW sold. */
+function MwBar({ s, l }: { s: GameState; l: Ledger }) {
+  const can = capacityMW(l), sold = signedMW(s);
+  const top = Math.max(can, sold, 0.1);
+  return (
+    <span className={`mwbar${sold > can + 0.05 ? ' over' : ''}`} title={`Running ${l.itMW.toFixed(1)} · can run ${can.toFixed(1)} · sold ${sold.toFixed(1)} MW`}>
+      <span className="mw-track">
+        <i className="mw-can" style={{ width: `${(can / top) * 100}%` }} />
+        <i className="mw-run" style={{ width: `${(l.itMW / top) * 100}%` }} />
+        <b className="mw-sold" style={{ left: `${Math.min(100, (sold / top) * 100)}%` }} />
+      </span>
+      <span className="num">{l.itMW.toFixed(1)}/{can.toFixed(1)} MW</span>
+    </span>
+  );
+}
 
 /** What caps the MW you can run. Just the numbers: the tightest one is marked. */
 function Limits({ s, l, want }: { s: GameState; l: Ledger; want: number }) {

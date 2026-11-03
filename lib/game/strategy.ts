@@ -1,4 +1,4 @@
-import { CHIPS, LOCS, TIERS, type LocKey } from './data';
+import { LOCS, type LocKey } from './data';
 import { hopedJobs, impact } from './events';
 import type { Decision } from './gov';
 import {
@@ -288,22 +288,18 @@ export function briefing(s: GameState): Brief[] {
   const c = chipSummary(s);
   const signed = signedMW(s);
   return [
-    { label: 'Size', value: `${TIERS[s.tier].name}, ${l.itMW.toFixed(1)} MW running` },
-    { label: 'Customers', value: `${signed.toFixed(0)} MW signed, ${s.offers.length} ${s.offers.length === 1 ? 'offer' : 'offers'} waiting`, bad: signed > l.itMW + 0.5 },
-    { label: 'Chips', value: c.stale ? `${c.stale} of ${c.halls} halls behind ${CHIPS[s.chip].name}` : `All on ${CHIPS[s.chip].name}`, bad: c.value < 0.8 },
-    { label: 'Grid', value: s.gridQueue ? `${Math.round(l.strain * 100)}% used, ${s.gridQueue.mw} MW coming in ${Math.ceil(s.gridQueue.done - s.month)} mo` : `${Math.round(l.strain * 100)}% used`, bad: l.strain > 0.85 },
-    { label: 'Economy', value: `${ECON[s.econ.phase].name}, AI market ${s.market.phase === 'boom' ? 'booming' : s.market.phase === 'glut' ? 'crashed' : 'normal'}`, bad: s.econ.phase !== 'steady' || s.market.phase === 'glut' },
+    { label: 'Running', value: `${l.itMW.toFixed(1)} MW` },
+    { label: 'Customers', value: `${signed.toFixed(0)} MW sold`, bad: signed > l.itMW + 0.5 },
+    { label: 'Chips', value: c.stale ? `${c.stale} of ${c.halls} halls old` : 'All new', bad: c.value < 0.8 },
+    { label: 'Grid', value: s.gridQueue ? `${Math.round(l.strain * 100)}%, +${s.gridQueue.mw} MW in ${Math.ceil(s.gridQueue.done - s.month)} mo` : `${Math.round(l.strain * 100)}%`, bad: l.strain > 0.85 },
+    { label: 'Economy', value: `${ECON[s.econ.phase].name}${s.market.phase === 'boom' ? ', AI boom' : s.market.phase === 'glut' ? ', AI crash' : ''}`, bad: s.econ.phase !== 'steady' || s.market.phase === 'glut' },
     {
-      label: 'Moratorium bill',
-      value: hasLaw(s, 'moratorium') ? 'In force, no new halls' : s.bill ? `${Math.round(s.bill.progress)}%, ${billStageName(s).toLowerCase()}${s.hints ? (eta ? `, passes in about ${eta} mo` : ', stalled') : ''}` : 'None yet',
+      label: 'Bill',
+      value: hasLaw(s, 'moratorium') ? 'In force' : s.bill ? `${Math.round(s.bill.progress)}%${s.hints && eta ? `, ~${eta} mo` : ''}` : 'None',
       bad: !!s.bill && billOdds(s, l) > 40,
     },
-    { label: 'Rival', value: s.rival ? `${s.rival.name}, ${Math.round(s.rival.mw)} MW vs your ${l.itMW.toFixed(0)}` : s.fired.includes('rivalBeaten') ? 'Gone. You won the town' : 'None yet', bad: !!s.rival && s.rival.mw > l.itMW },
-    { label: 'Debt', value: s.loans.length ? `${money(debt(s))}, ${money(s.loans.reduce((t, x) => t + x.payment, 0))}/mo` : 'None', bad: debt(s) > assets(s) * 0.5 },
-    {
-      label: 'Lawyers',
-      value: s.seeds.length ? s.seeds.map(x => ({ dieselSuit: 'Neighbors are logging your generator runs', flood: 'Downhill homeowners are counting the trees you cut', sleepStudy: 'A university is studying the hum' }[x.id] ?? 'Someone is asking questions')).join('. ') : 'Quiet',
-      bad: s.seeds.length > 0,
-    },
+    { label: 'Rival', value: s.rival ? `${Math.round(s.rival.mw)} MW vs ${l.itMW.toFixed(0)}` : s.fired.includes('rivalBeaten') ? 'Gone' : 'None', bad: !!s.rival && s.rival.mw > l.itMW },
+    { label: 'Debt', value: s.loans.length ? `${money(debt(s))}` : 'None', bad: debt(s) > assets(s) * 0.5 },
+    { label: 'Lawsuit risk', value: s.seeds.length ? s.seeds.map(x => ({ dieselSuit: 'diesel', flood: 'flooding', sleepStudy: 'noise' }[x.id] ?? 'other')).join(', ') : 'None', bad: s.seeds.length > 0 },
   ];
 }

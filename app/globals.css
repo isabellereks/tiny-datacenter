@@ -679,3 +679,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 64vh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation-name: sheet-in; }
   @keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
+
+/* the MW bar on the island: light = can run, dark = running, tick = sold */
+.mwbar { display: inline-flex; align-items: center; gap: 6px; }
+.mw-track { position: relative; width: 44px; height: 8px; background: color-mix(in oklab, var(--isl-text), transparent 85%); border-radius: 2px; overflow: visible; }
+.mw-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; }
+.mw-can { background: color-mix(in oklab, var(--green), transparent 60%); }
+.mw-run { background: var(--green); }
+.mw-sold { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--isl-text); }
+.mwbar.over .mw-sold { background: var(--red); }
+.mwbar .num { font-size: 13px; }
+.mwbar.over .num { color: var(--red); }
+@media (max-width: 520px) { .mwbar .num { display: none; } }
