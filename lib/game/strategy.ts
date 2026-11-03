@@ -6,6 +6,7 @@ import {
   type EconPhase, type GameState, type Ledger,
 } from './state';
 import { chipSummary } from './deals';
+import { record } from './legal';
 
 /*
  * The long game. The state legislature races a moratorium bill against your growth, the economy and
@@ -161,8 +162,8 @@ export const STRAT_DECISIONS: Decision[] = [
     title: () => 'Lawsuit over diesel exhaust',
     body: s => `Residents say years of generator runs at ${siteName(s)} made their kids sick. They're suing ${ownerName(s)}.`,
     choices: [
-      { label: 'Settle', note: 'Trust +3', cost: s => today(s, 5_000_000), apply: s => addTrust(s, 3) },
-      { label: 'Fight it in court', note: '50%: win, or pay 3x and trust −10', apply: s => court(s, 0.5, today(s, 15_000_000), 'diesel') },
+      { label: 'Settle', note: 'Trust +3', cost: s => today(s, 5_000_000), apply: s => { addTrust(s, 3); record(s, { what: 'Diesel exhaust', result: 'settled', cost: today(s, 5_000_000) }); } },
+      { label: 'Fight it in court', note: '50% to win, 70% with lawyers. Lose: pay 3x, trust −10', apply: s => court(s, 0.5, today(s, 15_000_000), 'diesel') },
     ],
   },
   {
@@ -170,8 +171,8 @@ export const STRAT_DECISIONS: Decision[] = [
     title: () => 'Your site flooded our homes',
     body: () => 'With the trees gone, stormwater ran off your lot into the neighborhood.',
     choices: [
-      { label: 'Pay for repairs', note: 'Trust +3', cost: s => today(s, 3_000_000), apply: s => addTrust(s, 3) },
-      { label: 'Deny it', note: 'Trust −10', apply: s => addTrust(s, -10) },
+      { label: 'Pay for repairs', note: 'Trust +3', cost: s => today(s, 3_000_000), apply: s => { addTrust(s, 3); record(s, { what: 'Stormwater flooding', result: 'paid', cost: today(s, 3_000_000) }); } },
+      { label: 'Deny it', note: 'Trust −10', apply: s => { addTrust(s, -10); record(s, { what: 'Stormwater flooding', result: 'denied', cost: 0 }); } },
     ],
   },
   {
@@ -179,14 +180,20 @@ export const STRAT_DECISIONS: Decision[] = [
     title: () => 'Study links your hum to illness',
     body: s => `A university study found people near ${siteName(s)} sleep worse. A class action follows.`,
     choices: [
-      { label: 'Settle', note: 'Trust +4', cost: s => today(s, 8_000_000), apply: s => addTrust(s, 4) },
-      { label: 'Fight it in court', note: '40%: win, or pay 2.5x and trust −12', apply: s => court(s, 0.4, today(s, 20_000_000), 'hum') },
+      { label: 'Settle', note: 'Trust +4', cost: s => today(s, 8_000_000), apply: s => { addTrust(s, 4); record(s, { what: 'Hum and sleep', result: 'settled', cost: today(s, 8_000_000) }); } },
+      { label: 'Fight it in court', note: '40% to win, 60% with lawyers. Lose: pay 2.5x, trust −12', apply: s => court(s, 0.4, today(s, 20_000_000), 'hum') },
     ],
   },
 ];
 
+/** A law firm on retainer improves your odds in court. */
+export const courtOdds = (s: GameState, odds: number) => Math.min(0.9, odds + (s.lawyers ? 0.2 : 0));
+
 function court(s: GameState, odds: number, loss: number, what: string) {
-  if (Math.random() < odds) {
+  const name = what === 'diesel' ? 'Diesel exhaust' : 'Hum and sleep';
+  const won = Math.random() < courtOdds(s, odds);
+  record(s, { what: name, result: won ? 'won' : 'lost', cost: won ? 0 : loss });
+  if (won) {
     headline(s, 'Local news', `${ownerName(s)} wins ${what} lawsuit`, ['Residents vow to appeal', 'Judge rules evidence too thin']);
     addTrust(s, -3);
   } else {
@@ -258,6 +265,8 @@ export function strategyMonth(s: GameState, l: Ledger): string | null {
     headline(s, 'Business news', 'Transformer shortage hits datacenters', ['Lead times for big transformers double', 'Electrical floors take twice as long to build', 'Utilities blame the AI boom']);
   }
 
+  // a sound wall ends the hum claim before it's filed
+  if (s.up.soundWalls) s.seeds = s.seeds.filter(x => x.id !== 'sleepStudy');
   // things that come back years later
   if (s.strikes > 0 && !s.fired.includes('seed-diesel')) { s.fired.push('seed-diesel'); s.seeds.push({ id: 'dieselSuit', at: s.month + 36 + Math.random() * 24 }); }
   if (i.cleared >= 15 && !s.fired.includes('seed-flood')) { s.fired.push('seed-flood'); s.seeds.push({ id: 'flood', at: s.month + 24 + Math.random() * 18 }); }

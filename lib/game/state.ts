@@ -212,6 +212,9 @@ export interface GameState {
   pitch?: Pitch | null;
   /** panel tabs opened up so far, and the newest one not yet looked at */
   unlocked: string[];
+  /** every lawsuit, settlement and fine; a law firm on retainer */
+  cases?: import('./legal').Case[];
+  lawyers?: boolean;
   /** the location's target: hit before the deadline, or missed */
   target?: 'won' | 'missed' | 'off' | null;
   newTab?: string | null;
@@ -334,7 +337,7 @@ export function load(): GameState {
         permits: { ...base.permits, ...saved.permits }, permitLog: saved.permitLog ?? {}, staff: { ...base.staff, ...saved.staff },
         econ: { ...base.econ, ...saved.econ },
         // saves from before tabs unlocked keep every tab
-        unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money'],
+        unlocked: saved.unlocked ?? ['crew', 'power', 'town', 'gov', 'money', 'legal'],
         // games started before targets existed don't get one
         target: saved.target === undefined && (saved.month ?? 0) > 0 ? 'off' : saved.target,
         build: null,
@@ -595,7 +598,8 @@ export function ledger(s: GameState): Ledger {
   const litres = itMW * 1000 * HOURS_PER_MONTH * L.water * (s.up.closedLoop || s.up.liquid ? 0.15 : 1);
   const water = infl * (litres / 1000) * L.waterPrice;
   // extra construction crews on contract are paid with the staff
-  const staff = infl * (payroll(s) + Math.max(0, crews(s) - 2) * CREW_COST);
+  // staff covers extra construction crews and a law firm on retainer
+  const staff = infl * (payroll(s) + Math.max(0, crews(s) - 2) * CREW_COST + (s.lawyers ? 120_000 : 0));
   // maintenance runs about 1% of what you've built each year
   const upkeep = (infl * assets(s) * 0.01) / 12;
   // an abatement taxes a fraction of the value, plus a community fee on what it saves

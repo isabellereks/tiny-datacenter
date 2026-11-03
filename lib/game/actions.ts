@@ -9,7 +9,8 @@ import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeO
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { answerCall } from './calls';
 import { poachRival } from './rival';
-import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, needsBuyout, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { fixClaim, LAWYER_COST, settleEarly } from './legal';
+import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, money, maxBuildings, needsBuyout, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -40,6 +41,8 @@ export type Action =
   | { type: 'endDeal'; id: number }
   | { type: 'seenTab' }
   | { type: 'poachRival' }
+  | { type: 'claim'; id: string; how: 'settle' | 'fix' }
+  | { type: 'lawyers'; on: boolean }
   | { type: 'pitch'; mw: number; months: number; ask: number }
   | { type: 'rework'; id: number; what: 'grow' | 'renew' | 'cut' }
   | { type: 'addUnit'; key: 'turbines' | 'solar' }
@@ -281,6 +284,14 @@ export function apply(s: GameState, a: Action): Effects {
     case 'grid':
       if (s.phase !== 'play') return {};
       requestGrid(s, a.mw);
+      return {};
+    case 'claim':
+      if (s.phase !== 'play') return {};
+      if (a.how === 'settle') settleEarly(s, a.id); else fixClaim(s, a.id);
+      return {};
+    case 'lawyers':
+      s.lawyers = a.on;
+      note(s, a.on ? `Law firm on retainer: ${money(today(s, LAWYER_COST))}/mo` : 'Let the law firm go');
       return {};
     case 'poachRival':
       if (s.phase !== 'play') return {};

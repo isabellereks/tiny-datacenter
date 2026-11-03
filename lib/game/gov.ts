@@ -1,3 +1,4 @@
+import { record } from './legal';
 import { EU, FOUND_ORDER, FOUNDS, LOCS, type FoundKey, type LocKey } from './data';
 import { breakRooms, breaksNeeded, STAFF_DECISIONS } from './staff';
 import { STRAT_DECISIONS } from './strategy';
@@ -272,6 +273,7 @@ function inspect(s: GameState, l: Ledger) {
   } else {
     const fine = today(s, 250_000 * fails.length);
     s.cash -= fine;
+    record(s, { what: `${name}: ${fails.map(f => f.label.toLowerCase()).join(', ')}`, result: 'fined', cost: fine });
     addTrust(s, -2 * fails.length);
     // one problem is a fine; two or more and they shut you down until it's fixed
     if (fails.length >= 2) enact(s, 'stopWork');

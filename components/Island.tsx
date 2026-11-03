@@ -3,7 +3,7 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '@/lib/game/actions';
 import {
-  BUILDABLE, CHIPS, COOL_MW, CUSTS, FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
+  BUILDABLE, CHIPS, COOL_MW, FOUND_ORDER, FOUNDS, LOCS, MAX_TECHS, OUTLINES, POWER_MW, REPAIR_COST,
   SHAPES, STITCH, TIERS, TYPES,
   type BuildableType, type StitchSize,
 } from '@/lib/game/data';
@@ -24,12 +24,13 @@ import {
   ASKS, PITCH_TERMS, askWait, canRenew, capacityMW, cutFee, cutStep, freeMW, growOdds, growStep, pitchOdds, pitchPrice, renewOdds, renewPrice,
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
+import { CLAIMS, LAWYER_COST } from '@/lib/game/legal';
 import { poachCost, poachMW, poachOdds, poachWait } from '@/lib/game/rival';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'power' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
+export type Tab = 'build' | 'power' | 'legal' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'power', label: 'Power' },
@@ -39,9 +40,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'town', label: 'Town' },
   { key: 'gov', label: 'Gov' },
   { key: 'money', label: 'Money' },
+  { key: 'legal', label: 'Legal' },
 ];
 /** Tabs that open up as the game goes on; the rest are there from the start. */
-const LOCKABLE: string[] = ['crew', 'power', 'town', 'gov', 'money'];
+const LOCKABLE: string[] = ['crew', 'power', 'town', 'gov', 'money', 'legal'];
 const keys = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
 function MonthRing({ month }: { month: number }) {
@@ -288,6 +290,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         {tab === 'money' && <MoneyTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'town' && <TownTab s={s} l={l} imp={imp} dispatch={dispatch} />}
         {tab === 'gov' && <GovTab s={s} l={l} dispatch={dispatch} />}
+        {tab === 'legal' && <LegalTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'look' && (
           <>
             <button className={`pill wide${armed ? ' danger' : ''}`} onClick={() => dispatch({ type: 'reset' })}>
@@ -702,11 +705,6 @@ function SellCard({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
   );
 }
 
-function Needs({ needs }: { needs: Offer['needs'] }) {
-  if (!needs.length) return null;
-  return <span className="needs">{needs.map(n => <i key={n} title={NEED_NOTE[n]}>{NEED_LABEL[n]}</i>)}</span>;
-}
-
 function OfferCard({ s, o, can, dispatch }: { s: GameState; o: Offer; can: number; dispatch: (a: Action) => void }) {
   const tight = signedMW(s) + o.mw > can + 0.05;
   const left = Math.max(1, Math.ceil(o.expires - s.month));
@@ -937,10 +935,57 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
   );
 }
 
+/** Violations an inspector would find, claims building against you, your lawyers, and every case so far. */
+function LegalTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
+  const checks = checklist(s, l);
+  const fails = checks.filter(c => !c.ok).length;
+  const inspectIn = Math.max(0, Math.ceil(s.inspectAt - s.month));
+  const cases = s.cases ?? [];
+  return (
+    <>
+      {hasLaw(s, 'stopWork') && <p className="warn">Stop-work order</p>}
+      <span className="label">{hasLaw(s, 'stopWork') ? 'Reinspection next month' : `${inspectionTitle(s)} in ${inspectIn} mo`}</span>
+      <div className="books">
+        {checks.map(c => <Row key={c.label} label={c.label} value={c.ok ? 'Pass' : 'Violation'} neg={!c.ok} />)}
+        <Row label="Fine if found" value={fails ? `${money(today(s, 250_000 * fails))}${fails >= 2 ? ', stop-work' : ''}` : '$0'} neg={fails > 0} />
+      </div>
+
+      <span className="label">Claims building</span>
+      {s.seeds.length ? s.seeds.map(x => {
+        const c = CLAIMS[x.id];
+        if (!c) return null;
+        const early = c.early(s), fix = c.fix?.cost(s) ?? 0;
+        return (
+          <div key={x.id} className="deal tight hurt">
+            <div className="deal-row static"><b>{c.name}</b><span /><span className="num">{s.hints ? `~${Math.max(1, Math.ceil(x.at - s.month))} mo` : ''}</span></div>
+            <div className="deal-sub"><span>{c.cause(s)}</span></div>
+            <div className="deal-acts">
+              <button className="pill" disabled={s.cash < early} onClick={() => dispatch({ type: 'claim', id: x.id, how: 'settle' })}>Settle {money(early)}</button>
+              {c.fix && <button className="pill" disabled={s.cash < fix} onClick={() => dispatch({ type: 'claim', id: x.id, how: 'fix' })}>{c.fix.label} {money(fix)}</button>}
+            </div>
+          </div>
+        );
+      }) : <p className="muted small">None</p>}
+
+      <span className="label">Lawyers</span>
+      <div className="ups">
+        <button className="up" aria-pressed={!!s.lawyers} onClick={() => dispatch({ type: 'lawyers', on: !s.lawyers })}>
+          <b>Law firm on retainer</b><small>{money(today(s, LAWYER_COST))}/mo, court odds +20%</small><span>{s.lawyers ? 'On' : 'Off'}</span>
+        </button>
+      </div>
+
+      {cases.length > 0 && <span className="label">Record</span>}
+      {cases.length > 0 && (
+        <div className="books">
+          {cases.map((c, k) => <Row key={k} label={c.what} sub={` ${dateLabel(c.month)}`} value={`${c.result[0].toUpperCase()}${c.result.slice(1)}${c.cost ? ` ${money(c.cost)}` : ''}`} neg={c.result !== 'won'} />)}
+        </div>
+      )}
+    </>
+  );
+}
+
 function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Action) => void }) {
   const L = LOCS[s.loc];
-  const checks = checklist(s, l);
-  const inspectIn = Math.max(0, Math.ceil(s.inspectAt - s.month));
   const voteIn = Math.max(0, Math.ceil(s.electionAt - s.month));
   const laws = activeLaws(s);
   const limits: Record<string, string> = {
@@ -976,12 +1021,6 @@ function GovTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: Act
             </button>
           );
         })}
-      </div>
-
-      {hasLaw(s, 'stopWork') && <p className="warn">Stop-work order</p>}
-      <span className="label">{hasLaw(s, 'stopWork') ? 'Reinspection next month' : `${inspectionTitle(s)} in ${inspectIn} mo`}</span>
-      <div className="books">
-        {checks.map(c => <Row key={c.label} label={c.label} value={c.ok ? 'Pass' : 'Fail'} neg={!c.ok} />)}
       </div>
 
       <span className="label">{L.gov.local} election in {voteIn} mo</span>

@@ -674,7 +674,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .panel .expanded { height: 100%; min-height: 0; }
 .panel .ex-head, .panel .tabs { flex-shrink: 0; }
 .panel .tabs { flex-wrap: wrap; }
-.panel .tabs button { flex: 1 1 22%; padding: 7px 4px; }
+.panel .tabs button { flex: 1 1 18%; padding: 7px 4px; }
 .panel .ex-body { max-height: none; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .island.opened { box-shadow: var(--patch-shadow); }
 @media (max-width: 899px) {
