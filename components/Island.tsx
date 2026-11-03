@@ -924,7 +924,7 @@ function TownTab({ s, l, imp, dispatch }: { s: GameState; l: Ledger; imp: Impact
           return (
             <button key={g.key} className="up" disabled={wait > 0 || none || s.cash < today(s, g.cost)} onClick={() => dispatch({ type: 'gift', key: g.key })}>
               <b>{g.name}</b><small>{g.note}</small>
-              <span>{wait ? `${wait} mo` : none ? 'No trees cut' : money(today(s, g.cost))}</span>
+              <span>{wait ? `${wait} mo` : none ? 'No trees cut' : g.cost ? money(today(s, g.cost)) : 'Free'}</span>
             </button>
           );
         })}

@@ -215,6 +215,9 @@ export interface GameState {
   /** every lawsuit, settlement and fine; a law firm on retainer */
   cases?: import('./legal').Case[];
   lawyers?: boolean;
+  /** locals trained on your scholarships, who don't push wages up; and the month paid-down power bills run out */
+  trained?: number;
+  billRelief?: number;
   /** the CEO's look and toys */
   ceo?: import('./ceo').Ceo;
   /** the location's target: hit before the deadline, or missed */
@@ -363,7 +366,7 @@ export const benefitsPer = (s: GameState) => (s.staff.health ? 1_500 : 0) + (s.s
 export const locals = (s: GameState) => s.workers.filter(w => !w.overseas).length;
 export const overseas = (s: GameState) => s.workers.filter(w => w.overseas).length;
 /** A local tech's wage: each local you add pushes local wages up 3%, as the town's labor pool runs dry. */
-export const wageFor = (s: GameState, n = locals(s)) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1)) * wageMult(s);
+export const wageFor = (s: GameState, n = locals(s)) => TECH_SALARY * (1 + 0.03 * Math.max(0, n - 1 - (s.trained ?? 0))) * wageMult(s);
 /** Overseas techs on work visas earn less and don't touch the local wage. */
 export const OVERSEAS_WAGE = 0.5;
 export const overseasWage = (s: GameState) => TECH_SALARY * OVERSEAS_WAGE * wageMult(s);

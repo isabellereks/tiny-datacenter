@@ -260,11 +260,21 @@ export function apply(s: GameState, a: Action): Effects {
       if (g.key === 'trees' && impact(s).cleared === 0) return {};
       s.cash -= today(s, g.cost);
       if (g.key === 'trees') s.replanted += 6;
+      if (g.key === 'park') s.replanted += 10;
+      if (g.key === 'scholarship') s.trained = (s.trained ?? 0) + 3;
+      if (g.key === 'bills') s.billRelief = s.month + 12;
       if (g.wait) s.cooldown[`gift-${g.key}`] = s.month + g.wait;
+      if (g.key === 'meeting') {
+        // a meeting is a gamble: a friendly room listens, an angry one heckles
+        const d = s.trust >= 50 || Math.random() < 0.5 ? 3 : -3;
+        s.trust = Math.max(0, Math.min(100, s.trust + d));
+        note(s, d > 0 ? 'Town meeting went well. Trust +3' : 'Heckled at the town meeting. Trust −3');
+        return {};
+      }
       s.trust = Math.min(100, s.trust + g.trust);
       s.goodwill += g.trust / 2;
       note(s, `${g.name}. Trust +${g.trust}`);
-      return { rebuild: g.key === 'trees' };
+      return { rebuild: g.key === 'trees' || g.key === 'park' };
     }
     case 'sign':
       if (s.phase !== 'play') return {};

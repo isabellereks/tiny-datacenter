@@ -114,7 +114,14 @@ export const UPGRADES: { key: keyof Upgrades; name: string; cost: number; tier: 
 /** Things you can do for the town again and again, with a wait between them. */
 export const GIFTS = [
   { key: 'trees', name: 'Plant trees', cost: 200_000, trust: 3, wait: 0, note: 'Replants 6 trees.' },
+  { key: 'meeting', name: 'Town meeting', cost: 0, trust: 0, wait: 6, note: 'Free. Goes well when they like you.' },
+  { key: 'foodbank', name: 'Food bank', cost: 100_000, trust: 1, wait: 3, note: 'Every 3 months.' },
   { key: 'school', name: 'Fund the school', cost: 1_000_000, trust: 8, wait: 12, note: 'Once a year.' },
+  { key: 'scholarship', name: 'Tech scholarships', cost: 600_000, trust: 3, wait: 12, note: 'Trains 3 locals. Local wages rise slower.' },
+  { key: 'library', name: 'Library wing', cost: 1_500_000, trust: 4, wait: 18, note: 'Every 18 months.' },
+  { key: 'bills', name: 'Pay down power bills', cost: 3_000_000, trust: 3, wait: 12, note: 'Power bills count half for a year.' },
+  { key: 'park', name: 'Build a park', cost: 2_500_000, trust: 5, wait: 24, note: 'Replants 10 trees.' },
+  { key: 'firehouse', name: 'Fire station', cost: 4_000_000, trust: 6, wait: 36, note: 'Every 3 years.' },
 ] as const;
 export type GiftKey = (typeof GIFTS)[number]['key'];
 /** months until a gift can be given again, 0 when ready */
@@ -135,7 +142,7 @@ export function townMood(s: GameState, l: Ledger = ledger(s), i: Impact = impact
   const parts: MoodPart[] = [
     { key: 'jobs', label: 'Jobs', value: Math.round(clamp((techs - hoped) * 1.5, -20, 8)), note: `${techs} of ${hoped} locals` },
     { key: 'noise', label: 'Noise', value: -Math.round(clamp(loud, 0, 18)), note: s.up.soundWalls ? 'Sound wall' : `${floors} floors${s.up.turbines ? ', turbines' : ''}` },
-    { key: 'bills', label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25)), note: `${Math.round(l.strain * 100)}% of the grid` },
+    { key: 'bills', label: 'Power bills', value: -Math.round(clamp((l.strain - 0.5) * 40, 0, 25) * ((s.billRelief ?? 0) > s.month ? 0.5 : 1)), note: `${Math.round(l.strain * 100)}% of the grid${(s.billRelief ?? 0) > s.month ? ', paid down' : ''}` },
     { key: 'nature', label: 'Nature', value: -Math.round(clamp(i.cleared * 0.5 + i.waterML * 1.5 + i.carbonT / 400, 0, 20)), note: `${i.cleared} trees, ${i.waterML.toFixed(1)} ML water` },
     { key: 'deeds', label: 'Good deeds', value: Math.round(s.goodwill + (s.up.heat ? 6 : 0)), note: 'Fades' },
     { key: 'grudge', label: 'Ignored complaints', value: -Math.round(s.grudge), note: 'Fades' },
