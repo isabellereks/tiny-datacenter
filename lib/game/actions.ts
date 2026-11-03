@@ -1,5 +1,5 @@
 import {
-  FOUNDS, MAX_TECHS, NAMES, REPAIR_COST, SETUP, STARTER, TYPES,
+  FOUNDS, NAMES, REPAIR_COST, SETUP, STARTER, TYPES,
   type BuildableType, type CustKey, type Fill, type FoundKey, type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
 import { foundationUpgradeCost, GIFTS, giftWait, impact, resolveComplaint, UPGRADES, type GiftKey } from './events';
@@ -7,7 +7,7 @@ import { applyPermit, buildBlock, startLaws, zoningAllows } from './gov';
 import { payOff, takeLoan } from './strategy';
 import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeOffer, pitch, refreshCost, reworkDeal, requestGrid, sign, SMR_MONTHS } from './deals';
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
-import { buildCost, buildingCost, buildMonths, noCrew, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, techsOn, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -136,28 +136,29 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'build': {
       const cost = buildCost(s);
-      if (s.cash < cost || noCrew(s) || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
+      if (s.cash < cost || queueFull(s) || heightOf(s, s.bld) >= FOUNDS[s.found].max || buildBlock(s)) return {};
       s.cash -= cost;
       const i = s.floors.length;
       s.floors.push({ type: s.next, fill: s.nextFill, done: false, cost, b: s.bld, gen: s.next === 'hall' ? fitGen(s) : undefined });
-      s.jobs = [...(s.jobs ?? []), { idx: i, from: s.month, to: s.month + buildMonths(s, s.next), what: 'build' }];
+      const from = crewFreeAt(s), to = from + buildMonths(s, s.next);
+      s.jobs = [...(s.jobs ?? []), { idx: i, from, to, what: 'build' }];
       s.sel = i;
       s.stageMonth = s.month;
-      note(s, `Building a ${TYPES[s.next].name.toLowerCase()}: ${buildMonths(s, s.next)} months`);
+      note(s, `${from > s.month ? 'Queued' : 'Building'} a ${TYPES[s.next].name.toLowerCase()}: ${Math.ceil(to - s.month)} months`);
       return { rebuild: true, refit: true };
     }
     case 'fill':
       s.floors[s.sel].fill = a.fill;
       return { rebuild: true };
     case 'hire': {
-      const f = s.floors[s.sel];
       const fee = hireFee(s, !!a.overseas);
-      if (s.cash < fee || f?.type !== 'hall' || !f.done || techsOn(s, s.sel) >= MAX_TECHS) return {};
+      const to = hallForTech(s, s.sel);
+      if (s.cash < fee || to === null) return {};
       s.cash -= fee;
       const used = new Set(s.workers.map(w => w.name));
       const left = NAMES.filter(n => !used.has(n));
       const name = pick(left.length ? left : NAMES);
-      s.workers.push({ id: s.nid++, name, floor: s.sel, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0, overseas: !!a.overseas, visaAt: a.overseas ? s.month + 12 : undefined });
+      s.workers.push({ id: s.nid++, name, floor: to, x: (Math.random() - 0.5) * 4, dir: Math.random() < 0.5 ? -1 : 1, speed: 0.8 + Math.random() * 0.7, pause: 0, overseas: !!a.overseas, visaAt: a.overseas ? s.month + 12 : undefined });
       s.inside = true;
       note(s, a.overseas ? `Hired ${name} from overseas` : `Hired ${name} from town`);
       return { rebuild: true };

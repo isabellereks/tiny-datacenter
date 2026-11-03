@@ -13,7 +13,7 @@ import {
 import {
   GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
   gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
-  allocate, buildMonths, crews, CREW_COST, noCrew, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
+  allocate, buildMonths, crewFreeAt, hallForTech, crews, crewsWorking, CREW_COST, noCrew, queueFull, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
 import {
   LAWS, PERMITS, activeLaws, hearingOdds, buildBlock, checklist, heightLimit, hallLimit,
@@ -351,11 +351,12 @@ function BuildTab({ s, l, dispatch }: { s: GameState; l: Ledger; dispatch: (a: A
         {s.hints && gridLevel(after.strain) > gridLevel(l.strain) && <span className="bad">Grid → {GRID_LABEL[gridLevel(after.strain)]}</span>}
       </div>
       {n < max ? (<>
-        <button className="pill white wide" disabled={noCrew(s) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
-          {noCrew(s) ? `All crews busy, next free in ${Math.max(1, Math.ceil(Math.min(...(s.jobs ?? []).map(j => j.to)) - s.month))} mo` : block ? block : short > 0 ? `Need ${money(short)}` : `Build  ${money(cost)}, ${buildMonths(s, s.next)} mo`}
+        <button className="pill white wide" disabled={queueFull(s) || short > 0 || !!block} onClick={() => dispatch({ type: 'build' })}>
+          {queueFull(s) ? 'Queue full' : block ? block : short > 0 ? `Need ${money(short)}`
+            : `${noCrew(s) ? 'Queue' : 'Build'}  ${money(cost)}, ${Math.ceil(crewFreeAt(s) + buildMonths(s, s.next) - s.month)} mo`}
         </button>
         <div className="crews">
-          <span>Crews {(s.jobs ?? []).length} of {crews(s)} working</span>
+          <span>Crews {crewsWorking(s)}/{crews(s)}{(s.jobs ?? []).length > crewsWorking(s) ? `, ${(s.jobs ?? []).length - crewsWorking(s)} queued` : ''}</span>
           {crews(s) > 2 && <button className="link-btn" onClick={() => dispatch({ type: 'crews', n: crews(s) - 1 })}>Let one go</button>}
           {crews(s) < 6 && <button className="link-btn" onClick={() => dispatch({ type: 'crews', n: crews(s) + 1 })}>Hire a crew, {money(today(s, CREW_COST))}/mo</button>}
         </div>
@@ -779,6 +780,14 @@ function StaffTab({ s, l, dispatch, onTab }: { s: GameState; l: Ledger; dispatch
       </div>
 
       <span className="label">Techs {n}</span>
+      <div className="hires">
+        <button className="pill white" disabled={s.cash < hireFee(s) || hallForTech(s) === null} onClick={() => dispatch({ type: 'hire' })}>
+          Hire local {money(hireFee(s))} <span className="cost">{money(today(s, wageFor(s)))}/mo</span>
+        </button>
+        <button className="pill" disabled={s.cash < hireFee(s, true) || hallForTech(s) === null} onClick={() => dispatch({ type: 'hire', overseas: true })}>
+          Hire overseas {money(hireFee(s, true))} <span className="cost">{money(today(s, overseasWage(s)))}/mo</span>
+        </button>
+      </div>
       <div className="books">
         <Row label="Payroll" value={`${money(l.staff)}/mo`} />
         <Row label="Local jobs" value={`${locals(s)}/${hoped}`} neg={locals(s) < hoped * 0.5} sub={` ${overseas(s)} overseas`} />

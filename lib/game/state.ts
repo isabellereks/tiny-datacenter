@@ -1,5 +1,5 @@
 import {
-  BUDGET, CHIPS, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LIQUID_GEN, LOCS, HIRE_FEE, POWER_MW, SHAPES, SOLAR_MW, TECH_SALARY, TIERS, TYPES,
+  BUDGET, CHIPS, COOL_MW, CUSTS, FH, FOUNDS, FW, HOURS_PER_MONTH, LIQUID_GEN, LOCS, HIRE_FEE, MAX_TECHS, POWER_MW, SHAPES, SOLAR_MW, TECH_SALARY, TIERS, TYPES,
   type BuildableType, type CustKey, type Fill, type FloorType, type FoundKey,
   type LocKey, type SetupStep, type ShapeKey, type StitchSize,
 } from './data';
@@ -635,6 +635,33 @@ export const busy = (s: GameState, b: number) => (s.jobs ?? []).some(j => bOf(s,
 export const crews = (s: GameState) => s.crews ?? 2;
 export const CREW_COST = 150_000;
 export const noCrew = (s: GameState) => (s.jobs ?? []).length >= crews(s);
+/** Where a new tech goes: a hall that's down with no one on it, else the hall with the fewest techs. */
+export function hallForTech(s: GameState, prefer?: number): number | null {
+  const open = s.floors.map((f, i) => i).filter(i => s.floors[i].done && s.floors[i].type === 'hall' && techsOn(s, i) < MAX_TECHS);
+  if (prefer !== undefined && open.includes(prefer)) return prefer;
+  if (!open.length) return null;
+  return open.sort((a, b) => (techsOn(s, a) - (isBroken(s, a) ? 9 : 0)) - (techsOn(s, b) - (isBroken(s, b) ? 9 : 0)))[0];
+}
+/** Each month techs spread out: anyone on a floor that isn't a hall, or on a full hall while another hall sits empty, moves over. */
+export function spreadTechs(s: GameState) {
+  for (const w of s.workers) {
+    const f = s.floors[w.floor];
+    const here = f && f.done && f.type === 'hall' ? techsOn(s, w.floor) : 0;
+    const to = hallForTech(s);
+    if (to === null || to === w.floor) continue;
+    if (here === 0 || techsOn(s, to) < here - 1) w.floor = to;
+  }
+}
+
+/** Jobs line up behind busy crews: the month the next crew is free, counting what's already waiting. */
+export function crewFreeAt(s: GameState) {
+  const js = s.jobs ?? [], c = crews(s);
+  if (js.length < c) return s.month;
+  return js.map(j => j.to).sort((a, b) => a - b)[js.length - c];
+}
+/** Each crew can have one job waiting behind the one it's on. */
+export const queueFull = (s: GameState) => (s.jobs ?? []).length >= crews(s) * 2;
+export const crewsWorking = (s: GameState) => (s.jobs ?? []).filter(j => j.from <= s.month).length;
 export const jobOn = (s: GameState, i: number) => (s.jobs ?? []).find(j => j.idx === i);
 
 /** Advances money, the calendar, workers, repairs and construction. */

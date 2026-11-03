@@ -6,7 +6,7 @@ import { strategyMonth } from './strategy';
 import { dealsMonth, SMR_COST, SMR_MONTHS } from './deals';
 import { eventsMonth } from './rival';
 import {
-  floorLabel, genOf, turbineCount, gridLevel, hasLaw, hallCount, inflation, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
+  spreadTechs, floorLabel, genOf, turbineCount, gridLevel, hasLaw, hallCount, inflation, isBroken, liveDeals, locals, ledger, money, note, ownerName, techsOn, today, utilization,
   type GameState, type Ledger, type Upgrades,
 } from './state';
 
@@ -259,6 +259,7 @@ export function endOfMonth(s: GameState) {
 
   // every system runs every month; the first one with a question gets to ask it
   dealsMonth(s, l);
+  spreadTechs(s);
   unlockMonth(s, l);
   quarterMonth(s, l);
   milestones(s, l);
