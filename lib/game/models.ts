@@ -709,10 +709,52 @@ export function townLook(s: GameState) {
   return { homes, lit: s.gridLevel < 3, forSale };
 }
 
+/** Main street behind the lot: the places people call from, and what you've built for the town. */
+function mainStreet(s: GameState, g: THREE.Group, lit: boolean) {
+  const spread = lotSpread(s), z = -24, span = 64 * spread;
+  box(g, span, 0.04, 2.4, '#7D8597', 0, 0.02, z + 3.2).castShadow = false;
+  for (let x = -span / 2 + 2; x < span / 2; x += 4) box(g, 1.2, 0.05, 0.14, 'surf', x, 0.045, z + 3.2).castShadow = false;
+  const win = lit ? '#F2B43C' : 'dark';
+  const funded = (k: string) => s.cooldown[`gift-${k}`] !== undefined;
+  type Shop = (p: THREE.Group) => number;
+  const shops: Shop[] = [
+    // town hall: columns, steps and a flag
+    p => { box(p, 4.4, 2.8, 2.6, 'light', 0, 1.4, 0); prism(p, [[-2.4, 0], [2.4, 0], [0, 1]], 2.8, 'surf', 0, 2.8, -1.4);
+      for (const x of [-1.5, -0.5, 0.5, 1.5]) box(p, 0.22, 2.4, 0.22, 'surf', x, 1.2, 1.4);
+      box(p, 0.06, 2, 0.06, 'dark', 2.6, 3.8, 1); box(p, 0.7, 0.45, 0.04, '#D7263D', 2.95, 4.5, 1); return 5.4; },
+    // the diner, with a striped awning
+    p => { box(p, 3.4, 1.8, 2.4, 'light', 0, 0.9, 0);
+      for (let k = 0; k < 4; k++) box(p, 0.85, 0.12, 0.7, k % 2 ? 'surf' : '#D7263D', -1.28 + k * 0.85, 1.55, 1.5);
+      for (const x of [-0.9, 0.9]) box(p, 0.7, 0.6, 0.05, win, x, 0.9, 1.21); box(p, 1.8, 0.35, 0.05, '#2E8B57', 0, 1.95, 1.21); return 4.2; },
+    // the hardware store
+    p => { box(p, 3, 2.2, 2.4, '#E8D9B5', 0, 1.1, 0); box(p, 2.4, 0.4, 0.05, '#FF7A45', 0, 1.8, 1.21); box(p, 1, 0.9, 0.05, win, 0, 0.6, 1.21); return 3.8; },
+    // the school, with a bell tower
+    p => { box(p, 5.4, 2, 2.6, '#F2B43C', 0, 1, 0); box(p, 1, 1.4, 1, 'surf', 0, 2.7, 0); prism(p, [[-0.65, 0], [0.65, 0], [0, 0.8]], 1.2, ROOFS[s.loc], 0, 3.4, -0.6);
+      for (const x of [-2, -1, 1, 2]) box(p, 0.6, 0.6, 0.05, win, x, 1.1, 1.31); return 6.2; },
+    // the church and its steeple
+    p => { box(p, 2.6, 2.2, 3.4, 'light', 0, 1.1, 0); prism(p, [[-1.45, 0], [1.45, 0], [0, 1.3]], 3.6, ROOFS[s.loc], 0, 2.2, -1.8);
+      box(p, 0.9, 2.2, 0.9, 'light', 0, 3.2, 1.2); prism(p, [[-0.5, 0], [0.5, 0], [0, 1.6]], 1, 'dark', 0, 4.3, 0.7); return 3.6; },
+  ];
+  // the town gets what you paid for
+  if (funded('park')) shops.push(p => { box(p, 5, 0.06, 3, '#A8D5BA', 0, 0.03, 0); for (const x of [-1.6, 0, 1.6]) { const tr = makeTree(s.loc, 2); tr.position.set(x, 0, -0.4); p.add(tr); } box(p, 1.2, 0.3, 0.4, 'dark', 0, 0.3, 1); return 5.8; });
+  if (funded('library')) shops.push(p => { box(p, 3.6, 2.4, 2.6, '#99BBFF', 0, 1.2, 0); box(p, 2.6, 0.4, 0.05, 'surf', 0, 2, 1.31); for (const x of [-1, 0, 1]) box(p, 0.5, 0.9, 0.05, win, x, 0.9, 1.31); return 4.4; });
+  if (funded('firehouse')) shops.push(p => { box(p, 4, 2.6, 2.8, '#D7263D', 0, 1.3, 0); for (const x of [-0.9, 0.9]) box(p, 1.4, 1.6, 0.05, 'surf', x, 0.8, 1.41); return 4.8; });
+  // build each place, then line them up along the street, centered
+  const built = shops.map(make => { const p = new THREE.Group(); return { p, w: make(p) }; });
+  // shifted left so more of it shows past the building in the usual view
+  let x = -(built.reduce((n, b) => n + b.w + 0.6, 0) - 0.6) / 2 - 8 * spread;
+  for (const { p, w } of built) {
+    p.position.set(x + w / 2, 0, z);
+    g.add(p);
+    x += w + 0.6;
+  }
+}
+
 /** Builds the lot: standing trees, stumps for the first `cleared` spots, the town's homes, the site and the landmark. */
 export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared: number): TreeSpot[] {
   clear(g);
   landmark(s.loc, g);
+  if (s.phase === 'play' || s.phase === 'over') mainStreet(s, g, townLook(s).lit);
   if (s.phase !== 'setup' || s.step !== 'found') site(s, g);
   const town = townLook(s);
   // the farthest spots are homes; the rest are trees, nearest first, so clearing starts at the building

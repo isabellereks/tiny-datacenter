@@ -17,7 +17,7 @@ A simulator game where you build and run a datacenter, floor by floor. It's 3D, 
 ### The loop
 
 1. **Customers.** Your first customer signs a 3-year deal at opening. New offers arrive every few months in the Deals tab: who they are, how many MW, what they pay, for how long, and when they move in. Some need clean power, no outages or the newest chips. Sign the ones you can supply by their move-in date. If you can't deliver the power you promised, you pay credits (never more than they paid that month) and get a strike; three strikes and they leave. Spare capacity sells on the spot market, cheaply, or you can sell it yourself: pick the MW, the term (1, 3 or 5 years) and a price (below market, market or premium), and a broker comes back in 1 to 3 months with a buyer or a no. Cheaper, smaller blocks in a boom sell best. You can also rework a deal: offer a customer more MW from your spare capacity, renew for 3 years at today's price in the last year of a deal, or give back MW for part of the exit fee when you've signed more than you can run. Customers can say no; ask again in 6 months. Deal prices rise 2.5% a year, like real contracts.
-2. **Build.** Server halls hold the chips. Electrical and cooling floors each support 10 MW of halls. The grid supplies the power, but electrical floors (transformers and switchgear) carry it to the halls, so more grid alone does not help if they are full. Building takes months: a hall 3, cooling 3, electrical 6 (longer in a transformer shortage). You have two construction crews and can hire more. When they're all busy, a new build queues behind them. A crane stands on site while they work. Techs keep halls running: a hall with no techs is off, and three fill it. New techs go to the hall that needs them most, and techs move to empty halls on their own. Rack lights go dark on idle halls, stay lit when every MW is sold, and flicker when you're short. Halls can go down, and the alarm says why: too few electrical or cooling floors, a brownout, old chips, no tech on it, or rarely a failed part. Keep electrical and cooling floors ahead of your halls and outages are rare. Network floors make customers pay more; break rooms make techs faster. Liquid cooling is an upgrade in the Build tab.
+2. **Build.** Server halls hold the chips. Electrical and cooling floors each support 10 MW of halls. The grid supplies the power, but electrical floors (transformers and switchgear) carry it to the halls, so more grid alone does not help if they are full. Building takes months: a hall 3, cooling 3, electrical 6 (longer in a transformer shortage). You have two construction crews and can hire more. A campus can grow to 7 buildings (5 in Iceland and Virginia, 3 in Ireland): past the land you started with, you buy out the neighbors for more each time, and trust drops 3. When they're all busy, a new build queues behind them. A crane stands on site while they work. Techs keep halls running: a hall with no techs is off, and three fill it. New techs go to the hall that needs them most, and techs move to empty halls on their own. Rack lights go dark on idle halls, stay lit when every MW is sold, and flicker when you're short. Halls can go down, and the alarm says why: too few electrical or cooling floors, a brownout, old chips, no tech on it, or rarely a failed part. Keep electrical and cooling floors ahead of your halls and outages are rare. Network floors make customers pay more; break rooms make techs faster. Liquid cooling is an upgrade in the Build tab.
 3. **Chips.** A new chip generation ships every couple of years. Halls keep the chips they were fitted with, so customers pay less for older halls (10% less per generation) and old chips fail more. Refit a hall with new chips from the Floors tab. From the fourth generation on, chips need liquid cooling.
 4. **Power.** Your power comes from the town grid. Over 60% of its capacity, power costs more and bills go up in town; over 85%, brownouts; over 100%, blackouts and your halls get cut back. More grid means joining the utility's interconnection queue: pay a deposit and wait through its studies, from 9 months in Texas to 5 years in Dublin. Pay for the substation yourself to go faster, or take a flexible connection that arrives in months but can be cut at peaks. All of this lives in the Power tab. Meanwhile you can make power on site: solar farms and gas turbines (as many as you like, a few months apart), batteries, and at the top a small nuclear reactor.
 5. **Grow.** Run more IT power to move up the tiers: edge room, colocation (6 MW), hyperscale (18 MW) and AI factory (45 MW). Each tier brings bigger customers and bigger grid requests, and unlocks gas turbines, liquid cooling and the reactor.
@@ -27,11 +27,15 @@ Every month you pay for power, fuel, water, staff, upkeep, property tax, profit 
 ### Surprises
 
 - **Rush orders:** when you have spare capacity, someone who needs power right now offers a lot for a few months.
-- **A rival** opens across town, wins customers while it's bigger than you, and tries to hire your techs away. Outgrow it and it leaves.
+- **Business calls:** customers ask for more MW or complain about shortfalls, the utility asks you to cut load at peak, a reporter wants a quote, the mayor wants a sponsor. You answer on the spot.
+- **A rival** opens across town, grows with the market (a moratorium freezes it too), wins customers while it's bigger than you, and tries to hire your techs away. Pay a switching bonus to win one of its customers. Outgrow it by half and it leaves.
 - **Milestones** get a party: your first $1M month, 10 MW, $100M in the bank.
 - **People in town:** tap someone walking by to hear what they think.
 
 ### The town
+
+Behind the lot runs main street: town hall, the diner, the hardware store, the school and the church. A park, library or fire station you pay for goes up there too.
+
 
 The town judges you on four things you can see, plus what you've done for it:
 
@@ -39,7 +43,7 @@ The town judges you on four things you can see, plus what you've done for it:
 - **Noise:** more floors and gas turbines are louder; a sound wall fixes most of it.
 - **Power bills:** go up when you push the town grid.
 - **Nature:** trees cut, water used and carbon.
-- **Good deeds:** plant trees, fund the school, heat homes with server heat. Sound walls, water-saving cooling and heat for homes are in the Town tab. These fade; ignored complaints leave a grudge.
+- **Good deeds:** plant trees, fund the school, hold a town meeting (free, but an angry room heckles), stock the food bank, pay for tech scholarships (trained locals don't push wages up), a library wing, paying down power bills for a year, a park or a fire station, heat homes with server heat. Sound walls, water-saving cooling and heat for homes are in the Town tab. These fade; ignored complaints leave a grudge.
 
 Trust moves toward that score every month. You can see it in the world too: more homes go up as you hire locals, windows go dark in a blackout, "For sale" signs appear and people picket your gate when trust drops. The town writes to you about each of the four, and phones you. At 0 trust the town tears the datacenter down.
 
@@ -51,6 +55,14 @@ Trust moves toward that score every month. You can see it in the world too: more
 - **Loans:** $10M to $150M against your buildings, land and signed deals, paid back monthly over 15 years.
 - **Things come back:** running diesel generators leads to a lawsuit years later, clearing lots of trees floods homes downhill, ignoring the noise leads to a class action, and in the desert the wells can run dry, after which new halls need water-saving cooling.
 - **A yearly briefing** every January: size, customers, chips, grid, economy, the bill, debt and lawsuit risk.
+
+## Legal
+
+The Legal tab shows what an inspector would flag right now and the fine, claims building against you from what you've done (diesel runs, cut trees, ignored noise) with a price to settle early or a fix that makes them go away, a law firm on retainer that improves your odds in court, and a record of every case and fine.
+
+## CEO
+
+The CEO tab is you: pick a suit and hair color, then spend the company's money on toys, from a gold watch to a superyacht or the local team. The sports car, helicopter and mansion show up in the world. Buying toys while trust is low, techs are striking or you're in debt makes the news and costs trust.
 
 ## Staff
 
@@ -77,7 +89,7 @@ Prices, taxes, PUE and water use are rough estimates based on public figures.
 
 ## Look and sound
 
-Every card is a linen patch with a running stitch. In-world things look like the real objects: the news is a TV broadcast, complaints are letters you stamp, callers come on air, and outages set off an alarm. Days turn to night slowly and lit windows glow; it snows and rains by place and season. Sound is made on the fly: a hum that rises with load, a needle when floors are stitched in, stamps, the phone and the news. Turn it off in settings.
+Every card is a linen patch with a running stitch. In-world things look like the real objects: the news is a TV broadcast, complaints are letters you stamp, callers come on air, and outages set off an alarm. Days turn to night slowly and lit windows glow; it snows and rains by place and season. Sound is made on the fly: a hum that rises with load, a needle when floors are stitched in, stamps, the phone and the news. Settings has mute (or press M), a volume slider, and separate switches for the server hum and effects.
 
 ## Share
 
