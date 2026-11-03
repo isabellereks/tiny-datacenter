@@ -383,7 +383,7 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     }
     case 'speed':
-      s.speed = Math.max(0, Math.min(3, a.speed));
+      s.speed = Math.max(0, Math.min(4, a.speed));
       return {};
     case 'bld':
       if (a.b < 0 || a.b >= s.campus) return {};

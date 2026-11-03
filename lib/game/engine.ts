@@ -127,6 +127,7 @@ export class Engine {
   private riotCash = 0;
   private goalClock = 0;
   private thread = '';
+  private stir: string | undefined;
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
   private cranes: THREE.Group[] = [];
@@ -673,6 +674,10 @@ export class Engine {
     const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call || s.complaint || s.tierUp !== null ? 0 : SPEEDS[s.speed] ?? 1);
     if (newMonth) endOfMonth(s);
     let changed = built || newMonth || fixed;
+    // skipping ahead stops as soon as anything happens
+    const stir = `${s.news?.id}|${s.offers.length}|${s.broken.length}|${(s.jobs ?? []).length}|${s.complaint}|${s.call?.id}|${s.briefing}|${s.tierUp}|${s.report?.label}|${s.party?.id}|${s.pitch?.due}`;
+    if (s.speed === 4 && this.stir !== undefined && stir !== this.stir) { s.speed = 1; changed = true; }
+    this.stir = stir;
     // the town changes month to month: more homes, lights out in a blackout, a picket at the gate
     if (newMonth) {
       const look = townLook(s);

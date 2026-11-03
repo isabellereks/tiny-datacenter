@@ -20,6 +20,7 @@ import { Party } from './Party';
 import { Letter } from './Letter';
 import { TierUp } from './TierUp';
 import { Ticks } from './Ticks';
+import { Timers } from './Timers';
 import type { FoundKey } from '@/lib/game/data';
 import { armSound, setHum, setMuted, sfx } from '@/lib/game/sound';
 import { remark } from '@/lib/game/calls';
@@ -54,6 +55,7 @@ export default function Game() {
   const lastComplaint = useRef<string | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const redraw = useCallback(() => setTick(t => t + 1), []);
+  const roof = useCallback(() => engineRef.current?.roofOnScreen(0) ?? null, []);
 
   /** Only news you didn't cause pops the island; everything else just goes in the log. */
   const announce = useCallback((quiet = false) => {
@@ -128,7 +130,7 @@ export default function Game() {
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || stateRef.current?.phase !== 'play') return;
       // space pauses, 1 to 3 pick a speed, like other sim games
       if (e.key === ' ') { e.preventDefault(); dispatch({ type: 'speed', speed: stateRef.current.speed ? 0 : 1 }); }
-      if (e.key === '1' || e.key === '2' || e.key === '3') dispatch({ type: 'speed', speed: Number(e.key) });
+      if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') dispatch({ type: 'speed', speed: Number(e.key) });
     };
     window.addEventListener('keydown', onKey);
     return () => {
@@ -233,6 +235,7 @@ export default function Game() {
     <main className={`app ${ui.variable}`}>
       <div className="stage" ref={hostRef} />
       {phase === 'play' && <Ticks month={Math.floor(s.month)} net={(s.books ?? l).net} roof={() => engineRef.current?.roofOnScreen(0) ?? null} />}
+      {phase === 'play' && <Timers s={s} roof={roof} />}
       {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
       {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
       {/* one thing at a time: the news waits while a letter, briefing or new tier is on screen */}

@@ -182,6 +182,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .compact-row { display: flex; align-items: center; padding-right: 6px; }
 .speed { display: grid; place-items: center; border: 0; background: var(--thread); color: #fff; border-radius: 6px; min-width: 40px; height: 30px; padding: 0 10px; cursor: pointer; box-shadow: 0 2px 0 color-mix(in oklab, var(--thread), #000 35%); }
 .speed.paused { background: var(--meh); color: var(--ink); box-shadow: 0 2px 0 color-mix(in oklab, var(--meh), #000 30%); }
+.speed.skip { background: var(--card-2); color: var(--ink); box-shadow: 0 2px 0 color-mix(in oklab, var(--card-2), #000 25%); min-width: 34px; padding: 0 8px; }
+.speed.skip.on { background: var(--green); color: #fff; animation: skipping .8s steps(2) infinite; }
+@keyframes skipping { 50% { opacity: .65; } }
+.compact-row .speed + .speed { margin-left: 4px; }
 .compact.static { cursor: default; }
 .compact .day { font-weight: 600; }
 .compact .cash { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -700,3 +704,5 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .spec-target .lvl { padding: 2px 7px; border-radius: 4px; color: #fff; font-size: 12px; background: var(--green); }
 .spec-target .lvl.medium { background: #C98A1B; }
 .spec-target .lvl.hard { background: var(--red); }
+.timers { position: fixed; left: 0; top: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; }
+.timers span { background: color-mix(in oklab, var(--card), transparent 8%); color: var(--ink); font-size: 12px; padding: 2px 7px; border-radius: 4px; box-shadow: 0 1px 0 color-mix(in oklab, var(--thread), transparent 60%); white-space: nowrap; }

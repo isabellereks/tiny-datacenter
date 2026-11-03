@@ -108,13 +108,23 @@ function SpeedIcon({ speed }: { speed: number }) {
     </svg>
   );
 }
-const SPEED_NAME = ['Paused', 'Normal speed', 'Fast', 'Fastest'];
+const SPEED_NAME = ['Paused', 'Normal speed', 'Fast', 'Fastest', 'Skipping ahead'];
 /** Pause and fast-forward. Tapping cycles through the speeds. */
 function SpeedButton({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
   return (
     <button className={`speed${s.speed === 0 ? ' paused' : ''}`} onClick={() => dispatch({ type: 'speed', speed: (s.speed + 1) % 4 })}
       aria-label={`${SPEED_NAME[s.speed]}. Tap to change speed`} title={SPEED_NAME[s.speed]}>
-      <SpeedIcon speed={[0, 1, 2, 3][s.speed]} />
+      <SpeedIcon speed={[0, 1, 2, 3, 3][s.speed]} />
+    </button>
+  );
+}
+
+/** Race ahead to the next thing that happens. */
+function SkipButton({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void }) {
+  const on = s.speed === 4;
+  return (
+    <button className={`speed skip${on ? ' on' : ''}`} onClick={() => dispatch({ type: 'speed', speed: on ? 1 : 4 })} aria-label={on ? 'Stop skipping' : 'Skip to next event'} title={on ? 'Stop skipping' : 'Skip to next event'}>
+      <svg width="16" height="10" viewBox="0 0 8 5" shapeRendering="crispEdges" aria-hidden="true"><path d="M0 0h1v1h1v1h1v1H2v1H1v1H0zM3 0h1v1h1v1h1v1H5v1H4v1H3zM7 0h1v5H7z" fill="currentColor" /></svg>
     </button>
   );
 }
@@ -185,6 +195,7 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         {s.bill && <span className={`flag bill${s.bill.progress >= 80 ? ' hot' : ''}`}>Bill {Math.round(s.bill.progress)}%</span>}
       </button>
       <SpeedButton s={s} dispatch={dispatch} />
+      <SkipButton s={s} dispatch={dispatch} />
       </div>
     );
   } else if (mode === 'activity') {

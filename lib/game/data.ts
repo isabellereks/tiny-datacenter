@@ -73,7 +73,8 @@ export interface Customer {
 export const BUDGET = 250_000_000;
 export const MONTH_SECONDS = 8;
 /** Game speeds, like a sim game's pause and fast-forward buttons. */
-export const SPEEDS = [0, 1, 2, 4];
+/** paused, normal, fast, fastest, and skip: races ahead until something happens */
+export const SPEEDS = [0, 1, 2, 4, 16];
 export const HOURS_PER_MONTH = 730;
 export const TECH_SALARY = 8_000;
 export const HIRE_FEE = 15_000;
