@@ -11,7 +11,7 @@ import {
   GIFTS, UPGRADES, foundationUpgradeCost, giftWait, hopedJobs, nextFoundation, rating, townMood, type Impact,
 } from '@/lib/game/events';
 import {
-  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, dateLabel, floorPrice,
+  GRID_LABEL, bOf, hasLaw, buildCost, buildDelta, buildingCost, chipValue, dealPrice, fitGen, floorLabel, genOf, heightOf, level, maxBuildings, needsBuyout, dateLabel, floorPrice,
   gridLevel, hallCount, hallIncome, hireDelta, hireFee, inflation, isBroken, locals, overseas, overseasWage, VISA_FEE, wageFor, ledger, money,
   allocate, buildMonths, crewFreeAt, hallForTech, crews, crewsWorking, CREW_COST, noCrew, queueFull, hallMWOf, jobOn, signedMW, solarCount, turbineCount, unitCost, today, techsOn, utilization, type Deal, type Floor, type GameState, type Ledger, type Offer,
 } from '@/lib/game/state';
@@ -474,7 +474,7 @@ function AddBuilding({ s, dispatch }: { s: GameState; dispatch: (a: Action) => v
   const allowed = s.campus <= s.permits.campus;
   return (
     <button className="pill wide" disabled={!allowed || s.cash < cost} onClick={() => dispatch({ type: 'addBuilding' })}>
-      {allowed ? `New building ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}` : `Building ${s.campus + 1}: site plan not approved`}
+      {allowed ? `${needsBuyout(s) ? 'Buy neighbors\' land, building' : 'New building'} ${s.campus + 1} of ${maxBuildings(s)}  ${money(cost)}${needsBuyout(s) ? ', trust −3' : ''}` : `Building ${s.campus + 1}: site plan not approved`}
     </button>
   );
 }

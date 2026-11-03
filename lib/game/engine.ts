@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { bake, clear, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
-import { baseY, bOf, busy, buildingX, heightOf, isBroken, jobOn, ledger, level, levelY, signedMW, simulate, tallest, utilization, type GameState } from './state';
+import { baseY, bOf, busy, buildingX, heightOf, lotSpread, isBroken, jobOn, ledger, level, levelY, signedMW, simulate, tallest, utilization, type GameState } from './state';
 import { capacityMW } from './deals';
 import { createStitchMaterial, createWeaveMaterial } from './stitchPass';
 
@@ -388,6 +388,7 @@ export class Engine {
     this.falling.forEach(f => this.scenery.remove(f.obj));
     this.falling = [];
     this.spots = makeScenery(s, this.scenery, imp.trees, imp.cleared);
+    this.ground.scale.x = lotSpread(s);
     bake(this.scenery);
     if (this.lastLoc === s.loc && this.lastCleared >= 0 && imp.cleared > this.lastCleared) {
       for (const sp of this.spots.slice(this.lastCleared, imp.cleared)) {
@@ -461,7 +462,7 @@ export class Engine {
       const m = makePerson(CROWD[(k * 3) % CROWD.length], false);
       m.group.scale.setScalar(1.5);
       this.townGroup.add(m.group);
-      this.walkers.push({ ...m, a: k * 2.1, speed: (0.05 + (k % 3) * 0.015) * (k % 2 ? 1 : -1), rx: (s.campus > 1 ? 18.2 : 15) + (k % 2) * 0.6, rz: 11.5 + (k % 3) * 0.6 });
+      this.walkers.push({ ...m, a: k * 2.1, speed: (0.05 + (k % 3) * 0.015) * (k % 2 ? 1 : -1), rx: ((s.campus > 1 ? 18.2 : 15) + (k % 2) * 0.6) * lotSpread(s), rz: 11.5 + (k % 3) * 0.6 });
     }
     const p = this.protestSize();
     for (let k = 0; k < p; k++) {
@@ -508,7 +509,7 @@ export class Engine {
       if (s.smoke && s.phase !== 'over' && s.floors.some(f => f.type === 'cool')) box.expandByPoint(this.anim.vent.clone().add(new THREE.Vector3(1, 6, 0)));
       // Outside, show the whole lot. Inside, frame the tower so the floors and crew read, Tiny Tower style.
       const lot = s.phase === 'over' ? 0.6 : s.phase === 'play' && s.inside ? 0.35 : 0.65;
-      for (const [x, z] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) box.expandByPoint(new THREE.Vector3(x * GROUND_R * lot, 0, z * GROUND_R * lot));
+      for (const [x, z] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) box.expandByPoint(new THREE.Vector3(x * GROUND_R * lot * lotSpread(s), 0, z * GROUND_R * lot));
     }
 
     this.camera.updateMatrixWorld();
@@ -527,7 +528,8 @@ export class Engine {
     // a panel on the right leaves a narrower strip to frame the datacenter in
     const wide = Math.max(30, vn - (this.insets.right * dpr) / this.grid.cell);
     const want = Math.max(((max.x - min.x) * 1.08) / wide, ((max.y - min.y) * 1.08) / band);
-    const toU = picking ? want : Math.min(want, MAX_UPC);
+    // a wide campus zooms out further so every building fits
+    const toU = picking ? want : Math.min(want, MAX_UPC * Math.max(1, lotSpread(s) * 0.9));
     // too tall to fit: scroll to the selected floor, but never past the ground or the roof
     let cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2;
     const scrolled = toU < want - 1e-6;

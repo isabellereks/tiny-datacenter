@@ -9,7 +9,7 @@ import { anchorDeal, canRefresh, decline, endDeal, fastTrack, flexConnect, makeO
 import { settle as settleStrike, TEAM_EVENT_WAIT, teamEventCost } from './staff';
 import { answerCall } from './calls';
 import { poachRival } from './rival';
-import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
+import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, maxBuildings, needsBuyout, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
   | { type: 'step'; step: SetupStep }
@@ -331,6 +331,8 @@ export function apply(s: GameState, a: Action): Effects {
     case 'addBuilding': {
       const cost = buildingCost(s);
       if (s.phase !== 'play' || noCrew(s) || hasLaw(s, 'moratorium') || s.campus >= maxBuildings(s) || s.campus > s.permits.campus || s.cash < cost) return {};
+      // past the land you started with, the neighbors sell, and the town notices
+      if (needsBuyout(s)) { s.trust = Math.max(0, s.trust - 3); note(s, 'Bought out the neighbors. Trust −3'); }
       s.cash -= cost;
       // every building opens with a ground floor; here it's a server hall
       s.floors.push({ type: 'hall', fill: s.nextFill, done: false, cost: floorPrice(s.loc, 'hall', 0), b: s.campus, gen: fitGen(s) });

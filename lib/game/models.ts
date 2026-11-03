@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FD, FH, FW, PALETTE, SCENERY_THREADS, type Fill, type FloorType, type FoundKey, type LocKey, type Role } from './data';
-import { baseY, bOf, buildingX, floorW, heightOf, isBroken, levelW, levelY, perRow, type Floor, type GameState } from './state';
+import { baseY, bOf, buildingX, floorW, lotSpread, heightOf, isBroken, levelW, levelY, perRow, type Floor, type GameState } from './state';
 
 /**
  * Meshes are flat-coloured with a code the stitch pass decodes:
@@ -443,17 +443,18 @@ const EXTRA: Record<LocKey, Rect[]> = {
 const inRect = (x: number, z: number, [x0, x1, z0, z1]: Rect, pad = 1) => x > x0 - pad && x < x1 + pad && z > z0 - pad && z < z1 + pad;
 
 /** Deterministic tree spots around the lot, nearest first, avoiding the building and the site. */
-function treeSpots(loc: LocKey, count: number) {
+function treeSpots(loc: LocKey, count: number, spread = 1) {
   let seed = loc.length * 9301 + count * 49297;
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-  const keep = [PARKING, SUBSTATION, ...EXTRA[loc]];
+  // a wider campus stretches the lot sideways
+  const keep = [PARKING, SUBSTATION, ...EXTRA[loc].map(([x0, x1, z0, z1]): Rect => [x0 * spread, x1 * spread, z0, z1])];
   const spots: [number, number][] = [];
   let guard = 0;
   while (spots.length < count && guard++ < 6000) {
     const a = rnd() * Math.PI * 2, r = 8.5 + rnd() * 8.5;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.85;
+    const x = Math.cos(a) * r * spread, z = Math.sin(a) * r * 0.85;
     // the building, and room for more buildings on either side
-    if (x > -19.5 && x < 19.5 && z > -6.5 && z < 6.5) continue;
+    if (Math.abs(x) < 19.5 * spread && z > -6.5 && z < 6.5) continue;
     if (keep.some(k => inRect(x, z, k))) continue;
     if (spots.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.2)) continue;
     spots.push([x, z]);
@@ -679,7 +680,7 @@ export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared
   if (s.phase !== 'setup' || s.step !== 'found') site(s, g);
   const town = townLook(s);
   // the farthest spots are homes; the rest are trees, nearest first, so clearing starts at the building
-  const all = treeSpots(s.loc, total + 10).map(([x, z], k) => ({ x, z, k }));
+  const all = treeSpots(s.loc, total + 10, lotSpread(s)).map(([x, z], k) => ({ x, z, k }));
   const spots = all.slice(0, total);
   for (const sp of spots) {
     const t = sp.k < cleared ? stump() : makeTree(s.loc, sp.k);

@@ -482,9 +482,16 @@ export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc,
 // ---------- the campus: several buildings side by side, each with its own stack of floors ----------
 
 /** Buildings that fit on this location's lot (never more than 3). */
-export const maxBuildings = (s: GameState) => Math.min(3, LOCS[s.loc].space.buildings);
+/** Most buildings a campus can grow to, buying the neighbors' land past what came with the site. */
+const LOT_CAP: Partial<Record<LocKey, number>> = { dublin: 3, reykjavik: 5, ashburn: 5 };
+export const maxBuildings = (s: GameState) => LOT_CAP[s.loc] ?? 7;
+/** Buildings that fit on the land you bought at the start; past these you buy out the neighbors. */
+export const ownLots = (s: GameState) => Math.min(3, LOCS[s.loc].space.buildings);
+export const needsBuyout = (s: GameState) => s.campus >= ownLots(s);
 /** Buildings sit left and right of the first one. */
-const BUILDING_X = [0, -12.5, 12.5];
+const BUILDING_X = [0, -12.5, 12.5, -25, 25, -37.5, 37.5];
+/** How much wider than the starting lot the campus has spread. */
+export const lotSpread = (s: GameState) => (s.campus <= 3 ? 1 : (Math.abs(BUILDING_X[s.campus - 1]) + 8) / 20.5);
 export const bOf = (s: GameState, i: number) => s.floors[i]?.b ?? 0;
 export const buildingX = (b: number) => BUILDING_X[b] ?? 0;
 /** How far up its own building a floor is: 0 is the ground floor. */
@@ -505,7 +512,7 @@ export const floorW = (s: GameState, i: number) => levelW(s, level(s, i));
 export const floorLabel = (s: GameState, i: number) =>
   s.campus > 1 ? `B${bOf(s, i) + 1} floor ${level(s, i) + 1}` : `Floor ${i + 1}`;
 /** A new building: land plus a foundation like the others. */
-export const buildingCost = (s: GameState) => today(s, landCost(s.loc, s.found) + FOUNDS[s.found].cost);
+export const buildingCost = (s: GameState) => today(s, landCost(s.loc, s.found) * (needsBuyout(s) ? 1.5 + 0.5 * (s.campus - ownLots(s)) : 1) + FOUNDS[s.found].cost);
 export const perRow = (s: GameState, i: number) => Math.max(2, Math.floor((floorW(s, i) - 1.4) / 2));
 export const techsOn = (s: GameState, i: number) => s.workers.filter(w => w.floor === i).length;
 export const isBroken = (s: GameState, i: number) => s.broken.some(b => b.floor === i);
