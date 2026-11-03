@@ -306,9 +306,19 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
             <div className="toggles">
               <Chip on={s.spin} onClick={() => dispatch({ type: 'spin', on: !s.spin })}><b>Rotate</b></Chip>
               <Chip on={s.smoke} onClick={() => dispatch({ type: 'smoke', on: !s.smoke })}><b>Steam</b></Chip>
-              <Chip on={!s.muted} onClick={() => dispatch({ type: 'mute', on: !s.muted })}><b>Sound</b></Chip>
               <Chip on={!!s.hints} onClick={() => dispatch({ type: 'hints', on: !s.hints })}><b>Hints</b></Chip>
               <Chip onClick={onResetView}><b>Reset view</b></Chip>
+            </div>
+            <span className="label">Sound</span>
+            <div className="sound-row">
+              <button className={`pill${s.muted ? ' danger' : ''}`} onClick={() => dispatch({ type: 'mute', on: !s.muted })}>{s.muted ? 'Muted' : 'Mute'} (M)</button>
+              <input type="range" min={0} max={100} value={Math.round((s.sound?.volume ?? 0.6) * 100)} aria-label="Volume"
+                onChange={e => dispatch({ type: 'sound', volume: Number(e.target.value) / 100 })} disabled={s.muted} />
+              <span className="num">{Math.round((s.sound?.volume ?? 0.6) * 100)}</span>
+            </div>
+            <div className="toggles">
+              <Chip on={s.sound?.hum ?? true} onClick={() => dispatch({ type: 'sound', hum: !(s.sound?.hum ?? true) })}><b>Server hum</b></Chip>
+              <Chip on={s.sound?.fx ?? true} onClick={() => dispatch({ type: 'sound', fx: !(s.sound?.fx ?? true) })}><b>Effects</b></Chip>
             </div>
             <span className="label">Stitch size</span>
             <div className="chips">

@@ -22,7 +22,7 @@ import { TierUp } from './TierUp';
 import { Ticks } from './Ticks';
 import { Timers } from './Timers';
 import type { FoundKey } from '@/lib/game/data';
-import { armSound, setHum, setMuted, sfx } from '@/lib/game/sound';
+import { armSound, setHum, setMix, setMuted, sfx } from '@/lib/game/sound';
 import { remark } from '@/lib/game/calls';
 
 const pixel = Silkscreen({ weight: '400', subsets: ['latin'] });
@@ -137,6 +137,7 @@ export default function Game() {
       // space pauses, 1 to 3 pick a speed, like other sim games
       if (e.key === ' ') { e.preventDefault(); dispatch({ type: 'speed', speed: stateRef.current.speed ? 0 : 1 }); }
       if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') dispatch({ type: 'speed', speed: Number(e.key) });
+      if (e.key === 'm' || e.key === 'M') dispatch({ type: 'mute', on: !stateRef.current.muted });
       if (CAMERA_KEYS.includes(e.key.toLowerCase()) && !e.metaKey && !e.ctrlKey) engine.keyDown(e.key.toLowerCase());
     };
     const offKey = (e: KeyboardEvent) => engine.keyUp(e.key.toLowerCase());
@@ -233,6 +234,8 @@ export default function Game() {
   // the hum follows the load; sound follows the setting
   const muted = !!s?.muted;
   useEffect(() => { setMuted(muted); }, [muted]);
+  const vol = s?.sound?.volume ?? 0.6, humOn = s?.sound?.hum ?? true, fxOn = s?.sound?.fx ?? true;
+  useEffect(() => { setMix({ volume: vol, hum: humOn, fx: fxOn }); }, [vol, humOn, fxOn]);
   const running = s && s.phase === 'play' && s.speed > 0 && !s.briefing ? ledger(s) : null;
   const humLevel = running ? Math.round((running.itMW / Math.max(4, running.hallMW)) * 10) / 10 : 0;
   useEffect(() => { setHum(humLevel); }, [humLevel]);

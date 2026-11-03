@@ -11,6 +11,9 @@ let master: GainNode | null = null;
 let hum: { gain: GainNode; filter: BiquadFilterNode } | null = null;
 let muted = false;
 let level = 0;
+/** volume 0 to 1, and whether the hum and the effects play */
+let mix = { volume: 0.6, hum: true, fx: true };
+const masterLevel = () => (muted ? 0 : mix.volume);
 
 function start() {
   if (ctx || typeof window === 'undefined') return;
@@ -18,7 +21,7 @@ function start() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = muted ? 0 : 0.6;
+  master.gain.value = masterLevel();
   master.connect(ctx.destination);
   // the hum: two low tones through a soft filter
   const gain = ctx.createGain();
@@ -52,14 +55,21 @@ export function armSound() {
 
 export function setMuted(m: boolean) {
   muted = m;
-  if (ctx && master) master.gain.setTargetAtTime(m ? 0 : 0.6, ctx.currentTime, 0.05);
+  if (ctx && master) master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.05);
+}
+
+/** Volume and which kinds of sound play. */
+export function setMix(m: { volume: number; hum: boolean; fx: boolean }) {
+  mix = m;
+  if (ctx && master) master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.05);
+  setHum(level);
 }
 
 /** 0 to 1: how hard the halls are running. */
 export function setHum(k: number) {
   level = Math.max(0, Math.min(1, k));
   if (!ctx || !hum) return;
-  hum.gain.gain.setTargetAtTime(0.012 + level * 0.05, ctx.currentTime, 0.8);
+  hum.gain.gain.setTargetAtTime(mix.hum ? 0.012 + level * 0.05 : 0, ctx.currentTime, 0.8);
   hum.filter.frequency.setTargetAtTime(180 + level * 260, ctx.currentTime, 0.8);
 }
 
@@ -95,7 +105,7 @@ function noise(at: number, dur: number, vol = 0.2, cutoff = 900) {
 }
 
 export function sfx(name: Sfx) {
-  if (!ctx || muted) return;
+  if (!ctx || muted || !mix.fx) return;
   const t = ctx.currentTime;
   switch (name) {
     case 'click': tone(1400, t, 0.03, 'square', 0.04); break;

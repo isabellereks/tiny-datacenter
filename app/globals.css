@@ -754,3 +754,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .ceo-pick span { width: 44px; font-size: 13px; color: var(--ink-2); }
 .ceo-pick button { width: 26px; height: 26px; border-radius: 5px; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--ink), transparent 80%); }
 .ceo-pick button[aria-pressed="true"] { outline: 2px solid var(--thread); outline-offset: 2px; }
+.sound-row { display: flex; align-items: center; gap: 10px; }
+.sound-row input[type=range] { flex: 1; accent-color: var(--thread); }
+.sound-row .num { width: 28px; text-align: right; font-size: 13px; }

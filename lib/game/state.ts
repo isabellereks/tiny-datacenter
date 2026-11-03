@@ -143,6 +143,8 @@ export interface GameState {
   tierUp: number | null;
   /** sound off */
   muted: boolean;
+  /** volume and which sounds play */
+  sound?: { volume: number; hum: boolean; fx: boolean };
   /** recent calls: topics, callers and lines, so the phone doesn't repeat itself */
   heard?: string[];
   /** hints on: show predictions (profit changes, targets, forecasts), not just prices and results */

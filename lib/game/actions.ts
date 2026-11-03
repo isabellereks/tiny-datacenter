@@ -37,6 +37,7 @@ export type Action =
   | { type: 'grid'; mw: number }
   | { type: 'tierSeen' }
   | { type: 'mute'; on: boolean }
+  | { type: 'sound'; volume?: number; hum?: boolean; fx?: boolean }
   | { type: 'hints'; on: boolean }
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
@@ -327,6 +328,11 @@ export function apply(s: GameState, a: Action): Effects {
     case 'mute':
       s.muted = a.on;
       return {};
+    case 'sound': {
+      const m = s.sound ?? { volume: 0.6, hum: true, fx: true };
+      s.sound = { volume: a.volume ?? m.volume, hum: a.hum ?? m.hum, fx: a.fx ?? m.fx };
+      return {};
+    }
     case 'hints':
       s.hints = a.on;
       return {};
