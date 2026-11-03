@@ -31,6 +31,9 @@ const ui = Pixelify_Sans({ subsets: ['latin'], variable: '--pixel' });
 /** Small text: a rounded sans that stays readable where the pixel face blurs. */
 const ISLAND_SPACE = 76;
 
+/** WASD pans the camera, Q and E turn it, R and F zoom. */
+const CAMERA_KEYS = ['w', 'a', 's', 'd', 'q', 'e', 'r', 'f'];
+
 /** Things worth interrupting the view for. */
 const LOUD = /down|strike|blackout|brownout|in the red|approved|denied|failed|finished|refitted|left for|quit|moved to|went elsewhere|deal ended|goal complete|shut you|bankrupt|paid off|is open|buyer|switch|kept its customer/i;
 
@@ -134,11 +137,18 @@ export default function Game() {
       // space pauses, 1 to 3 pick a speed, like other sim games
       if (e.key === ' ') { e.preventDefault(); dispatch({ type: 'speed', speed: stateRef.current.speed ? 0 : 1 }); }
       if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') dispatch({ type: 'speed', speed: Number(e.key) });
+      if (CAMERA_KEYS.includes(e.key.toLowerCase()) && !e.metaKey && !e.ctrlKey) engine.keyDown(e.key.toLowerCase());
     };
+    const offKey = (e: KeyboardEvent) => engine.keyUp(e.key.toLowerCase());
     window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', offKey);
+    const letGo = () => CAMERA_KEYS.forEach(k => engine.keyUp(k));
+    window.addEventListener('blur', letGo);
     return () => {
       window.clearInterval(id);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', offKey);
+      window.removeEventListener('blur', letGo);
       document.removeEventListener('click', tap, true);
       save(stateRef.current!);
       engine.dispose();

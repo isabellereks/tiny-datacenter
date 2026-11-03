@@ -130,6 +130,8 @@ export class Engine {
   private goalClock = 0;
   private thread = '';
   private stir: string | undefined;
+  /** keys held down for moving the camera */
+  private held = new Set<string>();
   private workers = new Map<number, { group: THREE.Group; legs: THREE.Group[] }>();
   private buildFloor: THREE.Group | null = null;
   private cranes: THREE.Group[] = [];
@@ -674,6 +676,42 @@ export class Engine {
     return this.meshCount;
   }
 
+  /** WASD pans, Q and E turn, R and F zoom. */
+  keyDown(k: string) { this.held.add(k); }
+  keyUp(k: string) { this.held.delete(k); }
+  private keyCamera(dt: number) {
+    const h = this.held;
+    if (!h.size) return;
+    if (!this.moved) { this.moved = true; this.post.uniforms.uTextRows.value = 0; this.hooks.onFirstInteraction(); }
+    this.fitTween = null;
+    const cam = this.camera, target = this.controls.target;
+    // pan across the ground, faster when zoomed out
+    const fwd = new THREE.Vector3().subVectors(target, cam.position).setY(0).normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+    const move = new THREE.Vector3();
+    if (h.has('w')) move.add(fwd);
+    if (h.has('s')) move.sub(fwd);
+    if (h.has('d')) move.add(right);
+    if (h.has('a')) move.sub(right);
+    if (move.lengthSq()) {
+      move.normalize().multiplyScalar(dt * 9 / cam.zoom);
+      target.add(move);
+      cam.position.add(move);
+    }
+    // turn around the target
+    const turn = (h.has('e') ? 1 : 0) - (h.has('q') ? 1 : 0);
+    if (turn) {
+      const off = new THREE.Vector3().subVectors(cam.position, target).applyAxisAngle(new THREE.Vector3(0, 1, 0), turn * dt * 1.4);
+      cam.position.copy(target).add(off);
+      cam.lookAt(target);
+    }
+    const zoom = (h.has('r') ? 1 : 0) - (h.has('f') ? 1 : 0);
+    if (zoom) {
+      cam.zoom = Math.max(this.controls.minZoom, Math.min(this.controls.maxZoom, cam.zoom * (1 + zoom * dt * 0.9)));
+      cam.updateProjectionMatrix();
+    }
+  }
+
   /** One frame: simulate, animate and draw. */
   private frame(now: number) {
     const dt = Math.min(0.1, (now - this.last) / 1000);
@@ -716,6 +754,7 @@ export class Engine {
       this.applyFrustum();
       if (k >= 1) this.fitTween = null;
     }
+    this.keyCamera(dt);
     this.controls.autoRotate = s.spin;
     this.controls.update();
     const u = this.post.uniforms;
