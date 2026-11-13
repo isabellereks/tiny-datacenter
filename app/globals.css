@@ -761,3 +761,88 @@ button:focus-visible, input:focus-visible { outline: 2px solid #0A84FF; outline-
 .law + .law { border-top: 1px dashed color-mix(in oklab, var(--ink), transparent 85%); }
 .law .row { padding-bottom: 0; }
 .law small { display: block; padding-bottom: 6px; font-size: 13px; color: var(--isl-dim); }
+
+/* ================= NVIDIA edition: light, clean, one accent =================
+   Cream page, white surfaces with a hairline edge, one green accent. The pixel face is for headings, names and
+   big numbers; everything you read as data is monospace. No stitched borders on the interface, only in the world. */
+:root {
+  --cloth: #F4F3EE;
+  --ink: #16180F;
+  --ink-2: #6A6E63;
+  --hole: #E6E4DC;
+  --thread: #76B900;
+  --accent-ink: #3E6E00;
+  --card: #FFFFFF;
+  --card-2: #F1F0EA;
+  --weave: none;
+  --line: #E2E0D7;
+  --patch-shadow: 0 1px 2px rgba(22, 24, 15, .06), 0 10px 30px -18px rgba(22, 24, 15, .35);
+  --ok: #3E6E00;
+  --green: #3E6E00;
+  --meh: #D98E04;
+  --bad: #C8372D;
+  --red: #C8372D;
+}
+.app { --body: var(--mono); font-family: var(--mono), var(--font); }
+/* no stitched outlines on the interface; focus rings stay */
+.app *:not(:focus-visible) { outline: none !important; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--thread); outline-offset: 2px; }
+
+/* type: three sizes, two faces */
+.app .row, .app .row span, .app small, .app .stats, .app .num, .app .deal-sub, .app .muted { font-family: var(--mono), var(--font); }
+.app .row { font-size: 13px; }
+.app small, .app .deal-sub, .app .muted.small { font-size: 12px; }
+.label { display: flex; align-items: center; gap: 10px; font-family: var(--mono), var(--font); font-size: 11.5px; font-weight: 600; color: var(--ink-2); letter-spacing: .02em; margin-top: 4px; }
+.label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* surfaces */
+.island, .panel, .goal, .setup, .q-card, .share, .timers span {
+  background: var(--card) !important; box-shadow: var(--patch-shadow) !important; border: 1px solid var(--line);
+}
+.island { border-radius: 12px; }
+.panel { border-radius: 14px; }
+.books, .deal, .up, .mw3 div, .opt, .seg, .tabs, .limits, .note {
+  background: var(--card-2) !important; box-shadow: none !important; border: 1px solid transparent; border-radius: 8px;
+}
+.up:hover:not(:disabled), .deal-row:hover { background: color-mix(in oklab, var(--card-2), var(--ink) 4%) !important; }
+.up[aria-pressed="true"], .opt[aria-pressed="true"] { border-color: var(--thread); background: color-mix(in oklab, var(--thread), #fff 88%) !important; }
+.deal.hurt { box-shadow: inset 3px 0 0 var(--bad) !important; }
+
+/* buttons: green fills with dark text, the brand way; secondary buttons are quiet */
+.go, .pill.white, .speed, .tabs button[aria-selected="true"], .seg button[aria-pressed="true"] {
+  background: var(--thread) !important; color: var(--ink) !important; box-shadow: none !important; font-weight: 600;
+}
+.pill { background: var(--card) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; box-shadow: none !important; }
+.speed.paused { background: var(--card-2) !important; }
+.speeds { box-shadow: none !important; }
+.up > span { color: var(--accent-ink); }
+.pos, .good { color: var(--accent-ink) !important; }
+
+/* tabs: one row */
+.panel .tabs { flex-wrap: nowrap; overflow-x: auto; padding: 3px; gap: 2px; }
+.panel .tabs button { flex: 1 0 auto; padding: 7px 10px; font-size: 13px; color: var(--ink-2); }
+
+/* big numbers in the pixel face */
+.mw3 b { font-family: var(--pixel), var(--font); font-size: 20px; font-weight: 500; }
+.mw3 span { font-family: var(--mono), var(--font); font-size: 11.5px; }
+.money b { font-size: 24px; }
+
+/* top bar: one slim row */
+.island-in .compact { height: 40px; gap: 12px; font-size: 13.5px; }
+.compact .flag { background: none !important; color: var(--ink-2); padding: 0; font-family: var(--mono), var(--font); font-size: 12.5px; }
+.compact .flag.value { color: var(--ink); font-weight: 600; }
+.compact .flag:not(.value)::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--meh); margin-right: 6px; vertical-align: 1px; }
+
+/* the goal card: two lines of numbers */
+.goal { padding: 14px 18px; }
+.goal-target { border-bottom-color: var(--line) !important; font-family: var(--mono), var(--font); }
+
+/* in-world paper and broadcasts: ink instead of navy, green as the one accent */
+.letter { --head: var(--ink) !important; }
+.letterhead { box-shadow: inset 0 -3px 0 var(--thread); }
+.lower .headline, .call-who { background: var(--ink) !important; }
+.ticker, .call-line, .call-btn { color: var(--ink) !important; }
+.call-foot, .alarm-foot { border-top-color: var(--ink) !important; }
+.call-choices .call-btn + .call-btn { border-top-color: var(--ink) !important; }
+.call-btn.answer { background: var(--thread) !important; color: var(--ink) !important; }
+.share-back { background: rgba(22, 24, 15, .28); }

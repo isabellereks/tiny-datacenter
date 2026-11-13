@@ -291,7 +291,7 @@ export function fresh(): GameState {
     floors,
     workers: [],
     log: [],
-    look: { stitch: 'S', outline: '#0045D1', shade: '#99BBFF', accent: '#FF7A45', name: '', owner: '' },
+    look: { stitch: 'S', outline: '#3E6E00', shade: '#D3E4B8', accent: '#76B900', name: 'NVIDIA', owner: 'Jensen Huang' },
     month: 0, stageMonth: 0, trust: 70, replanted: 0, gridAdded: 0, gridQueue: null, gridLevel: 0, goodwill: 0, grudge: 0,
     deals: [], offers: [], chip: 1, chipAt: 24, tier: 0, peakMW: 0, smrAt: null, tierUp: null, muted: false, unlocked: [],
     up: { soundWalls: false, closedLoop: false, renewables: false, solar: false, batteries: false, heat: false, turbines: false, liquid: false, smr: false },

@@ -754,7 +754,7 @@ function mainStreet(s: GameState, g: THREE.Group, lit: boolean) {
 export function makeScenery(s: GameState, g: THREE.Group, total: number, cleared: number): TreeSpot[] {
   clear(g);
   landmark(s.loc, g);
-  if (s.phase === 'play' || s.phase === 'over') mainStreet(s, g, townLook(s).lit);
+  if (!s.nv && (s.phase === 'play' || s.phase === 'over')) mainStreet(s, g, townLook(s).lit);
   if (s.phase !== 'setup' || s.step !== 'found') site(s, g);
   const town = townLook(s);
   // the farthest spots are homes; the rest are trees, nearest first, so clearing starts at the building

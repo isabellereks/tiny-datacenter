@@ -7,7 +7,7 @@ export function nvStart(mode: Mode): GameState {
   s.phase = 'play';
   s.cash = 40_000;
   s.month = 0; s.calm = 0; s.inspectAt = 1e9; s.electionAt = 1e9; s.nationalAt = 1e9;
-  s.look = { ...s.look, name: 'NVIDIA', owner: 'Jensen Huang', outline: '#2E8B57', accent: '#76B900' };
+  s.look = { ...s.look, name: 'NVIDIA', owner: 'Jensen Huang', outline: '#3E6E00', shade: '#D3E4B8', accent: '#76B900' };
   s.floors = [
     { type: 'lobby', fill: 'cloth', done: true, cost: 0, b: 0 },
     { type: 'hall', fill: 'cloth', done: true, cost: 0, b: 0 },

@@ -760,7 +760,9 @@ export class Engine {
     this.controls.update();
     const u = this.post.uniforms;
     (u.uOutline.value as THREE.Color).set(s.look.outline);
-    if (s.look.outline !== this.thread) { this.thread = s.look.outline; document.documentElement.style.setProperty('--thread', s.look.outline); }
+    // the chip company keeps its brand green on the interface; the stitches can be darker
+    const brand = s.nv || s.phase === 'setup' ? '#76B900' : s.look.outline;
+    if (brand !== this.thread) { this.thread = brand; document.documentElement.style.setProperty('--thread', brand); }
     (u.uShade.value as THREE.Color).set(s.look.shade);
     (u.uAccent.value as THREE.Color).set(s.look.accent);
     // gaps smaller than a couple of stitches aren't worth a line
