@@ -22,11 +22,11 @@ const news = (s: GameState, tag: string, headline: string, ticker: string[]) => 
 
 export const BEATS: Beat[] = [
   {
-    id: 'vc', at: ym(1993, 6), from: 'Sequoia Capital', title: 'Sequoia and Sutter Hill will put in $20M',
+    id: 'vc', at: ym(1993, 5), from: 'Sequoia Capital', title: 'Sequoia and Sutter Hill will put in $20M',
     body: 'Three engineers, a plan sketched at a Denny\'s, and $40K between them. The VCs want a big share of the company.',
     choices: [
-      { label: 'Take the $20M', note: 'What happened', apply: s => { s.cash += 20e6; } },
-      { label: 'Stay on $40K', note: 'Keep it all', apply: () => {} },
+      { label: 'Take the $20M', note: 'They own a big share', apply: (s, n) => { s.cash += 20e6; n.stake = 0.6; } },
+      { label: 'Stay on $40K', note: 'Keep it all', apply: (_, n) => { n.stake = 1; } },
     ],
   },
   {

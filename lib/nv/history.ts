@@ -46,7 +46,7 @@ const REVENUE: [number, number][] = [
   [2024.5, 130.5e9], [2025.5, 200e9], [2025.99, 230e9],
 ];
 /** The real company's monthly revenue. */
-export const baselineRevenue = (m: number) => logLerp(REVENUE, yearOf(m)) / 12;
+export const baselineRevenue = (m: number) => { const r = logLerp(REVENUE, yearOf(m)) / 12; return r < 1000 ? 0 : r; };
 
 /** Market value at points in time, from the IPO on. */
 const MARKET_CAP: [number, number][] = [
@@ -140,6 +140,6 @@ export const histTeams = (m: number) => Math.round(lerp(TEAMS, yearOf(m)));
 const HEADCOUNT: [number, number][] = [[1993.3, 3], [1995, 40], [1996.3, 100], [1996.8, 40], [1999, 300], [2000, 600], [2005, 2100], [2010, 5700], [2015, 9200], [2020, 13700], [2023, 26000], [2025.9, 36000]];
 export const headcount = (m: number) => Math.round(lerp(HEADCOUNT, yearOf(m)));
 /** What the real company spent each month running itself (R&D and everything else): one team's share of it. */
-const OPEX: [number, number][] = [[1993.3, 25e3], [1995, 350e3], [1996.3, 650e3], [1996.8, 320e3], [1997.5, 800e3], [1999, 5e6], [2001, 25e6], [2005, 60e6], [2008, 110e6], [2012, 140e6], [2016, 200e6], [2020, 380e6], [2023, 950e6], [2025.9, 1.6e9]];
+const OPEX: [number, number][] = [[1993.3, 12e3], [1995, 350e3], [1996.3, 650e3], [1996.8, 320e3], [1997.5, 800e3], [1999, 5e6], [2001, 25e6], [2005, 60e6], [2008, 110e6], [2012, 140e6], [2016, 200e6], [2020, 380e6], [2023, 950e6], [2025.9, 1.6e9]];
 export const histOpex = (m: number) => lerp(OPEX, yearOf(m));
 export const teamCost = (m: number) => histOpex(m) / Math.max(1, histTeams(m));

@@ -1,5 +1,5 @@
 import { fresh, type GameState } from '../game/state';
-import { computeBooks, freshNv, type Mode } from './sim';
+import { computeBooks, freshNv, startProject, type Mode } from './sim';
 
 /** April 1993: three founders, $40K, one small office with one lab. */
 export function nvStart(mode: Mode): GameState {
@@ -20,6 +20,8 @@ export function nvStart(mode: Mode): GameState {
   s.goal = 999;
   s.trust = 70;
   s.nv = freshNv(mode);
+  s.nv.stake = 1;
+  if (mode === 'choices') startProject(s.nv, 0, 'safe');
   s.nv.books = computeBooks(s.nv, 0, 1, s.trust, mode === 'story');
   return s;
 }

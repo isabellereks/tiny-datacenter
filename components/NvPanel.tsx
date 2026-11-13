@@ -66,7 +66,7 @@ function ChipsTab({ s, dispatch }: { s: GameState; dispatch: (a: Action) => void
           <span className="label">Next: {next.name}</span>
           {p ? (
             <div className="deal tight">
-              <div className="deal-row static"><b>{GENS[p.gen].name}</b><span>{Math.round((p.progress / p.need) * 100)}%</span><span className="num">{eta === null ? 'No teams' : `~${eta} mo`}</span></div>
+              <div className="deal-row static"><b>{GENS[p.gen].name}</b><span>{Math.round((p.progress / p.need) * 100)}%</span><span className="num">{eta === null ? 'No teams' : `${eta} mo left`}</span></div>
               <div className="deal-sub">
                 <span>{p.bet === 'bold' ? 'Bold design' : 'Safe design'}</span>
                 <span>Real launch {dateOf(next.at)}</span>
