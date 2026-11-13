@@ -767,7 +767,8 @@ export class Engine {
     (u.uAccent.value as THREE.Color).set(s.look.accent);
     // gaps smaller than a couple of stitches aren't worth a line
     u.uDepthEdge.value = Math.max(0.35, (this.upc / this.camera.zoom) * 2);
-    this.weave.uniforms.uNight.value = s.phase === 'play' ? nightOf(s.month) * 0.8 : 0;
+    // the chip company stays in daylight: cleaner on a light page
+    this.weave.uniforms.uNight.value = s.phase === 'play' && !s.nv ? nightOf(s.month) * 0.8 : 0;
     this.render();
 
     this.saveClock += dt;

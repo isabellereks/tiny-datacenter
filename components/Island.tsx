@@ -280,7 +280,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
     <div className="expanded">
       <div className="ex-head">
         <div>
-          <span className="day">{dateLabel(s.month)}{s.nv ? ` · ${s.nv.mode === 'story' ? 'Story' : 'Your choices'}` : ` · ${TIERS[s.tier].name}`}</span>
+          <span className="day">{dateLabel(s.month)}{s.nv ? <span className="mode"> · {s.nv.mode === 'story' ? 'Story' : 'Your choices'}</span> : ` · ${TIERS[s.tier].name}`}</span>
           <div className="money"><b><Cash value={s.cash} /></b><Cash className={(s.nv ? s.nv.books.net : l.net) >= 0 ? undefined : 'neg'} value={s.nv ? s.nv.books.net : l.net} perMonth signed /></div>
         </div>
         <div className="ex-side">

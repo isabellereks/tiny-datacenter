@@ -1,7 +1,7 @@
 import { MAX_TECHS } from '../game/data';
 import { techsOn, note, money, type GameState } from '../game/state';
 import { beatDue, happenings } from './beats';
-import { GENS, END_MONTH, dateOf, histGen, histTeams, ym } from './history';
+import { GENS, END_MONTH, calendar, dateOf, histGen, histTeams, ym } from './history';
 import { computeBooks, marketCap, realMarketCap, settleInventory, startProject, tapeoutCost, tapeoutOdds, type NvState } from './sim';
 
 /*
@@ -21,6 +21,7 @@ export function launch(s: GameState, n: NvState, g: number, quality: number) {
   n.gen = g; n.launched = m; n.quality = quality;
   // last generation's chips sell at a discount now
   n.inventory *= 0.7;
+  n.reveal = { gen: g, id: Date.now() };
   const late = m - GENS[g].at;
   news(s, 'Tech news', `NVIDIA launches ${GENS[g].name}`, [GENS[g].what, n.mode === 'story' ? dateOf(m) : late > 1 ? `${late} months later than it really shipped` : late < -1 ? `${-late} months earlier than it really shipped` : 'Right on time']);
 }
@@ -48,9 +49,16 @@ function followHistory(s: GameState, n: NvState) {
   const m = Math.floor(s.month), g = histGen(m);
   if (m >= GENS[0].at && g > n.gen) launch(s, n, g, 1);
   const want = histTeams(m);
-  // enough lab floors for the teams, built on the spot
+  // the campus grows like the real one: a second building in 2008, a third in 2018
+  const y = calendar(m).year;
+  const campus = y >= 2018 ? 3 : y >= 2008 ? 2 : 1;
+  while (s.campus < campus) {
+    s.floors.push({ type: 'lobby', fill: 'cloth', done: true, cost: 0, b: s.campus });
+    s.campus++; s.permits.campus = s.campus - 1;
+  }
+  // enough lab floors for the teams, built on the spot in the newest building
   while (s.floors.filter(f => f.type === 'hall').length * MAX_TECHS < want) {
-    s.floors.push({ type: 'hall', fill: s.floors[1]?.fill ?? 'cloth', done: true, cost: 0, b: 0 });
+    s.floors.push({ type: 'hall', fill: s.floors[1]?.fill ?? 'cloth', done: true, cost: 0, b: s.campus - 1 });
   }
   const labs = s.floors.map((f, i) => ({ f, i })).filter(o => o.f.type === 'hall');
   while (s.workers.length < want) {

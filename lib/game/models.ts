@@ -127,7 +127,33 @@ function plant(p: P, x: number, y: number, z: number, k = 1) {
 
 function interior(s: GameState, g: THREE.Group, type: FloorType, w: number, i: number, anim: Animated) {
   const zb = -FD / 2, top = FH - 0.2;
-  if (type === 'hall') {
+  if (type === 'hall' && s.nv) {
+    // an engineering lab: desks with monitors, and a test bench with a board under a scope
+    const n = Math.max(2, Math.floor((w - 1.4) / 2.2)), sp = (w - 1.4) / n;
+    for (let k = 0; k < n; k++) {
+      const x = -w / 2 + 0.7 + sp * (k + 0.5);
+      if (k === n - 1) {
+        box(g, sp * 0.85, 0.08, 1.1, 'surf', x, 0.9, zb + 1);
+        for (const dx of [-0.4, 0.4]) box(g, 0.08, 0.86, 0.08, 'dark', x + dx * sp, 0.45, zb + 0.6);
+        box(g, sp * 0.5, 0.05, 0.6, '#3E6E00', x - 0.1, 0.97, zb + 1.05);
+        for (const dx of [-0.2, 0, 0.2]) box(g, 0.14, 0.06, 0.14, INK, x - 0.1 + dx, 1.03, zb + 1.05);
+        box(g, 0.5, 0.42, 0.4, SLATE, x + sp * 0.3, 1.15, zb + 0.75);
+        anim.leds.push(box(g, 0.32, 0.24, 0.03, '#76B900', x + sp * 0.3, 1.17, zb + 0.96));
+        continue;
+      }
+      box(g, sp * 0.85, 0.08, 1, 'light', x, 0.85, zb + 0.9);
+      for (const dx of [-0.4, 0.4]) box(g, 0.07, 0.81, 0.07, 'dark', x + dx * sp, 0.42, zb + 0.55);
+      box(g, 0.9, 0.62, 0.06, INK, x, 1.3, zb + 0.6);
+      box(g, 0.12, 0.3, 0.12, 'dark', x, 1.02, zb + 0.6);
+      anim.leds.push(box(g, 0.78, 0.48, 0.03, '#76B900', x, 1.31, zb + 0.64));
+      box(g, 0.5, 0.06, 0.18, SLATE, x, 0.92, zb + 1.05);
+      // a chair
+      box(g, 0.5, 0.08, 0.5, SLATE, x, 0.5, zb + 1.7);
+      box(g, 0.5, 0.5, 0.08, SLATE, x, 0.78, zb + 1.95);
+      box(g, 0.06, 0.45, 0.06, 'dark', x, 0.25, zb + 1.7);
+    }
+    box(g, w - 1, 0.06, 0.8, 'light', 0, top - 0.05, zb + 1.4);
+  } else if (type === 'hall') {
     // rows of racks with status lights, fed by an overhead cable tray
     const n = perRow(s, i), sp = (w - 1.4) / n;
     for (let k = 0; k < n; k++) {

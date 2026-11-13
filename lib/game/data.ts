@@ -89,7 +89,7 @@ export const COOL_MW = 10;
 
 export const LOCS: Record<LocKey, Location> = {
   dalles: {
-    name: 'The Dalles, Oregon', short: 'Oregon', note: 'Cheap power. Lots of trees.',
+    name: 'Santa Clara, California', short: 'Santa Clara', note: 'Silicon Valley.',
     land: 150_000, power: 60, pue: 1.2, water: 1, waterPrice: 1.5,
     propertyTax: 0.003, incomeTax: 0.286, demand: 1, carbon: 0.1, coolCost: 0.85, grid: 30, queue: 18, trees: 26,
     taxNote: 'Almost no property tax.',

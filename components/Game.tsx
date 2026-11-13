@@ -12,6 +12,7 @@ import { Island, type Tab } from './Island';
 import { News, storyFor, type Story } from './News';
 import { NvSetup } from './NvSetup';
 import { NvGoal } from './NvGoal';
+import { NvReveal } from './NvReveal';
 import { Share } from './Share';
 import { HoverLabel } from './HoverLabel';
 import { Call } from './Call';
@@ -274,6 +275,7 @@ export default function Game() {
       {bubble && <div key={bubble.id} className="bubble" style={{ left: bubble.x, top: bubble.y }}>{bubble.text}</div>}
       {phase === 'play' && s.party && <Party key={s.party.id} id={s.party.id} text={s.party.text} font={pixel.className} />}
       {phase === 'play' && s.briefing && <Briefing s={s} dispatch={dispatch} />}
+      {phase === 'play' && s.nv?.reveal && !s.complaint && !s.briefing && <NvReveal s={s} dispatch={dispatch} font={pixel.className} />}
       {phase === 'play' && !s.briefing && s.report && <Report key={s.report.label} s={s} dispatch={dispatch} />}
       {phase === 'play' && s.call && <Call key={s.call.id} call={s.call} dispatch={dispatch} font={pixel.className} />}
       {sharing && (

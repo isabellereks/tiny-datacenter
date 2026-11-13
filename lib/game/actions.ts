@@ -49,6 +49,7 @@ export type Action =
   | { type: 'nvPrice'; level: number }
   | { type: 'nvSupply'; level: number }
   | { type: 'nvRaise' }
+  | { type: 'nvRevealSeen' }
   | { type: 'poachRival' }
   | { type: 'claim'; id: string; how: 'settle' | 'fix' }
   | { type: 'lawyers'; on: boolean }
@@ -336,6 +337,9 @@ export function apply(s: GameState, a: Action): Effects {
       return {};
     case 'nvSupply':
       if (s.nv) s.nv.supply = Math.max(0, Math.min(2, a.level));
+      return {};
+    case 'nvRevealSeen':
+      if (s.nv) s.nv.reveal = null;
       return {};
     case 'nvRaise': {
       const n = s.nv;

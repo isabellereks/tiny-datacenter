@@ -50,6 +50,8 @@ export interface NvState {
   prepaid?: number;
   /** the founders' share of the company after every round of funding */
   stake?: number;
+  /** a chip launch on stage, until it's been seen */
+  reveal?: { gen: number; id: number } | null;
 }
 
 export const has = (n: NvState, f: string) => n.flags.includes(f);
