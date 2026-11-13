@@ -1,4 +1,5 @@
 import { record } from './legal';
+import { NV_DECISIONS } from '../nv/beats';
 import { EU, FOUND_ORDER, FOUNDS, LOCS, type FoundKey, type LocKey } from './data';
 import { breakRooms, breaksNeeded, STAFF_DECISIONS } from './staff';
 import { STRAT_DECISIONS } from './strategy';
@@ -383,7 +384,7 @@ export const DECISIONS: Decision[] = [
 ];
 
 /** Every decision that can pop up: government, utilities and your own staff. */
-export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS, ...STRAT_DECISIONS, ...EVENT_DECISIONS];
+export const ALL_DECISIONS = (): Decision[] => [...DECISIONS, ...STAFF_DECISIONS, ...STRAT_DECISIONS, ...EVENT_DECISIONS, ...NV_DECISIONS()];
 
 export const decisionCost = (s: GameState, c: GovChoice) => (c.cost ? c.cost(s) : 0);
 

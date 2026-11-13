@@ -11,6 +11,8 @@ import { answerCall } from './calls';
 import { poachRival } from './rival';
 import { fixClaim, LAWYER_COST, settleEarly } from './legal';
 import { buyToy, ceoOf } from './ceo';
+import { nvStart } from '../nv/start';
+import { raiseCut, raiseSize, startProject } from '../nv/sim';
 import { hallForTech, buildCost, buildingCost, buildMonths, crewFreeAt, noCrew, queueFull, fitGen, REPEAT_WAIT, solarCount, turbineCount, unitCost, hasLaw, floorLabel, ownerName, floorPrice, fresh, heightOf, hireFee, ledger, money, maxBuildings, needsBuyout, isBroken, note, setupCost, today, type GameState, type PermitKey, type Upgrades } from './state';
 
 export type Action =
@@ -42,6 +44,11 @@ export type Action =
   | { type: 'report' }
   | { type: 'endDeal'; id: number }
   | { type: 'seenTab' }
+  | { type: 'nvStart'; mode: 'choices' | 'story' }
+  | { type: 'nvProject'; bet: 'safe' | 'bold' }
+  | { type: 'nvPrice'; level: number }
+  | { type: 'nvSupply'; level: number }
+  | { type: 'nvRaise' }
   | { type: 'poachRival' }
   | { type: 'claim'; id: string; how: 'settle' | 'fix' }
   | { type: 'lawyers'; on: boolean }
@@ -319,6 +326,27 @@ export function apply(s: GameState, a: Action): Effects {
       if (s.phase !== 'play') return {};
       poachRival(s, ledger(s));
       return {};
+    case 'nvStart':
+      return { replace: nvStart(a.mode), rebuild: true, refit: true, layout: true, home: true };
+    case 'nvProject':
+      if (s.nv && s.nv.mode === 'choices') startProject(s.nv, Math.floor(s.month), a.bet);
+      return {};
+    case 'nvPrice':
+      if (s.nv) s.nv.price = Math.max(0, Math.min(2, a.level));
+      return {};
+    case 'nvSupply':
+      if (s.nv) s.nv.supply = Math.max(0, Math.min(2, a.level));
+      return {};
+    case 'nvRaise': {
+      const n = s.nv;
+      if (!n || (s.cooldown['nv-raise'] ?? 0) > s.month) return {};
+      const amt = raiseSize(n, Math.floor(s.month), s.cash);
+      s.cash += amt;
+      n.stake = (n.stake ?? 0.6) * raiseCut(n);
+      s.cooldown['nv-raise'] = s.month + 12;
+      note(s, `Raised ${money(amt)}`);
+      return {};
+    }
     case 'seenTab':
       s.newTab = null;
       return {};

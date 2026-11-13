@@ -10,7 +10,8 @@ import { EndCard } from './EndCard';
 import { GoalCard } from './GoalCard';
 import { Island, type Tab } from './Island';
 import { News, storyFor, type Story } from './News';
-import { SetupCard } from './SetupCard';
+import { NvSetup } from './NvSetup';
+import { NvGoal } from './NvGoal';
 import { Share } from './Share';
 import { HoverLabel } from './HoverLabel';
 import { Call } from './Call';
@@ -46,7 +47,7 @@ export default function Game() {
   const activityTimer = useRef<number | undefined>(undefined);
   const [, setTick] = useState(0);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>('build');
+  const [tab, setTab] = useState<Tab>('chips');
   const [activity, setActivity] = useState<string | null>(null);
   const [cardH, setCardH] = useState(260);
   const [goalH, setGoalH] = useState(0);
@@ -116,7 +117,7 @@ export default function Game() {
         const s = stateRef.current;
         if (!s || s.phase === 'over') return;
         dispatch({ type: 'select', floor });
-        if (s.phase === 'play') { setOpen(true); setTab('floor'); }
+        if (s.phase === 'play') { setOpen(true); setTab(s.nv ? 'team' : 'floor'); }
       },
       onPickFoundation: found => dispatch({ type: 'found', found }),
       onFirstInteraction: () => {
@@ -252,7 +253,7 @@ export default function Game() {
       <div className="stage" ref={hostRef} />
       {phase === 'play' && <Ticks month={Math.floor(s.month)} net={(s.books ?? l).net} roof={() => engineRef.current?.roofOnScreen(0) ?? null} />}
       {phase === 'play' && <Timers s={s} roof={roof} />}
-      {phase === 'setup' && <SetupCard s={s} dispatch={dispatch} onHeight={setCardH} stampFont={pixel.className} />}
+      {phase === 'setup' && <NvSetup s={s} dispatch={dispatch} onHeight={setCardH} />}
       {phase === 'over' && !ended && s.over && <News s={s} story={storyFor(s, s.over.reason)} full font={pixel.className} />}
       {/* one thing at a time: the news waits while a letter, briefing or new tier is on screen */}
       {phase === 'play' && flash && !s.complaint && !s.briefing && s.tierUp === null && <News s={s} story={flash} full={false} font={pixel.className} />}
@@ -263,7 +264,7 @@ export default function Game() {
           onResetView={() => engineRef.current?.resetView()} onShare={() => setSharing(true)} onPanel={onPanel}
         />
       )}
-      {phase === 'play' && !open && !flash && !s.complaint && <GoalCard s={s} onHeight={setGoalH} dispatch={dispatch} font={pixel.className} />}
+      {phase === 'play' && !open && !flash && !s.complaint && (s.nv ? <NvGoal s={s} onHeight={setGoalH} /> : <GoalCard s={s} onHeight={setGoalH} dispatch={dispatch} font={pixel.className} />)}
       {phase === 'play' && s.tierUp !== null && !s.briefing && <TierUp s={s} dispatch={dispatch} font={pixel.className} />}
       {phase === 'play' && s.complaint && !s.call && !s.briefing && s.tierUp === null && <Letter key={s.complaint} s={s} imp={imp} dispatch={dispatch} font={pixel.className} />}
       {ended && <EndCard s={s} onAgain={startOver} onHeight={setCardH} onShare={() => setSharing(true)} />}

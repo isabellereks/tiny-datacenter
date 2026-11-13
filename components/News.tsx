@@ -1,13 +1,14 @@
 'use client';
 
+import { marketCap, realMarketCap } from '@/lib/nv/sim';
 import { LOCS } from '@/lib/game/data';
 import { impact } from '@/lib/game/events';
-import { dateLabel, locals, ownerName, siteName, type GameState } from '@/lib/game/state';
+import { dateLabel, locals, money, ownerName, siteName, type GameState } from '@/lib/game/state';
 
 export interface Story { tag: string; headline: string; ticker: string[] }
 
 /** What the news says when you lose, or when a complaint makes the paper. */
-export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'carbon' | 'blackout' | 'jobs'): Story {
+export function storyFor(s: GameState, kind: 'town' | 'broke' | 'done' | 'protest' | 'carbon' | 'blackout' | 'jobs'): Story {
   const owner = ownerName(s), site = siteName(s), imp = impact(s);
   const where = LOCS[s.loc].name;
   switch (kind) {
@@ -22,7 +23,16 @@ export function storyFor(s: GameState, kind: 'town' | 'broke' | 'protest' | 'car
           `${s.tally.ignored} ${s.tally.ignored === 1 ? 'complaint' : 'complaints'} ignored`,
         ],
       };
+    case 'done': {
+      const n = s.nv, cap = n ? marketCap(n, Math.floor(s.month), s.cash) : 0;
+      return {
+        tag: 'Business news',
+        headline: cap >= 5e12 ? `${site} ends 2025 worth ${money(cap)}` : `${site} ends 2025 at ${money(cap)}`,
+        ticker: [`The real NVIDIA: ${money(realMarketCap(Math.floor(s.month)))}`, `CEO ${owner} in the leather jacket`, `Peak value ${money(n?.peakCap ?? 0)}`],
+      };
+    }
     case 'broke':
+      if (s.nv) return { tag: 'Breaking news', headline: `${site} runs out of money`, ticker: [`CEO ${owner} misses payroll three months running`, `It's ${dateLabel(s.month)}`, 'The chips stay on the drawing board'] };
       return {
         tag: 'Breaking news',
         headline: `${site} goes bankrupt`,

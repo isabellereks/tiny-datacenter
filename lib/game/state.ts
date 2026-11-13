@@ -6,6 +6,8 @@ import {
 
 /** `b` is which building on the campus the floor is in (older saves: 0). */
 import type { Call } from './calls';
+import { dateOf } from '../nv/history';
+import { breakCostNv, hireCostNv, labCostNv } from '../nv/costs';
 
 /** A quarter's statement: what came in, what went out, and the change in cash. */
 export interface QuarterReport {
@@ -175,7 +177,9 @@ export interface GameState {
   tally: Tally;
   /** last full month's books */
   books: Ledger | null;
-  over: { reason: 'town' | 'broke'; t0: number; done: boolean } | null;
+  over: { reason: 'town' | 'broke' | 'done'; t0: number; done: boolean } | null;
+  /** the chip company: see lib/nv */
+  nv?: import('../nv/sim').NvState;
   /** laws and deals in force, each until a month (1e9 means for good) */
   laws: Law[];
   /** how far each permit has been approved */
@@ -270,7 +274,8 @@ export interface Ledger {
   onsite: number; chipValue: number;
 }
 
-const KEY = 'tiny-datacenter-v5';
+// the chip company saves apart from the datacenter game
+const KEY = 'tiny-nvidia-v1';
 
 /** Price of a floor: taller floors cost a little more to build. */
 /** A floor's price: halls by the MW they hold, cooling dearer in hot places, and higher floors cost a little more. */
@@ -379,7 +384,7 @@ export const payroll = (s: GameState) =>
 export const VISA_FEE = 10_000;
 /** Recruiting gets harder as you hire more; overseas hires also pay the first year's visa. */
 // an overseas agency recruits for less than a local search; the visa is on top
-export const hireFee = (s: GameState, abroad = false) => today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) * (abroad ? 0.35 : 1) + (abroad ? VISA_FEE : 0));
+export const hireFee = (s: GameState, abroad = false) => s.nv ? hireCostNv(s) : today(s, HIRE_FEE * (1 + 0.15 * s.workers.length) * (abroad ? 0.35 : 1) + (abroad ? VISA_FEE : 0));
 
 /** What the AI market pays compared to normal. */
 export const MARKET_MULT = { normal: 1, boom: 1.3, glut: 0.65 } as const;
@@ -407,8 +412,7 @@ export function money(n: number): string {
   return `${sign}$${Math.round(a)}`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const dateLabel = (month: number) => `${MONTHS[Math.floor(month) % 12]}, year ${Math.floor(month / 12) + 1}`;
+export const dateLabel = (month: number) => dateOf(month);
 
 export const landCost = (loc: LocKey, found: FoundKey) => LOCS[loc].land * FOUNDS[found].acres;
 
@@ -488,7 +492,7 @@ export const today = (s: GameState, base: number) => Math.round(base * inflation
 
 /** Sales tax breaks on equipment knock about 5% off new floors. */
 export const taxBreak = (s: GameState) => (hasLaw(s, 'vaExempt') || hasLaw(s, 'azExempt') ? 0.95 : 1);
-export const buildCost = (s: GameState) => Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld), CHIPS[fitGen(s)].mw)) * taxBreak(s));
+export const buildCost = (s: GameState) => s.nv ? (s.next === 'break' ? breakCostNv(s) : labCostNv(s)) : Math.round(today(s, floorPrice(s.loc, s.next, heightOf(s, s.bld), CHIPS[fitGen(s)].mw)) * taxBreak(s));
 // ---------- the campus: several buildings side by side, each with its own stack of floors ----------
 
 /** Buildings that fit on this location's lot (never more than 3). */
@@ -692,9 +696,10 @@ export function simulate(s: GameState, realDt: number, monthSeconds: number, spe
   // game time runs at the chosen speed; people still walk at their own pace
   const dt = realDt * speed;
   if (s.phase === 'play') {
-    const l = ledger(s);
-    s.cash += (l.net * dt) / monthSeconds;
-    s.tally.profit += (l.net * dt) / monthSeconds;
+    // the chip company keeps its own books; see lib/nv
+    const net = s.nv ? s.nv.books.net : ledger(s).net;
+    s.cash += (net * dt) / monthSeconds;
+    s.tally.profit += (net * dt) / monthSeconds;
     const before = Math.floor(s.month);
     s.month += dt / monthSeconds;
     newMonth = Math.floor(s.month) > before;

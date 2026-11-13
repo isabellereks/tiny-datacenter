@@ -25,13 +25,14 @@ import {
   canRefresh, exitFee, fastTrackCost, gridStage, gridAsk, gridBlock, gridDeposit, gridWait, NEED_LABEL, NEED_NOTE, refreshCost,
 } from '@/lib/game/deals';
 import { CLAIMS, LAWYER_COST } from '@/lib/game/legal';
+import { NV_TABS, NvBody, nvValue, nvWarn, type NvTab } from './NvPanel';
 import { ceoOf, hardTimes, HAIRS, SUITS, TOYS, toyCost } from '@/lib/game/ceo';
 import { poachCost, poachMW, poachOdds, poachWait } from '@/lib/game/rival';
 import { BillPanel, FinancePanel } from './Strategy';
 import { Cash, Count } from './Num';
 import { Threads } from './Threads';
 
-export type Tab = 'build' | 'power' | 'legal' | 'ceo' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
+export type Tab = NvTab | 'build' | 'power' | 'legal' | 'floor' | 'deals' | 'crew' | 'money' | 'town' | 'gov' | 'look';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'build', label: 'Build' },
   { key: 'power', label: 'Power' },
@@ -186,6 +187,24 @@ export function Island({ s, l, imp, open, tab, activity, armed, dispatch, onOpen
         <span className="msg">{s.over?.reason === 'town' ? 'The town is tearing it down' : 'Bankrupt'}</span>
       </div>
     );
+  } else if (mode === 'compact' && s.nv) {
+    const w = nvWarn(s);
+    body = (
+      <div className="compact-row">
+      <button className="compact" onClick={open ? onClose : onOpen} aria-label={open ? 'Close controls' : 'Open controls'}>
+        <MonthRing month={s.month} />
+        <span className="day">{dateLabel(s.month)}</span>
+        <Cash className="cash" value={s.cash} />
+        <Cash className={s.nv.books.net >= 0 ? 'rate' : 'rate neg'} value={s.nv.books.net} perMonth signed />
+        <span className="flag value">{nvValue(s)}</span>
+        {w && <span className="flag">{w}</span>}
+      </button>
+      <span className="speeds">
+        <SpeedButton s={s} dispatch={dispatch} />
+        <SkipButton s={s} dispatch={dispatch} />
+      </span>
+      </div>
+    );
   } else if (mode === 'compact') {
     body = (
       <div className="compact-row">
@@ -261,13 +280,13 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
     <div className="expanded">
       <div className="ex-head">
         <div>
-          <span className="day">{dateLabel(s.month)} · {TIERS[s.tier].name}</span>
-          <div className="money"><b><Cash value={s.cash} /></b><Cash className={l.net >= 0 ? undefined : 'neg'} value={l.net} perMonth signed /></div>
+          <span className="day">{dateLabel(s.month)}{s.nv ? ` · ${s.nv.mode === 'story' ? 'Story' : 'Your choices'}` : ` · ${TIERS[s.tier].name}`}</span>
+          <div className="money"><b><Cash value={s.cash} /></b><Cash className={(s.nv ? s.nv.books.net : l.net) >= 0 ? undefined : 'neg'} value={s.nv ? s.nv.books.net : l.net} perMonth signed /></div>
         </div>
         <div className="ex-side">
           <SpeedButton s={s} dispatch={dispatch} />
-          <span className="score">Rating <Count value={r.total} /></span>
-          <button className="close" aria-pressed={tab === 'look'} onClick={() => onTab(tab === 'look' ? 'build' : 'look')} aria-label="Settings" title="Settings and start over">
+          {s.nv ? <span className="score">{nvValue(s)}</span> : <span className="score">Rating <Count value={r.total} /></span>}
+          <button className="close" aria-pressed={tab === 'look'} onClick={() => onTab(tab === 'look' ? (s.nv ? 'chips' : 'build') : 'look')} aria-label="Settings" title="Settings and start over">
             <svg width="14" height="14" viewBox="0 0 7 7" shapeRendering="crispEdges" aria-hidden="true"><path d="M3 0h1v1h1v1h1v1h1v1H6v1H5v1H4v1H3V6H2V5H1V4H0V3h1V2h1V1h1zM3 3v1h1V3z" fill="currentColor" /></svg>
           </button>
           <button className="close" onClick={onClose} aria-label="Close">
@@ -276,7 +295,7 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
         </div>
       </div>
       <div className="tabs" role="tablist">
-        {TABS.filter(t => !LOCKABLE.includes(t.key) || (s.unlocked ?? LOCKABLE).includes(t.key)).map(t => (
+        {(s.nv ? NV_TABS : TABS.filter(t => !LOCKABLE.includes(t.key) || (s.unlocked ?? LOCKABLE).includes(t.key))).map(t => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => { onTab(t.key); if (s.newTab === t.key) dispatch({ type: 'seenTab' }); }}>
             {t.label}{t.key === 'deals' && s.offers.length > 0 && <i className="badge">{s.offers.length}</i>}{s.newTab === t.key && <i className="badge new">New</i>}
           </button>
@@ -284,7 +303,8 @@ function Expanded({ s, l, imp, tab, armed, dispatch, onClose, onTab, onResetView
       </div>
 
       <div className="ex-body" key={tab}>
-        {tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
+        {s.nv && tab !== 'look' && tab !== 'ceo' && <NvBody s={s} tab={tab as NvTab} dispatch={dispatch} />}
+        {!s.nv && tab === 'build' && <BuildTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'power' && <PowerTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'floor' && <FloorTab s={s} l={l} dispatch={dispatch} />}
         {tab === 'deals' && <DealsTab s={s} l={l} dispatch={dispatch} />}

@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CROWD, FD, FH, SETUP_FOUNDS, FW, LOCS, MONTH_SECONDS, SPEEDS, STITCH, type FoundKey, type LocKey } from './data';
 import { checkGoal, endOfMonth, impact } from './events';
 import { ceoOf } from './ceo';
+import { nvMonth } from '../nv/month';
 import { bake, clear, makeCeo, makeCrane, makeFloor, makeFoundation, makePerson, makeRoof, makeScenery, makeTree, makeWorker, mat, townLook, type Animated, type TreeSpot } from './models';
 import { baseY, bOf, busy, buildingX, heightOf, lotSpread, isBroken, jobOn, ledger, level, levelY, signedMW, simulate, tallest, utilization, type GameState } from './state';
 import { capacityMW } from './deals';
@@ -719,7 +720,7 @@ export class Engine {
     const s = this.s;
     const wasOver = s.phase === 'over';
     const { built, newMonth, fixed } = simulate(s, dt, MONTH_SECONDS, s.briefing || s.call || s.complaint || s.tierUp !== null ? 0 : SPEEDS[s.speed] ?? 1);
-    if (newMonth) endOfMonth(s);
+    if (newMonth) { if (s.nv) nvMonth(s); else endOfMonth(s); }
     let changed = built || newMonth || fixed;
     // skipping ahead stops as soon as anything happens
     const stir = `${s.news?.id}|${s.offers.length}|${s.broken.length}|${(s.jobs ?? []).length}|${s.complaint}|${s.call?.id}|${s.briefing}|${s.tierUp}|${s.report?.label}|${s.party?.id}|${s.pitch?.due}`;
@@ -731,7 +732,7 @@ export class Engine {
       if (`${look.homes}|${look.lit}|${look.forSale}|${this.protestSize()}` !== this.townKey) this.rebuild();
     }
     this.goalClock += dt;
-    if (s.phase === 'play' && this.goalClock > 0.5) { this.goalClock = 0; if (checkGoal(s, ledger(s))) changed = true; }
+    if (s.phase === 'play' && !s.nv && this.goalClock > 0.5) { this.goalClock = 0; if (checkGoal(s, ledger(s))) changed = true; }
     if (s.phase === 'over' && !wasOver) {
       this.rebuild();
       this.resetView();
