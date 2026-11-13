@@ -1,3 +1,16 @@
+# tiny datacenter simulator: NVIDIA edition
+
+This branch replays NVIDIA's story, from three founders at a Denny's in April 1993 to $5 trillion in 2025.
+
+- **Two modes.** *Your choices*: the real timeline, but you design the chips, order wafers, set prices and make every big call. *Story*: it runs the way it really happened, and each decision letter shows only the call that was made.
+- **Measured against the real company.** Real revenue, how it split across markets (PC gaming, workstations, consoles, mobile and cars, crypto, data center), gross margin, headcount and the market's price-to-sales are the baseline. Make the same calls on the same schedule and you track the real NVIDIA; ship late, skip CUDA or the deep learning bet, or pass on the Xbox, and you fall behind it.
+- **Chips.** Each generation (NV1 through Blackwell and Rubin) takes team-months of design. Safe designs tape out more often; bold ones are 15% better when they work. A failed tape-out is a respin: new masks and more months. A generation behind halves your sales.
+- **Supply.** Order wafers tight, matched or ample against demand. Unsold chips pile up and get written down when the next generation ships or crypto crashes.
+- **The beats.** VC money, the Sega deal and NV1's curved surfaces, the 1996 layoffs, the emulator, the IPO, the Xbox, 3dfx, GeForce FX, CUDA, the laptop chip failures, AlexNet, the first DGX-1, crypto, Mellanox, Arm, export controls, ChatGPT and the wafer rush, and the H20 write-off.
+- **Money.** Venture rounds before the IPO and new shares after; each shrinks the founders' stake. Three months in the red and it's over. The game ends after December 2025 against the real company's value.
+
+The datacenter game this was built from is described below.
+
 # tiny datacenter simulator
 
 A simulator game where you build and run a datacenter, floor by floor. It's 3D, drawn as cross-stitch on cloth.
